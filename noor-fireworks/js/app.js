@@ -45,12 +45,13 @@
     const PAUSE = '<svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><rect x="3" y="2" width="3.5" height="12" rx="1"/><rect x="9.5" y="2" width="3.5" height="12" rx="1"/></svg>';
     const PLAY = '<svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M4 2l10 6-10 6z"/></svg>';
     let userPaused = reduce;
+    vid.pause();
     const sync = () => { btn.innerHTML = vid.paused ? PLAY : PAUSE; btn.setAttribute('aria-label', vid.paused ? 'Play video' : 'Pause video'); };
     vid.addEventListener('play', sync); vid.addEventListener('pause', sync);
     btn.addEventListener('click', () => { if (vid.paused) { userPaused = false; vid.play().catch(() => {}); } else { userPaused = true; vid.pause(); } });
     const tryPlay = () => { if (!userPaused) vid.play().catch(() => {}); };
     tryPlay();
-    new IntersectionObserver(e => { if (!e[0].isIntersecting) vid.pause(); else tryPlay(); }).observe(sec);
+    new IntersectionObserver(e => { if (!e[0].isIntersecting) vid.pause(); else tryPlay(); }, { threshold: .25 }).observe($('#vidFig'));
     sync();
 
     /* Brand name formed by sparks: three rockets rise, burst, and their stars settle into the letters */
@@ -108,6 +109,23 @@
     (document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve()).then(() => setTimeout(start, 700));
     addEventListener('resize', () => { if (phase === 0) return; cancelAnimationFrame(raf); phase = 0; g.clearRect(0, 0, W, H); sec.classList.remove('forming'); });
   })();
+
+  /* ---------- 3D hero sky ---------- */
+  const sky = window.Sky3D($('#sky3d'), { palettes: PAL, reduce });
+  sky.start();
+  if (!reduce) $('#top').addEventListener('pointerdown', e => { if (!e.target.closest('a,button')) sky.launchAt(e.clientX, e.clientY); });
+
+  /* ---------- Fireworks scenes in the picture panels ---------- */
+  const SCENES = {
+    special(s) { const { W, H } = s.size(); s.fountain(W * .3, H, 'silver', 4); s.fountain(W * .7, H, 'silver', 4); },
+    finale(s, n) { const { W, H } = s.size(); if (n % 11 === 0) s.launch(W * (.08 + Math.random() * .84), H * (.12 + Math.random() * .3), Math.random() < .4 ? 'willow' : null, null, .9); }
+  };
+  $$('[data-scene]').forEach(cv => {
+    const s = makeSky(cv, .18), fn = SCENES[cv.dataset.scene];
+    if (reduce) { const { W, H } = s.size(); for (let i = 0; i < 30; i++) { fn(s, i * 18); s.step(); } return; }
+    s.run(); let n = 0;
+    setInterval(() => { if (s.visible) fn(s, n++); }, 70);
+  });
 
   /* ---------- Wedding panel ---------- */
   const wed = makeSky($('#wedSky'), .16);
@@ -270,9 +288,8 @@
   /* ---------- Combos ---------- */
   const cg = $('#comboGrid');
   COMBOS.forEach(c => {
-    const a = document.createElement('article'); a.className = 'offer combo';
-    a.style.cssText = `background:${c.bg};color:${c.fg};--fg:${c.fg};--bgc:${c.fg === '#fff' ? 'var(--ink)' : '#fff'}`;
-    a.innerHTML = `<div><h3>${esc(c.n)}</h3><p style="margin-top:8px">${esc(c.d)}</p></div><ul>${c.list.map(x => `<li>${esc(x)}</li>`).join('')}</ul><div class="combo-foot"><b>${fmt(c.pv)}</b><button class="btn" type="button">Add to cart</button></div>`;
+    const a = document.createElement('article'); a.className = 'combo';
+    a.innerHTML = `<div><h3>${esc(c.n)}</h3><p>${esc(c.d)}</p></div><ul class="ticks">${c.list.map(x => `<li>${esc(x)}</li>`).join('')}</ul><div class="combo-foot"><b>${fmt(c.pv)}</b><button class="btn btn-gold" type="button">Add to cart</button></div>`;
     const b = a.querySelector('button');
     b.addEventListener('click', () => addToCart(c.id, b));
     cg.appendChild(a);
@@ -448,6 +465,35 @@
     }
   });
   updateBadge(false);
+
+  /* ---------- Reviews: shown only when real figures are set in config.js ---------- */
+  const RV = window.NOOR.reviews;
+  if (RV && RV.sources && RV.sources.length) {
+    const el = $('#reviews');
+    el.innerHTML = `<div class="wrap rv-in">${RV.customers ? `<p class="rv-big"><b>${esc(RV.customers)}</b> happy customers</p>` : ''}<ul class="rv-list">${RV.sources.map(r => `<li><a href="${esc(r.url || '#')}" target="_blank" rel="noopener"><b>${esc(r.name)}</b><span class="rv-stars" aria-hidden="true" style="--r:${Math.max(0, Math.min(5, r.rating))}"></span><span>Rated ${esc(r.rating)} of 5${r.count ? ` from ${esc(r.count)} reviews` : ''}</span></a></li>`).join('')}</ul></div>`;
+    el.hidden = false;
+  }
+  $('#orderWa').href = waLink(`Assalam o Alaikum ${BIZ.name}, I would like help choosing fireworks.`);
+
+  /* ---------- 3D: cards lean toward the pointer; picture panels turn flat as they scroll in ---------- */
+  if (!reduce && matchMedia('(hover: hover) and (pointer: fine)').matches) {
+    const tiltable = '.card, .combo, .offer, .cat';
+    document.addEventListener('pointermove', e => {
+      const el = e.target.closest(tiltable); if (!el) return;
+      const r = el.getBoundingClientRect(), x = (e.clientX - r.left) / r.width - .5, y = (e.clientY - r.top) / r.height - .5;
+      el.style.setProperty('--rx', `${(-y * 8).toFixed(2)}deg`); el.style.setProperty('--ry', `${(x * 10).toFixed(2)}deg`);
+      el.classList.add('tilting');
+    }, { passive: true });
+    document.addEventListener('pointerout', e => {
+      const el = e.target.closest(tiltable); if (el && !el.contains(e.relatedTarget)) { el.classList.remove('tilting'); el.style.removeProperty('--rx'); el.style.removeProperty('--ry'); }
+    });
+  }
+  if (!reduce) {
+    const panels = $$('.zig-media');
+    panels.forEach(p => p.classList.add('turn'));
+    const io = new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } }), { threshold: .2 });
+    panels.forEach(p => io.observe(p));
+  }
 
   /* ---------- Misc ---------- */
   $('#copyCode').addEventListener('click', e => {

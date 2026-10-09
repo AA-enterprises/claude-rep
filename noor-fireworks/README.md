@@ -1,6 +1,6 @@
 # Noor Fireworks website
 
-A static website for Noor Fireworks: an online fireworks shop with a working cart, plus pages for wedding fireworks, displays, delivery, showrooms, safety and contact. Orders and enquiries are sent to the shop on WhatsApp, so there is no server, database or payment gateway to run.
+A static website for Noor Fireworks, laid out as one long page: a 3D fireworks hero, then alternating text and picture rows (buy online, showrooms, occasions, displays, special options, why choose us, delivery, order today), with the shop, combo packs, safety, FAQ and contact in between. It is an online fireworks shop with a working cart, plus pages for wedding fireworks, displays, delivery, showrooms, safety and contact. Orders and enquiries are sent to the shop on WhatsApp, so there is no server, database or payment gateway to run.
 
 ## Files
 
@@ -9,7 +9,8 @@ A static website for Noor Fireworks: an online fireworks shop with a working car
 | `index.html` | The page |
 | `css/styles.css` | All styling |
 | `js/config.js` | **Business details and the product catalogue. Edit this one.** |
-| `js/fireworks.js` | The fireworks animation engine |
+| `js/fireworks.js` | The 2D fireworks engine used on product cards, category tiles and picture panels |
+| `js/sky3d.js` | The 3D fireworks sky in the hero (moves with the mouse or the phone's tilt) |
 | `js/app.js` | Shop, cart, WhatsApp checkout and page behaviour |
 | `assets/` | Hero video, poster image and favicon |
 
@@ -20,6 +21,7 @@ Open `js/config.js` and replace the placeholders:
 - `phone` and `whatsapp`: your real number. `whatsapp` must be digits only in international format, for example `923001234567`.
 - `email`, `hours` and the three `showrooms`.
 - Prices, stock (`st`: `ok`, `few`, `pre` or `out`) and products as needed.
+- `reviews`: leave it as `null` until you have **real** figures (for example your Google rating). The reviews strip stays hidden until then.
 
 The phone number and email also appear in `index.html` (in the structured data block in `<head>`); update them there too so search engines show the right details.
 

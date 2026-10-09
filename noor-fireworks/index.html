@@ -3,9 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Noor Fireworks | Fireworks shop, wedding fireworks and displays in Pakistan</title>
-<meta name="description" content="Buy cakes, rockets, fountains, sparklers and smoke online with delivery across Pakistan. Wedding fireworks, professional displays and special effects by a licensed crew. 18+ only.">
-<meta name="theme-color" content="#1b1240">
+<title>Noor Fireworks | Buy fireworks online in Pakistan</title>
+<meta name="description" content="Buy cakes, rockets, fountains, sparklers and smoke online with delivery across Pakistan. Showrooms in Karachi, Lahore and Islamabad. Wedding fireworks and professional displays by a licensed crew. 18+ only.">
+<meta name="theme-color" content="#08070c">
 <meta property="og:type" content="website">
 <meta property="og:title" content="Noor Fireworks">
 <meta property="og:description" content="Fireworks delivered across Pakistan, plus wedding fireworks and professional displays.">
@@ -14,14 +14,14 @@
 <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;800;900&family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap">
 <link rel="stylesheet" href="css/styles.css">
-<link rel="preload" as="image" href="assets/hero-poster.jpg">
 <script type="application/ld+json">
 {"@context":"https://schema.org","@type":"Store","name":"Noor Fireworks","description":"Consumer fireworks, wedding fireworks and professional displays in Pakistan.","telephone":"+92 300 0000000","email":"hello@noorfireworks.pk","image":"assets/hero-poster.jpg","priceRange":"PKR 650 – PKR 92,000","areaServed":"PK","address":{"@type":"PostalAddress","streetAddress":"Korangi Industrial Area","addressLocality":"Karachi","addressCountry":"PK"},"openingHours":"Mo-Sa 10:00-19:00"}
 </script>
 <script src="js/config.js" defer></script>
 <script src="js/fireworks.js" defer></script>
+<script src="js/sky3d.js" defer></script>
 <script src="js/app.js" defer></script>
 </head>
 <body>
@@ -35,7 +35,7 @@
   <div class="wrap head-row">
     <a href="#top" class="logo" aria-label="Noor Fireworks home">
       <span class="mark"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><g stroke="#fff" stroke-width="2" stroke-linecap="round"><path d="M12 2v5M12 17v5M2 12h5M17 12h5M5 5l3.5 3.5M15.5 15.5L19 19M19 5l-3.5 3.5M8.5 15.5L5 19"/></g></svg></span>
-      <span>Noor<small>Fireworks</small></span>
+      <span class="logo-word">Noor<small>Fireworks</small></span>
     </a>
     <label class="search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg><input type="search" id="q" placeholder="Search cakes, rockets, sparklers…" aria-label="Search products"></label>
     <div class="head-tools">
@@ -48,12 +48,13 @@
     <div class="wrap">
       <label class="search m"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg><input type="search" id="q2" placeholder="Search fireworks…" aria-label="Search products"></label>
       <ul class="nav-row">
-        <li style="--c:var(--magenta-deep)"><button type="button" aria-haspopup="true">Shop fireworks ▾</button><div class="mega" id="mega"></div></li>
-        <li style="--c:var(--red)"><a href="#offers" class="hotlink">Special offers</a></li>
-        <li style="--c:var(--teal)"><a href="#shop" data-cat="Low noise">Low noise</a></li>
-        <li style="--c:var(--violet)"><a href="#weddings">Weddings</a></li>
-        <li style="--c:var(--blue)"><a href="#services">Displays &amp; services</a></li>
-        <li style="--c:var(--orange-ink)"><a href="#help">Help</a></li>
+        <li><button type="button" aria-haspopup="true">Shop fireworks ▾</button><div class="mega" id="mega"></div></li>
+        <li><a href="#offers" class="hotlink">Special offers</a></li>
+        <li><a href="#shop" data-cat="Low noise">Low noise</a></li>
+        <li><a href="#displays">Weddings &amp; displays</a></li>
+        <li><a href="#showrooms">Showrooms</a></li>
+        <li><a href="#delivery">Delivery</a></li>
+        <li><a href="#help">Help</a></li>
       </ul>
     </div>
   </nav>
@@ -61,130 +62,192 @@
 
 <main id="main">
 <section class="vhero" id="top" aria-label="Noor Fireworks">
-  <img class="poster" src="assets/hero-poster.jpg" alt="">
-  <video id="heroVid" muted loop playsinline preload="metadata" poster="assets/hero-poster.jpg" aria-hidden="true">
-    <source src="assets/hero.webm" type="video/webm">
-    <source src="assets/hero.mp4" type="video/mp4">
-  </video>
+  <canvas id="sky3d" aria-hidden="true"></canvas>
   <div class="shade"></div>
   <canvas id="nameFx" aria-hidden="true"></canvas>
   <div class="wrap vh-in">
     <span class="kicker"><i></i>New Year 2027 stock has landed</span>
     <h1 class="brand" id="brand">NOOR<span>FIREWORKS</span></h1>
-    <p class="lede">Light up the night, your way. Cakes, rockets, fountains and sparklers delivered across Pakistan, plus wedding fireworks and professional displays. Sold to adults 18+.</p>
-    <div class="hero-cta"><a href="#shop" class="btn btn-sun">Shop fireworks</a><a href="#categories" class="btn btn-line">Browse categories</a></div>
+    <p class="lede">Cakes, rockets, fountains and sparklers delivered across Pakistan, plus wedding fireworks and professional displays. Sold to adults 18+.</p>
+    <div class="hero-cta"><a href="#shop" class="btn btn-gold">Shop fireworks</a><a href="#displays" class="btn btn-line">Book a display</a></div>
     <p class="codepill">15% off everything with <b id="codeTxt">MELA15</b><button type="button" id="copyCode">Copy code</button></p>
   </div>
-  <div class="vctl"><button type="button" id="vidBtn" aria-label="Pause video"></button></div>
+  <p class="hint" aria-hidden="true">Move your mouse or tilt your phone to look around</p>
 </section>
 
-<div class="trust">
-  <div class="wrap trust-in">
-    <div class="t"><i style="background:var(--magenta)"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" aria-hidden="true"><path d="M12 3l2.6 5.6 6 .7-4.5 4.1 1.2 6L12 16.5 6.7 19.4l1.2-6L3.4 9.3l6-.7z"/></svg></i><p><b>Every batch test-fired</b><span>Before it reaches the shelf</span></p></div>
-    <div class="t"><i style="background:var(--saffron)"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" aria-hidden="true"><path d="M3 7h11v9H3zM14 10h4l3 3v3h-7"/><circle cx="7" cy="18" r="1.6"/><circle cx="17" cy="18" r="1.6"/></svg></i><p><b>Nationwide delivery</b><span>Karachi next day</span></p></div>
-    <div class="t"><i style="background:var(--teal)"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" aria-hidden="true"><path d="M4 10h16v10H4zM2 6h20v4H2zM12 6v14M12 6c-2-4-6-3-5 0M12 6c2-4 6-3 5 0"/></svg></i><p><b>Free sparkler pack</b><span>On orders over PKR 25,000</span></p></div>
-    <div class="t"><i style="background:var(--blue)"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" aria-hidden="true"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/><path d="M8.5 12l2.5 2.5 4.5-5"/></svg></i><p><b>Licensed display crew</b><span>For weddings and events</span></p></div>
+<!-- 1. Buy online: text left, picture right -->
+<section class="zig" id="intro">
+  <div class="wrap zig-in">
+    <div class="zig-copy">
+      <h2>Buy fireworks online in Pakistan</h2>
+      <p>Noor Fireworks sells consumer fireworks for every celebration, from a pack of phuljhari for the kids to a 100-shot finale cake for the rooftop. Every product shows its shot count, how long it lasts and how far back to stand, so you know what you are buying before it arrives.</p>
+      <p>Order online, send your list on WhatsApp, or collect from one of our three showrooms. Every batch is test-fired before it reaches the shelf.</p>
+      <div class="zig-cta"><a href="#shop" class="btn btn-gold">Browse best sellers</a><a href="#categories" class="btn btn-line">Shop by category</a></div>
+    </div>
+    <figure class="zig-media video" id="vidFig">
+      <video id="heroVid" muted loop playsinline preload="metadata" poster="assets/hero-poster.jpg" aria-label="Fireworks bursting over a night sky">
+        <source src="assets/hero.webm" type="video/webm">
+        <source src="assets/hero.mp4" type="video/mp4">
+      </video>
+      <button type="button" class="vbtn" id="vidBtn" aria-label="Pause video"></button>
+    </figure>
   </div>
-</div>
+</section>
 
-<section class="sec night" id="categories">
+<!-- 2. Showrooms: picture left, text right -->
+<section class="zig alt" id="showrooms">
+  <div class="wrap zig-in rev">
+    <div class="zig-copy">
+      <h2>Visit our showrooms in Karachi, Lahore &amp; Islamabad</h2>
+      <p>Come and see the range before you buy. Every showroom plays product videos on a big screen, so you can watch each cake and fountain fire before you choose. Staff help you plan a show for your space and budget, and you can collect your order the same day.</p>
+      <p>Shopkeepers and event planners can ask for trade prices at any showroom.</p>
+    </div>
+    <div class="zig-media rooms" id="rooms"></div>
+  </div>
+</section>
+
+<!-- 3. Occasions + categories -->
+<section class="zig" id="categories">
   <div class="wrap">
-    <div class="head">
-      <h2>What are you lighting up?</h2>
-      <p>Twelve ranges, from a pack of phuljhari for the kids to finale cakes for the rooftop.</p>
+    <div class="zig-in top">
+      <div class="zig-copy">
+        <h2>Fireworks for every occasion</h2>
+        <p>Whatever you are celebrating, we stock the right fireworks for it, in sizes for a courtyard, a rooftop or a farmhouse lawn.</p>
+      </div>
+      <ul class="occasions">
+        <li><b>Weddings</b><span>Baraat entries, mehndi nights and rukhsati finales</span></li>
+        <li><b>Eid &amp; Shab-e-Barat</b><span>Sparklers, wheels and fountains for the family</span></li>
+        <li><b>14 August</b><span>Green and white smoke, cakes and rockets</span></li>
+        <li><b>New Year</b><span>Finale cakes and rockets for midnight</span></li>
+        <li><b>Birthdays &amp; gender reveals</b><span>Cold sparks and pink or blue smoke</span></li>
+        <li><b>Corporate events</b><span>Launches and galas, fired by our crew</span></li>
+      </ul>
     </div>
     <div class="cats" id="cats"></div>
   </div>
 </section>
 
-<section class="sec tight" id="offers">
+<section class="band" id="offers">
   <div class="wrap">
-    <div class="head"><h2>More bang for your rupee.</h2></div>
+    <h2 class="band-title">Special offers</h2>
     <div class="offers">
-      <article class="offer o1"><div><p class="kick" style="color:var(--ink)">Buy one, get one free</p><h3>On every 16 and 25-shot cake</h3></div><p>Add two cakes to your cart and the cheaper one is free. Mix and match any colours. Applied automatically.</p><a href="#shop" class="btn btn-ink" data-cat="Cakes &amp; barrages">Shop cakes</a></article>
-      <article class="offer o2"><div><p class="kick" style="color:#fff">Combo packs</p><h3>Ready-made shows in a box</h3></div><p>Rooftop, Courtyard and Grand Finale packs with a printed firing order. From PKR 14,500.</p><a href="#combos" class="btn">See combo packs</a></article>
-      <article class="offer o3"><div><p class="kick" style="color:#fff">Low noise range</p><h3>All colour, less boom</h3></div><p>Fountains, wheels and quiet cakes for homes with kids, elders or pets.</p><a href="#shop" class="btn" data-cat="Low noise">Shop low noise</a></article>
+      <article class="offer"><p class="offer-tag">Buy one, get one free</p><h3>On every 16 and 25-shot cake</h3><p>Add two to your cart and the cheaper one is free. Applied automatically.</p><a href="#shop" class="btn btn-gold" data-cat="Cakes &amp; barrages">Shop cakes</a></article>
+      <article class="offer"><p class="offer-tag">Combo packs</p><h3>Ready-made shows in a box</h3><p>Rooftop, Courtyard and Grand Finale packs with a printed firing order. From PKR 14,500.</p><a href="#combos" class="btn btn-line">See combo packs</a></article>
+      <article class="offer"><p class="offer-tag">Low noise range</p><h3>All colour, less boom</h3><p>Fountains, wheels and quiet cakes for homes with children, elders or pets.</p><a href="#shop" class="btn btn-line" data-cat="Low noise">Shop low noise</a></article>
     </div>
   </div>
 </section>
 
-<section class="sec shop" id="shop">
+<section class="sec" id="shop">
   <div class="wrap">
-    <div class="head"><h2>Customer favourites this season.</h2><p>Every product lists its shot count, duration and how far back to stand. Press Watch to see the effect.</p></div>
+    <div class="head"><h2>Best sellers this season</h2><p>Every product lists its shot count, duration and how far back to stand. Press Watch to see the effect.</p></div>
     <div class="bar"><div class="pills" id="pills" role="group" aria-label="Filter by category"></div>
       <label for="sort" class="sr">Sort products</label>
       <select id="sort"><option value="pop">Sort: Best sellers</option><option value="asc">Price: low to high</option><option value="desc">Price: high to low</option><option value="off">Biggest discount</option></select>
     </div>
     <p class="status" id="status" aria-live="polite"></p>
     <div class="grid" id="grid"></div>
-    <div class="more"><button class="btn btn-ink" type="button" id="showAll">Show all products</button></div>
+    <div class="more"><button class="btn btn-line" type="button" id="showAll">Show all products</button></div>
   </div>
 </section>
 
-<section class="sec" id="combos">
+<section class="sec tight" id="combos">
   <div class="wrap">
-    <div class="head"><h2>Pick a box, light the night.</h2><p>Each pack is matched to run as one show: an opener, colour in the middle, and a finale.</p></div>
-    <div class="offers three" id="comboGrid"></div>
+    <div class="head"><h2>Combo packs</h2><p>Each pack is matched to run as one show: an opener, colour in the middle, and a finale.</p></div>
+    <div class="combos" id="comboGrid"></div>
   </div>
 </section>
 
-<section class="sec tight" id="weddings">
+<!-- 4. Displays: picture left, text right -->
+<section class="zig alt" id="displays">
+  <div class="wrap zig-in rev">
+    <div class="zig-copy">
+      <h2>Stunning professional firework displays</h2>
+      <p>Planning a wedding, a corporate launch or a New Year party? Our licensed crew designs the show, files the permits, sets up on the day and fires everything electronically, so you and your guests can simply watch.</p>
+      <ul class="ticks">
+        <li>A cue-by-cue show plan and preview video, timed to your music</li>
+        <li>Cold sparkler entries that are safe inside halls and marquees</li>
+        <li>Gold willow finales for the rukhsati</li>
+        <li>Permits, fire brigade standby and clean-up the next morning</li>
+      </ul>
+      <p class="from">Wedding packages from PKR 85,000</p>
+      <div class="zig-cta"><a href="#contact" class="btn btn-gold" data-type="Wedding display">Check your date</a><a href="#contact" class="btn btn-line" data-type="Professional display">Get a display quote</a></div>
+    </div>
+    <figure class="zig-media scene"><canvas id="wedSky" aria-hidden="true"></canvas><figcaption>A gold willow finale, the most requested wedding effect</figcaption></figure>
+  </div>
+</section>
+
+<!-- 5. Special options: text left, picture right -->
+<section class="zig" id="services">
+  <div class="wrap zig-in">
+    <div class="zig-copy">
+      <h2>Special fireworks options</h2>
+      <p>Some celebrations need something different. These ranges and services are planned for exactly that.</p>
+      <ul class="ticks links">
+        <li><a href="#shop" data-cat="Low noise">Low noise fireworks</a> for homes with children, elders or pets</li>
+        <li><a href="#shop" data-cat="Ice fountains">Indoor ice fountains</a> with cold sparks for stages and halls</li>
+        <li><a href="#shop" data-cat="Gender reveal">Gender reveal smoke</a> in pink or blue</li>
+        <li><a href="#contact" data-type="Special effects">Stage effects</a>: coloured smoke, confetti and CO2 jets</li>
+        <li><a href="#contact" data-type="Training day">Fireworks training day</a>, held monthly in Karachi, PKR 6,000 per person</li>
+        <li><a href="#contact" data-type="Wholesale order">Wholesale and trade</a> carton prices, 12% to 25% off</li>
+      </ul>
+    </div>
+    <figure class="zig-media scene"><canvas data-scene="special" aria-hidden="true"></canvas><figcaption>Cold spark fountains, safe for indoor stages</figcaption></figure>
+  </div>
+</section>
+
+<!-- 6. Why choose us -->
+<section class="zig alt" id="why">
   <div class="wrap">
-    <div class="wed">
-      <div class="wed-art"><canvas id="wedSky" aria-hidden="true"></canvas></div>
-      <div class="wed-copy">
-        <p class="kick">Wedding fireworks</p>
-        <h2>Your baraat entry, your rukhsati finale.</h2>
-        <p>We plan, set up and fire everything, so your family can enjoy the night. If the wind turns, our crew moves the firing point. You never have to think about it.</p>
-        <ul class="fxchips">
-          <li style="--c:var(--magenta-deep)">Coloured smoke</li>
-          <li style="--c:var(--saffron);--t:var(--ink)">Cold sparkler entry</li>
-          <li style="--c:var(--teal)">Synced to your song</li>
-          <li style="--c:var(--blue)">Gold willow finale</li>
-          <li style="--c:var(--violet)">Confetti blasts</li>
-        </ul>
-        <p class="from">Packages from PKR 85,000</p>
-        <div class="hero-cta"><a href="#contact" class="btn btn-hot" data-type="Wedding display">Check your date</a></div>
+    <div class="zig-in top">
+      <div class="zig-copy">
+        <h2>Why choose Noor Fireworks?</h2>
+        <p>We are a family fireworks business that cares about a safe, memorable night as much as a fair price.</p>
       </div>
+      <ul class="reasons">
+        <li><b>Every batch test-fired</b><span>We fire samples from each shipment before it goes on sale.</span></li>
+        <li><b>Honest product details</b><span>Shot count, duration and safe distance on every item.</span></li>
+        <li><b>Licensed display crew</b><span>Certified operators for weddings and events.</span></li>
+        <li><b>Licensed couriers</b><span>Sealed cartons, carried only by couriers licensed for fireworks.</span></li>
+      </ul>
     </div>
   </div>
 </section>
 
-<section class="sec" id="services">
+<!-- 7. Delivery -->
+<section class="zig" id="delivery">
   <div class="wrap">
-    <div class="head"><h2>More than a shop.</h2><p>Our licensed crew plans and fires shows of every size, from a mehndi to a city skyline.</p></div>
-    <div class="svc">
-      <article class="s" style="--c:var(--blue)"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 2v6M12 8l-4 4M12 8l4 4M5 22h14M7 22l2-8h6l2 8"/></svg></span><h3>Professional displays</h3><p>Corporate launches, New Year and 14 August shows, fired electronically by our licensed crew.</p><a href="#contact" class="lnk" data-type="Professional display">Get a quote</a></article>
-      <article class="s" style="--c:var(--magenta-deep)"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 20c2-6 4-9 8-9s6 3 8 9M8 7a2 2 0 1 0 0-.1M16 5a2 2 0 1 0 0-.1M12 3v2M18 9l2-1M4 8l2 1"/></svg></span><h3>Special effects</h3><p>Coloured smoke, cold spark fountains, confetti and CO2 jets for stages, mehndis and concerts.</p><a href="#contact" class="lnk" data-type="Special effects">Plan your effects</a></article>
-      <article class="s" style="--c:var(--teal)"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 9l9-5 9 5-9 5z"/><path d="M7 11v5c3 2 7 2 10 0v-5"/></svg></span><h3>Fireworks training day</h3><p>Learn to set up, wire and fire a small show safely. Held monthly in Karachi. PKR 6,000 per person.</p><a href="#contact" class="lnk" data-type="Training day">Reserve a seat</a></article>
-      <article class="s" style="--c:var(--orange-ink)"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 7h18v13H3zM8 7V4h8v3M3 12h18"/></svg></span><h3>Wholesale &amp; trade</h3><p>Carton prices for shops and distributors, 12% to 25% off. Book early for Shab-e-Barat and New Year.</p><a href="#contact" class="lnk" data-type="Wholesale order">Get the price list</a></article>
+    <div class="zig-in top">
+      <div class="zig-copy">
+        <h2>No showroom nearby? We deliver!</h2>
+        <p>We deliver to Karachi, Lahore, Islamabad, Rawalpindi, Faisalabad, Multan, Peshawar and Hyderabad. Karachi orders arrive within 24 hours; other cities take 2 to 4 working days.</p>
+      </div>
+      <ol class="steps">
+        <li><h3>Send your order</h3><p>Fill your cart and press Send order on WhatsApp.</p></li>
+        <li><h3>Pay an advance</h3><p>Half now, half on delivery.</p><div class="pay"><span>Easypaisa</span><span>JazzCash</span><span>Bank transfer</span></div></li>
+        <li><h3>Send the receipt</h3><p>WhatsApp us a screenshot. We confirm within an hour.</p></li>
+        <li><h3>We deliver</h3><p>Sealed cartons, to your door.</p></li>
+      </ol>
     </div>
   </div>
 </section>
 
-<section class="sec deliv" id="delivery">
-  <div class="wrap">
-    <div class="head"><h2>How your order reaches you.</h2><p>We ship only with couriers licensed to carry fireworks, packed in sealed cartons.</p></div>
-    <ol class="steps">
-      <li><h3>Send your order</h3><p>Fill your cart and press Send order on WhatsApp. Your list arrives with us in one message.</p></li>
-      <li><h3>Pay an advance</h3><p>Half now, half on delivery. Full advance for wholesale.</p><div class="pay"><span>Easypaisa</span><span>JazzCash</span><span>Bank transfer</span></div></li>
-      <li><h3>Send the receipt</h3><p>WhatsApp us a screenshot and we confirm within an hour.</p></li>
-      <li><h3>We deliver</h3><p>Karachi in 24 hours. Other cities in 2 to 4 working days.</p></li>
-    </ol>
+<!-- 8. Order today -->
+<section class="order-cta" id="order">
+  <canvas data-scene="finale" aria-hidden="true"></canvas>
+  <div class="wrap order-in">
+    <h2>Order fireworks online today</h2>
+    <p>Fill your cart, send it on WhatsApp, and we reply with the delivery charge and payment details. Have a question first? Message us and we will help you choose.</p>
+    <div class="zig-cta"><a href="#shop" class="btn btn-gold">Start shopping</a><a class="btn btn-line" id="orderWa" href="https://wa.me/923000000000" target="_blank" rel="noopener">Ask on WhatsApp</a></div>
   </div>
 </section>
 
-<section class="sec" id="showrooms">
-  <div class="wrap">
-    <div class="head"><h2>See it, then light it.</h2><p>Visit a showroom to watch product videos on the big screen and collect your order the same day.</p></div>
-    <div class="rooms" id="rooms"></div>
-  </div>
-</section>
+<section class="reviews" id="reviews" hidden></section>
 
-<section class="sec tight" id="help">
+<section class="sec" id="help">
   <div class="wrap split">
     <div class="safety">
-      <h2>Six rules for a happy night.</h2>
+      <h2>Six rules for a happy night</h2>
       <ol>
         <li>Read the label and the distance printed on every item.</li>
         <li>Light at arm's length, then walk back straight away.</li>
@@ -211,7 +274,7 @@
   <div class="wrap c-in">
     <div>
       <h2>Planning something big?</h2>
-      <p style="color:var(--ink-2);margin-top:14px;max-width:40ch">Tell us the date and venue. We reply within one working day with ideas and a price.</p>
+      <p class="c-lede">Tell us the date and venue. We reply within one working day with ideas and a price.</p>
       <div class="c-list">
         <div><span>Call or WhatsApp</span><a data-tel href="tel:+923000000000" data-phone>+92 300 0000000</a></div>
         <div><span>Email</span><a data-email href="mailto:hello@noorfireworks.pk">hello@noorfireworks.pk</a></div>
@@ -233,9 +296,9 @@
 <footer>
   <div class="wrap">
     <div class="f-grid">
-      <div><a href="#top" class="logo"><span class="mark"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><g stroke="#fff" stroke-width="2" stroke-linecap="round"><path d="M12 2v5M12 17v5M2 12h5M17 12h5M5 5l3.5 3.5M15.5 15.5L19 19M19 5l-3.5 3.5M8.5 15.5L5 19"/></g></svg></span>Noor</a><p style="margin-top:14px;max-width:32ch">Consumer fireworks, wedding displays and special effects, delivered across Pakistan.</p><span class="age">18+ only</span></div>
+      <div><a href="#top" class="logo"><span class="mark"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><g stroke="#fff" stroke-width="2" stroke-linecap="round"><path d="M12 2v5M12 17v5M2 12h5M17 12h5M5 5l3.5 3.5M15.5 15.5L19 19M19 5l-3.5 3.5M8.5 15.5L5 19"/></g></svg></span><span class="logo-word">Noor<small>Fireworks</small></span></a><p class="f-about">Consumer fireworks, wedding displays and special effects, delivered across Pakistan.</p><span class="age">18+ only</span></div>
       <div><h4>Shop</h4><ul id="footCats"></ul></div>
-      <div><h4>Services</h4><ul><li><a href="#weddings">Wedding fireworks</a></li><li><a href="#services">Professional displays</a></li><li><a href="#services">Special effects</a></li><li><a href="#services">Training day</a></li><li><a href="#services">Wholesale &amp; trade</a></li></ul></div>
+      <div><h4>Services</h4><ul><li><a href="#displays">Wedding fireworks</a></li><li><a href="#displays">Professional displays</a></li><li><a href="#services">Special effects</a></li><li><a href="#services">Training day</a></li><li><a href="#services">Wholesale &amp; trade</a></li></ul></div>
       <div><h4>Help</h4><ul><li><a href="#help">FAQs</a></li><li><a href="#delivery">Delivery information</a></li><li><a href="#showrooms">Showroom locations</a></li><li><a href="#help">Safety guide</a></li><li><a href="#contact">Contact us</a></li></ul></div>
     </div>
     <div class="legal"><span>© <span id="yr">2026</span> Noor Fireworks. All rights reserved.</span><span>Sold to adults only. Follow local laws and the safety label on every item.</span></div>

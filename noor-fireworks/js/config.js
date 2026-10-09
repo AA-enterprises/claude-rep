@@ -19,6 +19,12 @@ window.NOOR = {
     freeGift: 'Free sparkler pack'
   },
 
+  /*
+    Reviews strip near the bottom of the page. Stays hidden until you fill it in with REAL figures,
+    for example: { customers: '2,000+', sources: [{ name: 'Google', rating: 4.8, count: 312, url: 'https://g.page/...' }] }
+  */
+  reviews: null,
+
   cities: ['Karachi', 'Lahore', 'Islamabad', 'Rawalpindi', 'Faisalabad', 'Multan', 'Peshawar', 'Hyderabad', 'Other city'],
 
   showrooms: [

@@ -76,7 +76,7 @@
         }
         for (let i = sp.length - 1; i >= 0; i--) {
           const p = sp[i];
-          if (p.flash) { ctx.fillStyle = `rgba(255,240,220,${p.l * .22})`; ctx.beginPath(); ctx.arc(p.x, p.y, 60 * p.l, 0, 7); ctx.fill(); p.l -= .08; if (p.l <= 0) sp.splice(i, 1); continue; }
+          if (p.flash) { ctx.fillStyle = `rgba(255,240,220,${p.l * .1})`; ctx.beginPath(); ctx.arc(p.x, p.y, 36 * p.l, 0, 7); ctx.fill(); p.l -= .08; if (p.l <= 0) sp.splice(i, 1); continue; }
           if (p.tl) { p.t.push(p.x, p.y); if (p.t.length > p.tl * 2) p.t.splice(0, 2); }
           p.vx *= p.dr; p.vy = p.vy * p.dr + p.g; p.x += p.vx; p.y += p.vy; p.l -= p.d;
           if (p.split && p.l < .55) { fx.peony(p.x, p.y, p.split, .35); p.l = 0; }
