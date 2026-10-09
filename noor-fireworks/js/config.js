@@ -12,6 +12,12 @@ window.NOOR = {
     hours: 'Mon–Sat, 10 am to 7 pm'
   },
 
+  /* Social pages. Paste the full link to your page; leave '' to hide an icon. */
+  social: {
+    instagram: 'https://www.instagram.com/',
+    facebook: 'https://www.facebook.com/'
+  },
+
   promo: {
     code: 'MELA15',
     percent: 15,
@@ -28,9 +34,8 @@ window.NOOR = {
   cities: ['Karachi', 'Lahore', 'Islamabad', 'Rawalpindi', 'Faisalabad', 'Multan', 'Peshawar', 'Hyderabad', 'Other city'],
 
   showrooms: [
-    { city: 'Karachi', area: 'Korangi Industrial Area', hours: 'Mon–Sat, 10 am to 8 pm', phone: '+92 300 0000000', color: 'var(--magenta)' },
-    { city: 'Lahore', area: 'Shah Alam Market', hours: 'Mon–Sat, 11 am to 8 pm', phone: '+92 300 0000001', color: 'var(--saffron)' },
-    { city: 'Islamabad', area: 'I-9 Markaz', hours: 'Mon–Sat, 11 am to 7 pm', phone: '+92 300 0000002', color: 'var(--teal)' }
+    { city: 'Karachi', area: 'Korangi Industrial Area, Karachi', hours: 'Mon–Sat, 10 am to 8 pm', phone: '+92 300 0000000',
+      map: 'https://www.google.com/maps/search/?api=1&query=Korangi+Industrial+Area+Karachi' }
   ],
 
   /* [name, short description, tile colour, effect, palette, dark text?] */
@@ -74,12 +79,5 @@ window.NOOR = {
     { id: 'wireless-12', n: '12-cue wireless firer', k: 'Firing systems', q: '12 cues', d: '200 m range', x: 'Remote', pv: 14000, was: 16500, st: 'few', fx: 'crossette', c: 'mix', bg: '#1b1240', pop: 3 },
     { id: 'willow-6', n: 'Gold willow shell, 6″', k: 'Big fireworks', q: '12 per case', d: '6 s', x: '130 m', pv: 0, st: 'ok', pro: 1, fx: 'willow', c: 'gold', bg: '#1a0c2e', pop: 2 },
     { id: 'peony-4', n: 'Mix peony shell, 4″', k: 'Big fireworks', q: '24 per case', d: '2.5 s', x: '85 m', pv: 0, st: 'ok', pro: 1, fx: 'peony', c: 'red', bg: '#2a0a1c', pop: 1 }
-  ],
-
-  /* Ready-made shows in a box */
-  combos: [
-    { id: 'combo-rooftop', n: 'Rooftop pack', d: 'For a birthday or small family night. About 4 minutes.', pv: 14500, bg: 'var(--magenta)', fg: '#fff', list: ['20 sparklers', '4 fountains', '4 roman candles', '1 × 16-shot cake'] },
-    { id: 'combo-courtyard', n: 'Courtyard pack', d: 'For a mehndi, Eid night or 14 August. About 9 minutes.', pv: 38000, bg: 'var(--saffron)', fg: 'var(--ink)', list: ['40 sparklers', '8 colour fountains', '10 roman candles', '2 × 49-shot cakes', '4 green & white smokes'] },
-    { id: 'combo-finale', n: 'Grand Finale pack', d: 'For a farmhouse wedding or New Year. About 15 minutes.', pv: 92000, bg: 'var(--violet)', fg: '#fff', list: ['4 ice fountains', '12 colour fountains', '4 × 49-shot cakes', '2 × 100-shot finales', 'Free firing crew in Karachi'] }
   ]
 };

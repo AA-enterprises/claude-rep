@@ -102,7 +102,7 @@
         const s = sparks[i];
         if (s.flash) {
           const p = project(s.x, s.y, s.z);
-          if (p) { ctx.globalAlpha = s.l * .12; ctx.fillStyle = '#fff1d6'; ctx.beginPath(); ctx.arc(p.x, p.y, Math.min(60, 60 * p.k) * s.l + 4, 0, 7); ctx.fill(); }
+          if (p) { ctx.globalAlpha = s.l * .06; ctx.fillStyle = '#fff1d6'; ctx.beginPath(); ctx.arc(p.x, p.y, Math.min(36, 40 * p.k) * s.l + 3, 0, 7); ctx.fill(); }
           s.l -= .07; if (s.l <= 0) sparks.splice(i, 1); continue;
         }
         s.vx *= s.dr; s.vy = s.vy * s.dr - s.g; s.vz *= s.dr;

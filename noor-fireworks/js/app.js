@@ -1,6 +1,7 @@
 /* Noor Fireworks: page behaviour, shop and cart. Data lives in config.js. */
 (function () {
-  const { business: BIZ, promo: PROMO, cities: CITIES, showrooms: ROOMS, categories: CATS, items: ITEMS, combos: COMBOS } = window.NOOR;
+  const { business: BIZ, social: SOCIAL = {}, promo: PROMO, cities: CITIES, showrooms: ROOMS, categories: CATS, items: ITEMS } = window.NOOR;
+  document.documentElement.classList.add('js');
   const { PAL, makeSky, play, RATE } = window.Fireworks;
   const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
   const $ = s => document.querySelector(s);
@@ -27,7 +28,26 @@
   $$('[data-hours]').forEach(el => { el.textContent = BIZ.hours; });
   $('#waFloat').href = waLink(`Assalam o Alaikum ${BIZ.name}, I have a question.`);
   $('#yr').textContent = new Date().getFullYear();
-  $('#rooms').innerHTML = ROOMS.map(r => `<div class="room" style="--c:${r.color}"><h3>${esc(r.city)}</h3><p>${esc(r.area)}</p><p>${esc(r.hours)}</p><a href="tel:${r.phone.replace(/[^\d+]/g, '')}">${esc(r.phone)}</a></div>`).join('');
+  $$('[data-wa]').forEach(el => { el.href = waLink(`Assalam o Alaikum ${BIZ.name}, I have a question.`); });
+  $$('[data-social]').forEach(el => {
+    const url = SOCIAL[el.dataset.social];
+    if (url) el.href = url; else (el.closest('li:not(.nav-social)') || el).hidden = true;
+  });
+  const R0 = ROOMS[0];
+  if (R0) {
+    const tel = 'tel:' + R0.phone.replace(/[^\d+]/g, '');
+    $('#rooms').innerHTML = `<div class="room"><h2>Visit the showroom</h2><div class="room-grid">
+      <div><p class="addr">${esc(R0.area)}</p><p class="room-note">Watch every product fire on the big screen, get help planning a show for your space and budget, and collect your order the same day. Shopkeepers can ask for trade prices.</p>
+        <div class="room-cta">${R0.map ? `<a class="btn btn-solid" href="${esc(R0.map)}" target="_blank" rel="noopener">Get directions</a>` : ''}<a class="btn btn-ghost" href="${tel}">Call the showroom</a></div></div>
+      <dl><div><dt>Hours</dt><dd>${esc(R0.hours)}</dd></div><div><dt>Phone</dt><dd><a href="${tel}">${esc(R0.phone)}</a></dd></div>
+        <div><dt>Follow us</dt><dd class="room-soc">${SOCIAL.instagram ? `<a href="${esc(SOCIAL.instagram)}" target="_blank" rel="noopener">Instagram</a>` : ''}${SOCIAL.facebook ? `<a href="${esc(SOCIAL.facebook)}" target="_blank" rel="noopener">Facebook</a>` : ''}</dd></div></dl>
+    </div></div>`;
+  }
+
+  /* Header gets a backing once the page scrolls */
+  const head = $('#siteHead');
+  const onScroll = () => head.classList.toggle('scrolled', scrollY > 40);
+  addEventListener('scroll', onScroll, { passive: true }); onScroll();
 
   /* ---------- Toast ---------- */
   let toastTimer;
@@ -37,11 +57,9 @@
   }
 
   /* ---------- Video hero ---------- */
-  const BRAND = 'NOOR', SUB = 'FIREWORKS';
+  const BRAND = 'Noor';
   (function videoHero() {
     const sec = $('#top'), vid = $('#heroVid'), btn = $('#vidBtn'), cv = $('#nameFx');
-    const setHH = () => document.documentElement.style.setProperty('--hh', ($('header.site').offsetHeight + ($('.promo') ? $('.promo').offsetHeight : 0)) + 'px');
-    setHH(); addEventListener('resize', setHH);
     const PAUSE = '<svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><rect x="3" y="2" width="3.5" height="12" rx="1"/><rect x="9.5" y="2" width="3.5" height="12" rx="1"/></svg>';
     const PLAY = '<svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M4 2l10 6-10 6z"/></svg>';
     let userPaused = reduce;
@@ -60,26 +78,27 @@
     let W = 0, H = 0, pts = [], stars = [], rockets = [], t0 = 0, t0f = 0, phase = 0, raf = 0;
     function sample() {
       const r = brand.getBoundingClientRect(), s = sec.getBoundingClientRect();
-      const cs = getComputedStyle(brand), fs = parseFloat(cs.fontSize), fam = cs.fontFamily;
+      const cs = getComputedStyle(brand), fs = parseFloat(cs.fontSize);
       const c = document.createElement('canvas'); c.width = Math.ceil(r.width); c.height = Math.ceil(r.height);
       const x = c.getContext('2d');
-      x.fillStyle = '#fff'; x.textAlign = 'center'; x.textBaseline = 'alphabetic';
-      x.font = `800 ${fs}px ${fam}`; x.fillText(BRAND, c.width / 2, fs * .78);
-      const sfs = fs * .28; x.font = `800 ${sfs}px ${fam}`;
-      x.fillText(SUB.split('').join(String.fromCharCode(8202, 8202, 8202)), c.width / 2 + sfs * .16, fs * .86 + sfs * .35 + sfs * .8);
-      const d = x.getImageData(0, 0, c.width, c.height).data, out = [], step = Math.max(3, Math.round(fs / 34));
+      x.font = `${cs.fontWeight} ${fs}px ${cs.fontFamily}`; x.fillStyle = '#fff'; x.textAlign = 'left'; x.textBaseline = 'alphabetic';
+      if ('letterSpacing' in x) x.letterSpacing = cs.letterSpacing;
+      const m = x.measureText(BRAND), fa = m.fontBoundingBoxAscent || fs * .9, fd = m.fontBoundingBoxDescent || fs * .25;
+      const lh = parseFloat(cs.lineHeight) || fs;
+      x.fillText(BRAND, 0, (lh - (fa + fd)) / 2 + fa);
+      const d = x.getImageData(0, 0, c.width, c.height).data, out = [], step = Math.max(3, Math.round(fs / 40));
       for (let y = 0; y < c.height; y += step) for (let xx = 0; xx < c.width; xx += step) if (d[(y * c.width + xx) * 4 + 3] > 140) out.push([r.left - s.left + xx, r.top - s.top + y, y / c.height]);
-      return out;
+      return { pts: out, x0: r.left - s.left, w: r.width };
     }
-    const COL = k => { const a = [[255, 247, 214], [255, 212, 92], [255, 154, 60], [255, 79, 154]]; const f = Math.min(.999, Math.max(0, k)) * (a.length - 1), i = f | 0, u = f - i; return a[i].map((v, j) => Math.round(v + (a[i + 1][j] - v) * u)); };
+    const COL = k => { const a = [[255, 248, 236], [246, 214, 160], [242, 164, 58], [232, 132, 40]]; const f = Math.min(.999, Math.max(0, k)) * (a.length - 1), i = f | 0, u = f - i; return a[i].map((v, j) => Math.round(v + (a[i + 1][j] - v) * u)); };
     function fit() { const dpr = Math.min(devicePixelRatio || 1, 2), r = sec.getBoundingClientRect(); W = r.width; H = r.height; cv.width = W * dpr; cv.height = H * dpr; g.setTransform(dpr, 0, 0, dpr, 0, 0); }
     const ease = t => t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
     function start() {
-      fit(); pts = sample(); if (!pts.length) return;
+      fit(); const smp = sample(); pts = smp.pts; if (!pts.length) return;
       sec.classList.add('forming');
-      const xs = [W * .3, W * .5, W * .7], ty = pts.reduce((a, p) => a + p[1], 0) / pts.length - 20;
+      const xs = [.2, .5, .8].map(f => smp.x0 + smp.w * f), ty = pts.reduce((a, p) => a + p[1], 0) / pts.length - 20;
       rockets = xs.map((x, i) => ({ x: x + (Math.random() - .5) * 40, y: H + 10, tx: x, ty, d: 300 + i * 260, b: false }));
-      stars = pts.map(p => ({ r: rockets[Math.min(2, Math.floor(p[0] / W * 3))], tx: p[0], ty: p[1], k: p[2], a: Math.random() * 6.283, sp: .6 + Math.random() * 1.4, ph: Math.random() * 6.283, x: 0, y: 0 }));
+      stars = pts.map(p => ({ r: rockets[Math.min(2, Math.max(0, Math.floor((p[0] - smp.x0) / smp.w * 3)))], tx: p[0], ty: p[1], k: p[2], a: Math.random() * 6.283, sp: .6 + Math.random() * 1.4, ph: Math.random() * 6.283, x: 0, y: 0 }));
       t0 = performance.now(); phase = 1; cancelAnimationFrame(raf); raf = requestAnimationFrame(frame);
     }
     function frame(now) {
@@ -132,7 +151,7 @@
   if (reduce) { const { W, H } = wed.size(); wed.fx.willow(W * .5, H * .3, PAL.gold, 1.1); wed.still(40); }
   else {
     wed.run();
-    setInterval(() => { if (!wed.visible) return; const { W, H } = wed.size(); wed.launch(W * (.2 + Math.random() * .6), H * (.15 + Math.random() * .2), Math.random() < .5 ? 'willow' : 'peony', Math.random() < .5 ? 'gold' : 'pink', .9); }, 1400);
+    setInterval(() => { if (!wed.visible) return; const { W, H } = wed.size(); const right = W > 800 ? .5 : .1; wed.launch(W * (right + Math.random() * (.9 - right)), H * (.3 + Math.random() * .25), Math.random() < .55 ? 'willow' : 'peony', Math.random() < .6 ? 'gold' : 'pink', W > 800 ? 1.2 : .9); }, 900);
     setInterval(() => { if (!wed.visible) return; const { W, H } = wed.size(); wed.fountain(W * .18, H, 'gold', 3); wed.fountain(W * .82, H, 'gold', 3); }, 70);
   }
 
@@ -152,47 +171,53 @@
   function restFrame(s, kind, pal) {
     s.fit(); const { W, H } = s.size(); if (!W) return;
     const y = baseY(kind, H);
-    if (kind === 'rocket') { s.rocket(W / 2, y, pal); s.still(80); }
+    if (kind === 'rocket') { s.rocket(W / 2, y, pal); s.still(52); }
     else if (RATE[kind]) for (let i = 0; i < 24; i++) { play(s, kind, pal, W / 2, y, i); s.step(); }
     else { play(s, kind, pal, W / 2, y, 0); s.still(22); }
   }
   const resting = [];
-  function fireOnHover(s, kind, pal, el) {
-    const rest = () => restFrame(s, kind, pal);
-    resting.push(rest); requestAnimationFrame(rest);
-    if (reduce) return;
-    let timer = 0, settle = 0, t = 0;
-    const r = RATE[kind] || 900;
-    const start = () => {
-      clearTimeout(settle); if (timer) return;
-      s.paused = false; s.run();
-      const fire = () => { const { W, H } = s.size(); play(s, kind, pal, W / 2, baseY(kind, H), t++); };
-      fire(); timer = setInterval(fire, Math.max(r, 40));
-    };
-    const stop = () => {
-      clearInterval(timer); timer = 0;
-      settle = setTimeout(() => { s.paused = true; rest(); }, 1600);
-    };
-    el.addEventListener('pointerenter', start); el.addEventListener('pointerleave', stop);
-    el.addEventListener('focus', start); el.addEventListener('blur', stop);
-  }
   let restTimer;
   addEventListener('resize', () => { clearTimeout(restTimer); restTimer = setTimeout(() => resting.forEach(f => f()), 200); });
 
-  /* ---------- Categories ---------- */
+  /* ---------- Category index ---------- */
   const state = { cat: 'All', q: '', sort: 'pop', all: false };
-  const mega = $('#mega'), foot = $('#footCats'), catsEl = $('#cats');
-  CATS.forEach(([name, desc, col, kind, pal, dark]) => {
+  const foot = $('#footCats'), catsEl = $('#cats');
+  const canHover = matchMedia('(hover: hover) and (pointer: fine)').matches;
+  const pvEl = $('#catPreview');
+  const pv = canHover && !reduce ? makeSky(pvEl, .2) : null;
+  let pvTimer = 0, pvHide = 0, pvT = 0;
+  function previewStart(kind, pal) {
+    if (!pv) return;
+    clearTimeout(pvHide); clearInterval(pvTimer);
+    pv.fit(); pv.paused = false; pv.run(); pvEl.classList.add('show');
+    const fire = () => { const { W, H } = pv.size(); play(pv, kind, pal, W / 2, baseY(kind, H), pvT++); };
+    fire(); pvTimer = setInterval(fire, Math.max(RATE[kind] || 800, 40));
+  }
+  function previewStop() {
+    if (!pv) return;
+    clearInterval(pvTimer); pvTimer = 0; pvEl.classList.remove('show');
+    pvHide = setTimeout(() => { pv.paused = true; pv.fit(); }, 300);
+  }
+  function previewMove(x, y) {
+    if (!pv) return;
+    const px = Math.min(innerWidth - 316, x + 28), py = Math.max(16, Math.min(innerHeight - 236, y - 110));
+    pvEl.style.transform = `translate(${px}px,${py}px)`;
+  }
+  CATS.forEach(([name, desc, col, kind, pal]) => {
     const n = ITEMS.filter(it => name === 'Low noise' ? it.low : it.k === name).length;
-    const b = document.createElement('button'); b.type = 'button'; b.className = 'cat'; b.style.setProperty('--c', col);
-    b.innerHTML = `<canvas aria-hidden="true"></canvas><em>${n ? `${n} product${n > 1 ? 's' : ''}` : 'Coming soon'}</em><b>${esc(name)}</b><span>${esc(desc)}</span>`;
+    const li = document.createElement('li');
+    li.innerHTML = `<button type="button" class="cat-row"><canvas class="cr-thumb" aria-hidden="true"></canvas><span class="cr-name">${esc(name)}</span><span class="cr-desc">${esc(desc)}</span><span class="cr-n">${n ? `${n} product${n > 1 ? 's' : ''}` : 'Coming soon'}</span></button>`;
+    const b = li.firstChild;
     b.addEventListener('click', () => pickCat(name));
-    catsEl.appendChild(b);
-    fireOnHover(makeSky(b.querySelector('canvas'), .22), kind, pal, b);
-    const a = document.createElement('a'); a.href = '#shop'; a.innerHTML = `<i style="background:${col}"></i>${esc(name)}`;
-    a.addEventListener('click', e => { e.preventDefault(); pickCat(name); }); mega.appendChild(a);
-    const li = document.createElement('li'); li.innerHTML = `<a href="#shop">${esc(name)}</a>`;
-    li.firstChild.addEventListener('click', e => { e.preventDefault(); pickCat(name); }); foot.appendChild(li);
+    b.addEventListener('pointerenter', e => { previewMove(e.clientX, e.clientY); previewStart(kind, pal); });
+    b.addEventListener('pointermove', e => previewMove(e.clientX, e.clientY));
+    b.addEventListener('pointerleave', previewStop);
+    b.addEventListener('focus', () => { if (!pv) return; const r = b.getBoundingClientRect(); previewMove(r.left + r.width * .55, r.top + r.height / 2); previewStart(kind, pal); });
+    b.addEventListener('blur', previewStop);
+    catsEl.appendChild(li);
+    if (!canHover) { const th = makeSky(b.querySelector('canvas'), .22); const rest = () => restFrame(th, kind, pal); resting.push(rest); requestAnimationFrame(rest); }
+    const fl = document.createElement('li'); fl.innerHTML = `<a href="#shop">${esc(name)}</a>`;
+    fl.firstChild.addEventListener('click', e => { e.preventDefault(); pickCat(name); }); foot.appendChild(fl);
   });
   function pickCat(n) { state.cat = n; state.all = true; render(); closeMenu(); scrollToEl($('#shop')); }
   $$('[data-cat]').forEach(a => a.addEventListener('click', () => { state.cat = a.dataset.cat; state.all = true; render(); closeMenu(); }));
@@ -203,7 +228,6 @@
   const BOX_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 8l9-5 9 5v9l-9 5-9-5z"/><path d="M3 8l9 5 9-5M12 13v9"/></svg>';
   const PRODUCTS = {};
   ITEMS.forEach(it => { PRODUCTS[it.id] = it; });
-  COMBOS.forEach(c => { PRODUCTS[c.id] = Object.assign({ combo: 1, k: 'Combo packs', st: 'ok' }, c); });
 
   const grid = $('#grid');
   ITEMS.forEach(it => {
@@ -214,7 +238,7 @@
       : it.st === 'out' ? '<button class="add" type="button" disabled>Sold out</button>'
       : `<button class="add" type="button">${it.st === 'pre' ? 'Pre-order' : 'Add to cart'}</button>`;
     el.innerHTML = `<div class="art" style="--bg:${it.bg}"><canvas aria-hidden="true"></canvas>${flag}${it.low ? '<span class="lown">Low noise</span>' : ''}<button class="watch" type="button" aria-label="Watch ${esc(it.n)}"><svg viewBox="0 0 10 10" aria-hidden="true"><path d="M2 1l7 4-7 4z" fill="currentColor"/></svg>Watch</button></div>
-      <div class="body"><h3>${esc(it.n)}</h3><dl class="specs"><div><dt>Shots</dt><dd>${esc(it.q)}</dd></div><div><dt>Duration</dt><dd>${esc(it.d)}</dd></div><div><dt>Keep back</dt><dd>${esc(it.x)}</dd></div></dl>
+      <div class="body"><h3>${esc(it.n)}</h3><dl class="specs"><div><dt>Size</dt><dd>${esc(it.q)}</dd></div><div><dt>Lasts</dt><dd>${esc(it.d)}</dd></div><div><dt>Keep back</dt><dd>${esc(it.x)}</dd></div></dl>
       <p class="stock ${STK[it.st][1]}">${STK[it.st][0]}</p>
       <div class="buyrow"><span class="p ${it.pro ? 'req' : ''}">${it.was ? `<s>${fmt(it.was)}</s>` : ''}${it.pro ? 'Price on request' : fmt(it.pv)}</span>${btn}</div></div>`;
     grid.appendChild(el);
@@ -233,13 +257,13 @@
     el.querySelector('.watch').addEventListener('click', () => watch(it));
   });
   const empty = document.createElement('div'); empty.className = 'empty'; empty.hidden = true;
-  empty.innerHTML = 'Nothing matches that search. <button class="btn btn-ink" type="button" style="margin-left:8px;padding:10px 14px" id="clearF">Clear filters</button>';
+  empty.innerHTML = 'Nothing matches that search. <button class="btn btn-ghost" type="button" style="margin-left:8px;padding:10px 16px" id="clearF">Clear filters</button>';
   grid.appendChild(empty);
-  $('#clearF').addEventListener('click', () => { state.cat = 'All'; state.q = ''; $('#q').value = ''; $('#q2').value = ''; render(); });
+  $('#clearF').addEventListener('click', () => { state.cat = 'All'; state.q = ''; $('#q').value = ''; render(); });
 
   const pills = $('#pills');
   ['All', ...CATS.map(c => c[0])].forEach(n => {
-    const b = document.createElement('button'); b.type = 'button'; b.className = 'pill'; b.textContent = n;
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'tab'; b.textContent = n;
     b.addEventListener('click', () => { state.cat = n; state.all = n !== 'All' || state.all; render(); });
     pills.appendChild(b);
   });
@@ -256,16 +280,13 @@
     list.slice(0, limit).forEach(it => { it.el.hidden = false; grid.insertBefore(it.el, empty); });
     empty.hidden = list.length > 0;
     $('#showAll').hidden = list.length <= limit; $('#showAll').textContent = `Show all ${list.length} products`;
-    pills.querySelectorAll('.pill').forEach(b => b.setAttribute('aria-pressed', b.textContent === state.cat));
+    pills.querySelectorAll('.tab').forEach(b => b.setAttribute('aria-pressed', b.textContent === state.cat));
     $('#status').textContent = `Showing ${Math.min(limit, list.length)} of ${list.length} products` + (state.cat !== 'All' ? ` in ${state.cat}` : '') + (q ? ` matching "${state.q.trim()}"` : '');
     requestAnimationFrame(() => list.forEach(it => it.s.fit()));
   }
   $('#showAll').addEventListener('click', () => { state.all = true; render(); });
   $('#sort').addEventListener('change', e => { state.sort = e.target.value; render(); });
-  ['#q', '#q2'].forEach(id => $(id).addEventListener('input', e => {
-    state.q = e.target.value; render();
-    if (state.q.length === 1) scrollToEl($('#shop'));
-  }));
+  $('#q').addEventListener('input', e => { state.q = e.target.value; render(); });
   render();
 
   function watch(it) {
@@ -284,16 +305,6 @@
       if (reduce) s.still(30);
     }, reduce ? 0 : i * 380);
   }
-
-  /* ---------- Combos ---------- */
-  const cg = $('#comboGrid');
-  COMBOS.forEach(c => {
-    const a = document.createElement('article'); a.className = 'combo';
-    a.innerHTML = `<div><h3>${esc(c.n)}</h3><p>${esc(c.d)}</p></div><ul class="ticks">${c.list.map(x => `<li>${esc(x)}</li>`).join('')}</ul><div class="combo-foot"><b>${fmt(c.pv)}</b><button class="btn btn-gold" type="button">Add to cart</button></div>`;
-    const b = a.querySelector('button');
-    b.addEventListener('click', () => addToCart(c.id, b));
-    cg.appendChild(a);
-  });
 
   /* ---------- Cart ---------- */
   let cart = store.get('noor-cart', {});            // { id: qty }
@@ -344,7 +355,7 @@
   function renderCart() {
     const t = totals();
     if (!t.lines.length) {
-      body.innerHTML = `<div class="d-empty"><b>Your cart is empty</b><p>Pick a cake, a box of sparklers or a ready-made combo pack.</p><button class="btn btn-hot" type="button" data-go="#shop">Browse fireworks</button></div>`;
+      body.innerHTML = `<div class="d-empty"><b>Your cart is empty</b><p>Pick a cake, a box of sparklers or a pack of rockets.</p><button class="btn btn-hot" type="button" data-go="#shop">Browse fireworks</button></div>`;
       foot2.innerHTML = '';
       return;
     }
@@ -475,36 +486,15 @@
   }
   $('#orderWa').href = waLink(`Assalam o Alaikum ${BIZ.name}, I would like help choosing fireworks.`);
 
-  /* ---------- 3D: cards lean toward the pointer; picture panels turn flat as they scroll in ---------- */
-  if (!reduce && matchMedia('(hover: hover) and (pointer: fine)').matches) {
-    const tiltable = '.card, .combo, .offer, .cat';
-    document.addEventListener('pointermove', e => {
-      const el = e.target.closest(tiltable); if (!el) return;
-      const r = el.getBoundingClientRect(), x = (e.clientX - r.left) / r.width - .5, y = (e.clientY - r.top) / r.height - .5;
-      el.style.setProperty('--rx', `${(-y * 8).toFixed(2)}deg`); el.style.setProperty('--ry', `${(x * 10).toFixed(2)}deg`);
-      el.classList.add('tilting');
-    }, { passive: true });
-    document.addEventListener('pointerout', e => {
-      const el = e.target.closest(tiltable); if (el && !el.contains(e.relatedTarget)) { el.classList.remove('tilting'); el.style.removeProperty('--rx'); el.style.removeProperty('--ry'); }
-    });
-  }
-  if (!reduce) {
-    const panels = $$('.zig-media');
-    panels.forEach(p => p.classList.add('turn'));
-    const io = new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } }), { threshold: .2 });
-    panels.forEach(p => io.observe(p));
-  }
+  /* ---------- Pictures open up as they scroll into view ---------- */
+  const rio = new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) { e.target.classList.add('in'); rio.unobserve(e.target); } }), { threshold: .15 });
+  $$('.reveal').forEach(el => rio.observe(el));
 
   /* ---------- Misc ---------- */
-  $('#copyCode').addEventListener('click', e => {
-    const b = e.currentTarget;
-    const done = () => { b.textContent = 'Copied'; setTimeout(() => { b.textContent = 'Copy code'; }, 1600); };
-    if (navigator.clipboard) navigator.clipboard.writeText(PROMO.code).then(done).catch(selectCode); else selectCode();
-    function selectCode() { const r = document.createRange(); r.selectNodeContents($('#codeTxt')); getSelection().removeAllRanges(); getSelection().addRange(r); toast('Code selected. Copy it from here.'); }
-  });
   const nav = $('#mainNav'), mb = $('#menuBtn');
-  mb.addEventListener('click', () => { const o = nav.classList.toggle('open'); mb.setAttribute('aria-expanded', o); });
-  function closeMenu() { nav.classList.remove('open'); mb.setAttribute('aria-expanded', 'false'); }
+  mb.addEventListener('click', () => { const o = nav.classList.toggle('open'); mb.setAttribute('aria-expanded', o); document.body.classList.toggle('locked', o); });
+  function closeMenu() { nav.classList.remove('open'); mb.setAttribute('aria-expanded', 'false'); document.body.classList.remove('locked'); }
+  addEventListener('keydown', e => { if (e.key === 'Escape' && nav.classList.contains('open')) { closeMenu(); mb.focus(); } });
   nav.querySelectorAll('a').forEach(a => a.addEventListener('click', closeMenu));
 
   function setType(v) { const s = $('#f-type'); [...s.options].forEach(o => { if (o.text === v) s.value = o.value; }); }
