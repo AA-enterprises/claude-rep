@@ -10,8 +10,9 @@
   const scrollToEl = el => el.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth' });
   const waLink = text => `https://wa.me/${BIZ.whatsapp}?text=${encodeURIComponent(text)}`;
   function openWhatsApp(text) {
-    const url = waLink(text), w = window.open(url, '_blank');
-    if (w) w.opener = null; else location.href = url;
+    const a = document.createElement('a');
+    a.href = waLink(text); a.target = '_blank'; a.rel = 'noopener';
+    document.body.appendChild(a); a.click(); a.remove();
   }
   const store = {
     get(k, d) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch (e) { return d; } },
