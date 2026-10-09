@@ -52,3 +52,12 @@ Any static host works. Two free options:
 
 - **Netlify**: drag the `noor-fireworks` folder onto app.netlify.com/drop.
 - **GitHub Pages**: in the repository settings, enable Pages for the `main` branch, then open `/noor-fireworks/`.
+
+## Photos and video
+
+The hero video and the photos in `assets/photos/` are licensed from Adobe Stock (free collection) through the shop owner's Adobe account. They are placeholders for real Noor photography:
+
+- Category tiles use one photo per category (`photos` in `js/config.js`).
+- Each product can show its own photo: add `img: 'assets/products/your-photo.jpg'` to that item in `js/config.js`. Until then a product shows its category photo.
+
+Photos of the real product boxes, the showroom and your own wedding displays will make the site look far more trustworthy than any stock photo.

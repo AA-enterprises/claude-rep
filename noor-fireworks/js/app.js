@@ -1,6 +1,8 @@
 /* Noor Fireworks: page behaviour, shop and cart. Data lives in config.js. */
 (function () {
   const { business: BIZ, promo: PROMO, cities: CITIES, showrooms: ROOMS, categories: CATS, items: ITEMS } = window.NOOR;
+  const PHOTOS = window.NOOR.photos || {};
+  const photoFor = it => it.img || PHOTOS[it.k] || PHOTOS[CATS[0][0]];
   const SOCIAL = window.NOOR.social || {};
   const { PAL, makeSky, play, RATE } = window.Fireworks;
   const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -112,31 +114,10 @@
     addEventListener('resize', () => { if (phase === 0) return; cancelAnimationFrame(raf); phase = 0; g.clearRect(0, 0, W, H); sec.classList.remove('forming'); });
   })();
 
-  /* ---------- 3D hero sky ---------- */
-  const sky = window.Sky3D($('#sky3d'), { palettes: PAL, reduce });
-  sky.start();
-  if (!reduce) $('#top').addEventListener('pointerdown', e => { if (!e.target.closest('a,button')) sky.launchAt(e.clientX, e.clientY); });
-
-  /* ---------- Fireworks scenes in the picture panels ---------- */
-  const SCENES = {
-    special(s) { const { W, H } = s.size(); s.fountain(W * .3, H, 'silver', 4); s.fountain(W * .7, H, 'silver', 4); },
-    finale(s, n) { const { W, H } = s.size(); if (n % 11 === 0) s.launch(W * (.08 + Math.random() * .84), H * (.12 + Math.random() * .3), Math.random() < .4 ? 'willow' : null, null, .9); }
-  };
-  $$('[data-scene]').forEach(cv => {
-    const s = makeSky(cv, .18), fn = SCENES[cv.dataset.scene];
-    if (reduce) { const { W, H } = s.size(); for (let i = 0; i < 30; i++) { fn(s, i * 18); s.step(); } return; }
-    s.run(); let n = 0;
-    setInterval(() => { if (s.visible) fn(s, n++); }, 70);
-  });
-
-  /* ---------- Wedding panel ---------- */
-  const wed = makeSky($('#wedSky'), .16);
-  if (reduce) { const { W, H } = wed.size(); wed.fx.willow(W * .5, H * .3, PAL.gold, 1.1); wed.still(40); }
-  else {
-    wed.run();
-    setInterval(() => { if (!wed.visible) return; const { W, H } = wed.size(); wed.launch(W * (.2 + Math.random() * .6), H * (.15 + Math.random() * .2), Math.random() < .5 ? 'willow' : 'peony', Math.random() < .5 ? 'gold' : 'pink', .9); }, 1400);
-    setInterval(() => { if (!wed.visible) return; const { W, H } = wed.size(); wed.fountain(W * .18, H, 'gold', 3); wed.fountain(W * .82, H, 'gold', 3); }, 70);
-  }
+  /* ---------- Hero video: play while on screen, still frame for reduced motion ---------- */
+  const heroBg = $('#heroBg');
+  if (reduce) { heroBg.removeAttribute('autoplay'); heroBg.pause(); }
+  else new IntersectionObserver(e => { if (e[0].isIntersecting) heroBg.play().catch(() => {}); else heroBg.pause(); }).observe(heroBg);
 
   /* Animate a small sky on a timer while it is on screen */
   function animateTile(s, kind, pal, yFactor, chance, hoverEl) {
@@ -187,10 +168,9 @@
   CATS.forEach(([name, desc, col, kind, pal, dark]) => {
     const n = ITEMS.filter(it => name === 'Low noise' ? it.low : it.k === name).length;
     const b = document.createElement('button'); b.type = 'button'; b.className = 'cat'; b.style.setProperty('--c', col);
-    b.innerHTML = `<canvas aria-hidden="true"></canvas><em>${n ? `${n} product${n > 1 ? 's' : ''}` : 'Coming soon'}</em><b>${esc(name)}</b><span>${esc(desc)}</span>`;
+    b.innerHTML = `${PHOTOS[name] ? `<img src="${esc(PHOTOS[name])}" alt="" loading="lazy">` : ''}<em>${n ? `${n} product${n > 1 ? 's' : ''}` : 'Coming soon'}</em><b>${esc(name)}</b><span>${esc(desc)}</span>`;
     b.addEventListener('click', () => pickCat(name));
     catsEl.appendChild(b);
-    fireOnHover(makeSky(b.querySelector('canvas'), .22), kind, pal, b);
     const a = document.createElement('a'); a.href = '#shop'; a.innerHTML = `<i style="background:${col}"></i>${esc(name)}`;
     a.addEventListener('click', e => { e.preventDefault(); pickCat(name); }); mega.appendChild(a);
     const li = document.createElement('li'); li.innerHTML = `<a href="#shop">${esc(name)}</a>`;
@@ -214,13 +194,11 @@
     const btn = it.pro ? '<button class="add q" type="button">Request a quote</button>'
       : it.st === 'out' ? '<button class="add" type="button" disabled>Sold out</button>'
       : `<button class="add" type="button">${it.st === 'pre' ? 'Pre-order' : 'Add to cart'}</button>`;
-    el.innerHTML = `<div class="art" style="--bg:${it.bg}"><canvas aria-hidden="true"></canvas>${flag}${it.low ? '<span class="lown">Low noise</span>' : ''}<button class="watch" type="button" aria-label="Watch ${esc(it.n)}"><svg viewBox="0 0 10 10" aria-hidden="true"><path d="M2 1l7 4-7 4z" fill="currentColor"/></svg>Watch</button></div>
+    el.innerHTML = `<div class="art"><img src="${esc(photoFor(it))}" alt="" loading="lazy">${flag}${it.low ? '<span class="lown">Low noise</span>' : ''}</div>
       <div class="body"><h3>${esc(it.n)}</h3><dl class="specs"><div><dt>Shots</dt><dd>${esc(it.q)}</dd></div><div><dt>Duration</dt><dd>${esc(it.d)}</dd></div><div><dt>Keep back</dt><dd>${esc(it.x)}</dd></div></dl>
       <p class="stock ${STK[it.st][1]}">${STK[it.st][0]}</p>
       <div class="buyrow"><span class="p ${it.pro ? 'req' : ''}">${it.was ? `<s>${fmt(it.was)}</s>` : ''}${it.pro ? 'Price on request' : fmt(it.pv)}</span>${btn}</div></div>`;
     grid.appendChild(el);
-    it.s = makeSky(el.querySelector('canvas'), .22);
-    animateTile(it.s, it.fx, it.c, .9, .4, el);
     const add = el.querySelector('.add');
     add.addEventListener('click', () => {
       if (it.pro) {
@@ -231,7 +209,6 @@
         toast('Add your licence number and we will send trade prices');
       } else addToCart(it.id, add);
     });
-    el.querySelector('.watch').addEventListener('click', () => watch(it));
   });
   const empty = document.createElement('div'); empty.className = 'empty'; empty.hidden = true;
   empty.innerHTML = 'Nothing matches that search. <button class="btn btn-ink" type="button" style="margin-left:8px;padding:10px 14px" id="clearF">Clear filters</button>';
@@ -259,7 +236,6 @@
     $('#showAll').hidden = list.length <= limit; $('#showAll').textContent = `Show all ${list.length} products`;
     pills.querySelectorAll('.pill').forEach(b => b.setAttribute('aria-pressed', b.textContent === state.cat));
     $('#status').textContent = `Showing ${Math.min(limit, list.length)} of ${list.length} products` + (state.cat !== 'All' ? ` in ${state.cat}` : '') + (q ? ` matching "${state.q.trim()}"` : '');
-    requestAnimationFrame(() => list.forEach(it => it.s.fit()));
   }
   $('#showAll').addEventListener('click', () => { state.all = true; render(); });
   $('#sort').addEventListener('change', e => { state.sort = e.target.value; render(); });

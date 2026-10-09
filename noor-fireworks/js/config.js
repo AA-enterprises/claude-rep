@@ -54,8 +54,25 @@ window.NOOR = {
     ['Low noise', 'All colour, less boom', '#8bd400', 'fountain', 'green', 1]
   ],
 
+  /* Photo for each category tile (and for products that have no photo of their own) */
+  photos: {
+    'Cakes & barrages': 'assets/photos/cakes.jpg',
+    'Rockets': 'assets/photos/rockets.jpg',
+    'Roman candles': 'assets/photos/roman-candles.jpg',
+    'Fountains & mines': 'assets/photos/fountains.jpg',
+    'Wheels': 'assets/photos/wheels.jpg',
+    'Sparklers': 'assets/photos/sparklers.jpg',
+    'Handheld smoke': 'assets/photos/smoke.jpg',
+    'Gender reveal': 'assets/photos/gender-reveal.jpg',
+    'Ice fountains': 'assets/photos/ice-fountains.jpg',
+    'Firing systems': 'assets/photos/firing-systems.jpg',
+    'Big fireworks': 'assets/photos/big-fireworks.jpg',
+    'Low noise': 'assets/photos/fountains.jpg'
+  },
+
   /*
     id: unique, never change once orders use it
+    img: optional photo of the actual product box, for example 'assets/products/night-garden.jpg'
     n: name, k: category, q: size/shots, d: duration, x: keep-back distance
     pv: price (PKR), was: old price, st: ok | few | pre | out
     low: low noise, pro: licensed only (price on request), bogo: part of the cake offer

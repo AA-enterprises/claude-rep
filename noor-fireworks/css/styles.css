@@ -118,8 +118,8 @@ nav.main{border-top:1px solid var(--line)}
 
 /* 3D hero */
 .vhero{position:relative;overflow:hidden;background:radial-gradient(120% 90% at 50% 100%,#2a1240 0%,#120a22 45%,var(--bg) 80%);color:#fff;height:calc(100svh - var(--hh,0px));min-height:580px;max-height:960px;display:grid;cursor:crosshair}
-#sky3d{position:absolute;inset:0;width:100%;height:100%;display:block}
-.vhero .shade{position:absolute;inset:0;pointer-events:none;background:radial-gradient(50% 45% at 50% 46%,rgba(8,7,12,.55) 0%,rgba(8,7,12,0) 75%)}
+.hero-bg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:50% 45%;max-width:none}
+.vhero .shade{position:absolute;inset:0;pointer-events:none;background:radial-gradient(55% 50% at 50% 48%,rgba(8,7,12,.62) 0%,rgba(8,7,12,.25) 70%),linear-gradient(180deg,rgba(8,7,12,.5),rgba(8,7,12,0) 25%,rgba(8,7,12,0) 70%,var(--bg))}
 #nameFx{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:2}
 .vh-in{position:relative;z-index:3;align-self:center;display:grid;justify-items:center;text-align:center;padding-block:40px 120px;pointer-events:none}
 .vh-in>*{pointer-events:auto}
@@ -191,12 +191,13 @@ nav.main{border-top:1px solid var(--line)}
 .cats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:clamp(40px,5vw,64px)}
 .cat{position:relative;border-radius:16px;overflow:hidden;aspect-ratio:16/10;background:linear-gradient(180deg,#221a3d,#0f0c1c);border:1px solid var(--line);color:#fff;display:flex;flex-direction:column;justify-content:flex-end;gap:2px;padding:16px 18px;cursor:pointer;text-align:left;font:inherit}
 .cat:hover,.cat:focus-visible{border-color:var(--gold)}
-.cat canvas{position:absolute;inset:0;width:100%;height:100%}
+.cat img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;max-width:none;transition:transform .8s cubic-bezier(.2,.8,.2,1),filter .4s;filter:saturate(.9) brightness(.82)}
+.cat:hover img{transform:scale(1.06);filter:saturate(1.05) brightness(.95)}
 .cat::before{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(15,12,28,0) 35%,rgba(15,12,28,.9) 100%);pointer-events:none;z-index:1}
 .cat b,.cat span,.cat em{position:relative;z-index:2}
 .cat b{font:800 24px/1 var(--display);text-transform:uppercase}
 .cat span{font-size:13px;color:var(--muted)}
-.cat em{position:absolute;top:14px;right:16px;font:600 12px/1 var(--body);font-style:normal;color:var(--muted);font-variant-numeric:tabular-nums}
+.cat em{position:absolute;top:12px;right:12px;font:600 12px/1 var(--body);font-style:normal;color:var(--text);background:rgba(8,7,12,.66);padding:6px 9px;border-radius:999px;backdrop-filter:blur(4px);font-variant-numeric:tabular-nums}
 @media (max-width:1060px){.cats{grid-template-columns:repeat(3,1fr)}}
 @media (max-width:640px){.cats{grid-template-columns:repeat(2,1fr);gap:10px}.cat{aspect-ratio:1/1;padding:12px 14px}.cat b{font-size:20px}.cat span{font-size:12px}}
 
@@ -229,7 +230,8 @@ nav.main{border-top:1px solid var(--line)}
 .card{position:relative;background:var(--surface);border:1px solid var(--line);border-radius:18px;overflow:hidden;display:grid;grid-template-rows:auto 1fr;min-width:0}
 .card:hover{border-color:#4a4260}
 .art{position:relative;aspect-ratio:4/3;max-width:100%;background:var(--bg)}
-.art canvas{position:absolute;inset:0;width:100%;height:100%}
+.art img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;max-width:none;transition:transform .8s cubic-bezier(.2,.8,.2,1)}
+.card:hover .art img{transform:scale(1.05)}
 .flag{position:absolute;top:12px;left:12px;font:800 13px/1 var(--body);background:var(--sale);color:#fff;padding:7px 10px;border-radius:8px}
 .flag.lic{background:var(--text);color:var(--bg)}
 .flag.bogo{background:var(--gold);color:var(--gold-ink)}
@@ -288,7 +290,9 @@ nav.main{border-top:1px solid var(--line)}
 
 /* Order banner */
 .order-cta{position:relative;overflow:hidden;padding-block:clamp(88px,12vw,160px);background:radial-gradient(80% 90% at 50% 100%,#3a1550 0%,#160b28 50%,var(--bg) 100%);text-align:center}
-.order-cta canvas{position:absolute;inset:0;width:100%;height:100%}
+.order-bg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;max-width:none;opacity:.42}
+.order-cta::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,var(--bg),rgba(8,7,12,.2) 40%,rgba(8,7,12,.5) 75%,var(--bg))}
+.order-in{z-index:2}
 .order-in{position:relative;z-index:1;display:grid;justify-items:center;gap:18px}
 .order-in h2{font-size:clamp(52px,8.4vw,120px);max-width:12ch}
 .order-in p{color:#e3dced;max-width:56ch;font-size:17px}

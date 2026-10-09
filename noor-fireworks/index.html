@@ -21,7 +21,6 @@
 </script>
 <script src="js/config.js" defer></script>
 <script src="js/fireworks.js" defer></script>
-<script src="js/sky3d.js" defer></script>
 <script src="js/app.js" defer></script>
 </head>
 <body>
@@ -64,7 +63,7 @@
 
 <main id="main">
 <section class="vhero" id="top" aria-label="Noor Fireworks">
-  <canvas id="sky3d" aria-hidden="true"></canvas>
+  <video class="hero-bg" id="heroBg" muted loop playsinline autoplay preload="auto" poster="assets/hero-gold.jpg" aria-hidden="true"><source src="assets/hero-gold.mp4" type="video/mp4"></video>
   <div class="shade"></div>
   <canvas id="nameFx" aria-hidden="true"></canvas>
   <div class="wrap vh-in">
@@ -74,7 +73,6 @@
     <div class="hero-cta"><a href="#shop" class="btn btn-gold">Shop fireworks</a><a href="#displays" class="btn btn-line">Book a display</a></div>
     <p class="codepill">15% off everything with <b id="codeTxt">MELA15</b><button type="button" id="copyCode">Copy code</button></p>
   </div>
-  <p class="hint" aria-hidden="true">Move your mouse or tilt your phone to look around</p>
 </section>
 
 <!-- 1. Buy online: text left, picture right -->
@@ -141,7 +139,7 @@
 
 <section class="sec" id="shop">
   <div class="wrap">
-    <div class="head"><h2>Best sellers this season</h2><p>Every product lists its shot count, duration and how far back to stand. Press Watch to see the effect.</p></div>
+    <div class="head"><h2>Best sellers this season</h2><p>Every product lists its shot count, how long it lasts and how far back to stand.</p></div>
     <div class="bar"><div class="pills" id="pills" role="group" aria-label="Filter by category"></div>
       <label for="sort" class="sr">Sort products</label>
       <select id="sort"><option value="pop">Sort: Best sellers</option><option value="asc">Price: low to high</option><option value="desc">Price: high to low</option><option value="off">Biggest discount</option></select>
@@ -164,10 +162,10 @@
         <li>Gold willow finales for the rukhsati</li>
         <li>Permits, fire brigade standby and clean-up the next morning</li>
       </ul>
-      <p class="from">Wedding packages from PKR 85,000</p>
+      <p class="from">Wedding displays from PKR 85,000</p>
       <div class="zig-cta"><a href="#contact" class="btn btn-gold" data-type="Wedding display">Check your date</a><a href="#contact" class="btn btn-line" data-type="Professional display">Get a display quote</a></div>
     </div>
-    <figure class="zig-media scene"><canvas id="wedSky" aria-hidden="true"></canvas><figcaption>A gold willow finale, the most requested wedding effect</figcaption></figure>
+    <figure class="zig-media"><img src="assets/photos/ice-fountains.jpg" alt="A couple standing between rows of cold spark fountains at night" loading="lazy" width="1200" height="900"><figcaption>Cold spark fountains for the couple's entrance</figcaption></figure>
   </div>
 </section>
 
@@ -186,7 +184,7 @@
         <li><a href="#contact" data-type="Wholesale order">Wholesale and trade</a> carton prices, 12% to 25% off</li>
       </ul>
     </div>
-    <figure class="zig-media scene"><canvas data-scene="special" aria-hidden="true"></canvas><figcaption>Cold spark fountains, safe for indoor stages</figcaption></figure>
+    <figure class="zig-media"><img src="assets/photos/smoke.jpg" alt="Yellow, green, blue and red coloured smoke rising" loading="lazy" width="1200" height="900"><figcaption>Coloured smoke for photos and 14 August</figcaption></figure>
   </div>
 </section>
 
@@ -228,7 +226,7 @@
 
 <!-- 8. Order today -->
 <section class="order-cta" id="order">
-  <canvas data-scene="finale" aria-hidden="true"></canvas>
+  <img class="order-bg" src="assets/photos/crowd-wide.jpg" alt="" loading="lazy">
   <div class="wrap order-in">
     <h2>Order fireworks online today</h2>
     <p>Fill your cart, send it on WhatsApp, and we reply with the delivery charge and payment details. Have a question first? Message us and we will help you choose.</p>
