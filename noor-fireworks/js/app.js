@@ -128,15 +128,49 @@
     setInterval(() => { if (!s.visible) return; const { W, H } = s.size(); if (hov || r < 200 || Math.random() < chance) play(s, kind, pal, W / 2, H * yFactor, t++); }, r);
   }
 
+  /* Category tiles rest on a still of their effect and only animate while hovered or focused */
+  /* Ground effects start above the tile's label; aerial ones burst in the upper half */
+  const baseY = (kind, H) => ['fountain', 'mine', 'roman', 'smoke'].includes(kind) ? H * .5 : H * .7;
+  function restFrame(s, kind, pal) {
+    s.fit(); const { W, H } = s.size(); if (!W) return;
+    const y = baseY(kind, H);
+    if (kind === 'rocket') { s.rocket(W / 2, y, pal); s.still(80); }
+    else if (RATE[kind]) for (let i = 0; i < 24; i++) { play(s, kind, pal, W / 2, y, i); s.step(); }
+    else { play(s, kind, pal, W / 2, y, 0); s.still(22); }
+  }
+  const resting = [];
+  function fireOnHover(s, kind, pal, el) {
+    const rest = () => restFrame(s, kind, pal);
+    resting.push(rest); requestAnimationFrame(rest);
+    if (reduce) return;
+    let timer = 0, settle = 0, t = 0;
+    const r = RATE[kind] || 900;
+    const start = () => {
+      clearTimeout(settle); if (timer) return;
+      s.paused = false; s.run();
+      const fire = () => { const { W, H } = s.size(); play(s, kind, pal, W / 2, baseY(kind, H), t++); };
+      fire(); timer = setInterval(fire, Math.max(r, 40));
+    };
+    const stop = () => {
+      clearInterval(timer); timer = 0;
+      settle = setTimeout(() => { s.paused = true; rest(); }, 1600);
+    };
+    el.addEventListener('pointerenter', start); el.addEventListener('pointerleave', stop);
+    el.addEventListener('focus', start); el.addEventListener('blur', stop);
+  }
+  let restTimer;
+  addEventListener('resize', () => { clearTimeout(restTimer); restTimer = setTimeout(() => resting.forEach(f => f()), 200); });
+
   /* ---------- Categories ---------- */
   const state = { cat: 'All', q: '', sort: 'pop', all: false };
   const mega = $('#mega'), foot = $('#footCats'), catsEl = $('#cats');
   CATS.forEach(([name, desc, col, kind, pal, dark]) => {
-    const b = document.createElement('button'); b.type = 'button'; b.className = 'cat' + (dark ? ' dark' : ''); b.style.setProperty('--c', col);
-    b.innerHTML = `<canvas aria-hidden="true"></canvas><b>${esc(name)}</b><span>${esc(desc)}</span>`;
+    const n = ITEMS.filter(it => name === 'Low noise' ? it.low : it.k === name).length;
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'cat'; b.style.setProperty('--c', col);
+    b.innerHTML = `<canvas aria-hidden="true"></canvas><em>${n ? `${n} product${n > 1 ? 's' : ''}` : 'Coming soon'}</em><b>${esc(name)}</b><span>${esc(desc)}</span>`;
     b.addEventListener('click', () => pickCat(name));
     catsEl.appendChild(b);
-    animateTile(makeSky(b.querySelector('canvas'), .22), kind, pal, .62, .6);
+    fireOnHover(makeSky(b.querySelector('canvas'), .22), kind, pal, b);
     const a = document.createElement('a'); a.href = '#shop'; a.innerHTML = `<i style="background:${col}"></i>${esc(name)}`;
     a.addEventListener('click', e => { e.preventDefault(); pickCat(name); }); mega.appendChild(a);
     const li = document.createElement('li'); li.innerHTML = `<a href="#shop">${esc(name)}</a>`;

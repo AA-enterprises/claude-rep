@@ -144,16 +144,20 @@ nav.main{border-top:1px solid var(--line)}
 .head p{color:var(--ink-2);max-width:52ch}
 .kick{font:700 15px/1 var(--body);color:var(--magenta-deep);margin-bottom:10px}
 
-/* Categories */
-.cats{display:grid;grid-template-columns:repeat(6,1fr);gap:14px}
-.cat{position:relative;border-radius:20px;overflow:hidden;aspect-ratio:1/1.08;background:var(--c);color:#fff;display:flex;flex-direction:column;justify-content:flex-end;padding:16px;border:0;cursor:pointer;text-align:left;font:inherit;transition:transform .2s,box-shadow .2s}
-.cat:hover{transform:translateY(-4px) rotate(-1deg);box-shadow:0 18px 30px -16px var(--c)}
+/* Categories: one quiet night-sky surface; each tile shows a still of its effect and fires on hover */
+.night{background:var(--ink);color:#fff}
+.night .head p{color:#c9c3e6}
+.cats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.cat{position:relative;border-radius:16px;overflow:hidden;aspect-ratio:16/10;background:linear-gradient(180deg,#261b58,#170f38);border:1px solid rgba(255,255,255,.08);color:#fff;display:flex;flex-direction:column;justify-content:flex-end;gap:2px;padding:16px 18px;border-width:1px;cursor:pointer;text-align:left;font:inherit;transition:border-color .2s,transform .2s}
+.cat:hover,.cat:focus-visible{border-color:color-mix(in srgb,var(--c) 70%,#fff);transform:translateY(-2px)}
 .cat canvas{position:absolute;inset:0;width:100%;height:100%}
-.cat b{position:relative;font:800 20px/1.05 var(--display)}
-.cat span{position:relative;font-size:12px;opacity:.92;margin-top:4px}
-.cat.dark{color:var(--ink)}
-@media (max-width:1060px){.cats{grid-template-columns:repeat(4,1fr)}}
-@media (max-width:640px){.cats{grid-template-columns:repeat(2,1fr)}}
+.cat::before{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(23,15,56,0) 35%,rgba(23,15,56,.88) 100%);pointer-events:none;z-index:1}
+.cat b,.cat span,.cat em{position:relative;z-index:2}
+.cat b{font:800 20px/1.1 var(--display)}
+.cat span{font-size:13px;color:#c9c3e6}
+.cat em{position:absolute;top:14px;right:16px;font:600 12px/1 var(--body);font-style:normal;color:#c9c3e6;font-variant-numeric:tabular-nums}
+@media (max-width:1060px){.cats{grid-template-columns:repeat(3,1fr)}}
+@media (max-width:640px){.cats{grid-template-columns:repeat(2,1fr);gap:10px}.cat{aspect-ratio:1/1;padding:12px 14px}.cat b{font-size:17px}.cat span{font-size:12px}}
 
 /* Offers and combos */
 .offers{display:grid;grid-template-columns:1.3fr 1fr 1fr;gap:18px}
