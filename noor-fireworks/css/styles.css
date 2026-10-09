@@ -261,7 +261,8 @@ nav.main{border-top:1px solid var(--line)}
 
 /* Showrooms */
 .rooms{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
-.room{border-radius:22px;padding:24px;background:var(--tint);display:grid;gap:6px;border-top:6px solid var(--c)}
+.room{border-radius:22px;padding:24px;background:var(--tint);display:grid;gap:6px}
+.room::before{content:"";width:40px;height:6px;border-radius:3px;background:var(--c);margin-bottom:8px}
 .room h3{font-size:26px}
 .room p{color:var(--ink-2);font-size:15px}
 .room a{font-weight:700;text-decoration:none}
