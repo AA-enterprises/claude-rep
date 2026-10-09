@@ -1,0 +1,35 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "gradient-text",
+        "value": "*",
+        "files": [
+          "noor-fireworks/css/styles.css"
+        ],
+        "createdAt": "2026-10-09T02:15:19.092Z",
+        "reason": "Claude decision: hero wordmark gradient matches the spark colours the name is formed from in the hero animation (COL() in app.js); only the brand lockup uses it"
+      },
+      {
+        "rule": "gradient-text",
+        "value": "*",
+        "files": [
+          "noor-fireworks/index.html"
+        ],
+        "createdAt": "2026-10-09T02:22:24.541Z",
+        "reason": "Claude decision: hero wordmark gradient matches the spark colours the name forms from in the hero animation"
+      },
+      {
+        "rule": "cramped-padding",
+        "value": "*",
+        "files": [
+          "noor-fireworks/index.html"
+        ],
+        "createdAt": "2026-10-09T02:22:24.552Z",
+        "reason": "Claude decision: verified in desktop and mobile screenshots; every flagged container insets its text via .wrap (16-32px) or its own padding (24-56px)"
+      }
+    ]
+  }
+}
