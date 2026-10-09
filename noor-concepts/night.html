@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Noor Wedding Night</title>
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;800;900&family=Hanken+Grotesk:wght@400;500;600;700&display=swap">
+<style>
+/* Concept 2: one wedding night told by scrolling. A clock runs from 7 pm to 11:30 pm; each moment of the night
+   fires the products used at that moment, and lists them so you can add them straight away. */
+:root{
+  --bg:#08070c;--surface:#17141f;--line:#2e2940;--text:#f6f1e7;--muted:#b6afc6;--gold:#ffc23d;--gold-ink:#1a1205;--wa:#0e7a3e;
+  --display:"Big Shoulders Display","Arial Narrow",sans-serif;--body:"Hanken Grotesk","Helvetica Neue",Arial,sans-serif;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:400 16px/1.55 var(--body)}
+:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+.top{position:fixed;top:0;left:0;right:0;z-index:6;display:flex;justify-content:space-between;align-items:center;gap:12px;padding:16px clamp(16px,3vw,32px)}
+.logo{font:900 26px/1 var(--display);text-transform:uppercase;letter-spacing:.02em;text-decoration:none;color:var(--text)}
+.logo small{display:block;font:600 10px/1 var(--body);letter-spacing:.14em;color:var(--gold);margin-top:3px}
+.tools{display:flex;gap:8px}
+.pill{font:600 13px/1 var(--body);color:var(--muted);text-decoration:none;border:1px solid var(--line);padding:9px 14px;border-radius:999px;background:rgba(8,7,12,.6);cursor:pointer}
+.pill:hover,.pill[aria-pressed="true"]{color:var(--text);border-color:var(--muted)}
+.story{height:620vh;position:relative}
+.stage{position:sticky;top:0;height:100svh;overflow:hidden;background:radial-gradient(110% 80% at 50% 100%,#2a1240 0%,#120a22 45%,var(--bg) 80%)}
+.stage canvas{position:absolute;inset:0;width:100%;height:100%}
+.ground{position:absolute;left:0;right:0;bottom:0;height:16%;background:linear-gradient(180deg,rgba(8,7,12,0),#08070c 70%)}
+.clock{position:absolute;right:clamp(16px,3vw,32px);top:84px;text-align:right;z-index:3}
+.clock b{display:block;font:900 clamp(64px,11vw,160px)/.85 var(--display);font-variant-numeric:tabular-nums;letter-spacing:.01em}
+.clock span{font-size:13px;color:var(--muted)}
+.times{position:absolute;left:clamp(16px,3vw,32px);top:96px;z-index:3;list-style:none;margin:0;padding:0;display:grid;gap:14px}
+.times li{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--muted);transition:color .3s}
+.times li::before{content:"";width:8px;height:8px;border-radius:50%;border:1px solid var(--muted);transition:background .3s,border-color .3s}
+.times li.on{color:var(--text)}
+.times li.on::before{background:var(--gold);border-color:var(--gold)}
+.card{position:absolute;left:clamp(16px,3vw,32px);bottom:clamp(20px,4vw,40px);z-index:3;width:min(520px,calc(100% - 32px));opacity:0;transform:translateY(16px);transition:opacity .5s,transform .5s;pointer-events:none}
+.card.on{opacity:1;transform:none;pointer-events:auto}
+.card .when{font-weight:700;color:var(--gold);font-size:14px}
+.card h2{margin:6px 0 10px;font:900 clamp(40px,6vw,76px)/.92 var(--display);text-transform:uppercase}
+.card p{color:#ddd5e8;max-width:46ch}
+.used{list-style:none;margin:16px 0 0;padding:0;display:grid;gap:6px}
+.used li{display:flex;justify-content:space-between;gap:12px;align-items:center;background:rgba(23,20,31,.85);border:1px solid var(--line);border-radius:12px;padding:10px 12px;font-size:14px;backdrop-filter:blur(6px)}
+.used b{font-weight:600}
+.used span{color:var(--muted);font-variant-numeric:tabular-nums}
+.add{font:700 12px/1 var(--body);border:0;border-radius:999px;padding:8px 12px;background:var(--gold);color:var(--gold-ink);cursor:pointer;flex:none}
+.add.in{background:#4fd98a}
+.btn{display:inline-flex;align-items:center;gap:8px;font:700 15px/1 var(--body);padding:14px 20px;border-radius:999px;border:0;cursor:pointer;text-decoration:none}
+.btn-gold{background:var(--gold);color:var(--gold-ink)}
+.btn-wa{background:var(--wa);color:#fff}
+.ctas{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px}
+.hint{position:absolute;left:50%;bottom:22px;transform:translateX(-50%);z-index:3;font-size:13px;color:var(--muted);transition:opacity .4s}
+.bag{position:fixed;right:clamp(16px,3vw,32px);bottom:20px;z-index:6;background:var(--gold);color:var(--gold-ink);font-weight:700;font-size:14px;padding:12px 16px;border-radius:999px;text-decoration:none;opacity:0;transform:translateY(10px);transition:opacity .3s,transform .3s}
+.bag.on{opacity:1;transform:none}
+@media (max-width:700px){.times{display:none}.clock{top:72px}.card{bottom:16px}.used li{font-size:13px}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<header class="top"><a class="logo" href="./">Noor<small>Fireworks</small></a><div class="tools"><button class="pill" id="sound" aria-pressed="false">Sound off</button><a class="pill" href="./">All three ideas</a></div></header>
+
+<div class="story" id="story">
+  <div class="stage">
+    <canvas id="sky" aria-hidden="true"></canvas>
+    <div class="ground"></div>
+    <div class="clock" aria-live="off"><b id="clock">7:00</b><span id="ampm">pm, one wedding night in Karachi</span></div>
+    <ol class="times" id="times"></ol>
+    <div id="cards"></div>
+    <p class="hint" id="hint">Scroll to move through the night</p>
+  </div>
+</div>
+<a class="bag" id="bag" href="#" target="_blank" rel="noopener">Order 0 items on WhatsApp</a>
+
+<script src="fx.js"></script>
+<script>
+(() => {
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const { makeSky, play } = window.Fireworks;
+  const $ = s => document.querySelector(s);
+  const fmt = v => 'PKR ' + v.toLocaleString('en-US');
+
+  /* The night: when each moment starts (minutes after 7 pm), what fires, what is used */
+  const CH = [
+    { at: 30, t: '7:30 pm', h: 'The baraat arrives', p: 'Cold spark fountains line the path, so the groom walks in through a corridor of light. They are cool to the touch and safe under the marquee.', fx: 'baraat',
+      used: [['Ice fountain, indoor', 4800], ['Golden phuljhari, for the family', 650]] },
+    { at: 105, t: '8:45 pm', h: 'Mehndi on the lawn', p: 'Pink and green smoke for the photos, rainbow fountains around the stage and charkhi spinning on the ground.', fx: 'mehndi',
+      used: [['Green & white smoke', 1400], ['Rainbow fountain', 1200], ['Golden charkhi', 750]] },
+    { at: 180, t: '10:00 pm', h: 'Dinner, a quieter sky', p: 'While guests eat, low-noise rings drift over the garden. All colour, no boom, so the elders and the children stay comfortable.', fx: 'dinner',
+      used: [['Butterfly low-noise cake', 9800]] },
+    { at: 255, t: '11:15 pm', h: 'Rukhsati', p: 'The moment everyone remembers. A gold willow finale falls slowly over the gate as the bride leaves, fired by our crew to the second.', fx: 'finale',
+      used: [['Mela Finale 100-shot', 42000], ['Gold willow display by our crew', 0]] },
+    { at: 270, t: 'Your date', h: 'Plan this night with us', p: 'We plan the cues, bring the crew and file the permits. Tell us your date and venue and we reply within a day.', fx: 'end', used: [] }
+  ];
+  const END = 270; /* minutes after 7 pm at the bottom of the page, 11:30 pm */
+
+  /* Build the cards and the timeline */
+  const bag = [];
+  CH.forEach((c, i) => {
+    const el = document.createElement('section'); el.className = 'card'; el.id = 'ch' + i;
+    el.innerHTML = `<p class="when">${c.t}</p><h2>${c.h}</h2><p>${c.p}</p>` +
+      (c.used.length ? `<ul class="used">${c.used.map(([n, p]) => `<li><b>${n}</b><span>${p ? fmt(p) : 'Quoted'}</span>${p ? `<button class="add" type="button" data-n="${n}" data-p="${p}">Add</button>` : `<a class="add" href="https://wa.me/923000000000?text=${encodeURIComponent('Assalam o Alaikum Noor Fireworks, I would like a quote for a wedding display.')}" target="_blank" rel="noopener">Ask</a>`}</li>`).join('')}</ul>` :
+        `<div class="ctas"><a class="btn btn-gold" href="https://wa.me/923000000000?text=${encodeURIComponent('Assalam o Alaikum Noor Fireworks, I would like to check a date for a wedding display.')}" target="_blank" rel="noopener">Check your date</a><a class="btn" style="border:1px solid rgba(246,241,231,.5)" href="./">See the other ideas</a></div>`);
+    $('#cards').appendChild(el);
+    if (i < 4) { const li = document.createElement('li'); li.textContent = `${c.t}  ${c.h}`; $('#times').appendChild(li); }
+  });
+  $('#cards').addEventListener('click', e => {
+    const b = e.target.closest('button.add'); if (!b) return;
+    bag.push([b.dataset.n, +b.dataset.p]); b.textContent = 'Added'; b.classList.add('in');
+    const total = bag.reduce((a, x) => a + x[1], 0), el = $('#bag');
+    el.textContent = `Order ${bag.length} item${bag.length > 1 ? 's' : ''}, ${fmt(total)}, on WhatsApp`; el.classList.add('on');
+    el.href = 'https://wa.me/923000000000?text=' + encodeURIComponent(['Assalam o Alaikum Noor Fireworks, for our wedding night I would like:', '', ...bag.map(([n, p]) => `• ${n} = ${fmt(p)}`), '', `Total: ${fmt(total)}`].join('\n'));
+  });
+
+  /* Sound: synthesised booms and hiss, off until the visitor turns it on */
+  let ac = null, soundOn = false, hissGain = null;
+  function initAudio() {
+    ac = new (window.AudioContext || window.webkitAudioContext)();
+    const len = ac.sampleRate * 2, buf = ac.createBuffer(1, len, ac.sampleRate), d = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+    ac.noise = buf;
+    const src = ac.createBufferSource(); src.buffer = buf; src.loop = true;
+    const bp = ac.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 5200; bp.Q.value = .7;
+    hissGain = ac.createGain(); hissGain.gain.value = 0;
+    src.connect(bp).connect(hissGain).connect(ac.destination); src.start();
+  }
+  function boom(delay = 0, size = 1) {
+    if (!soundOn || !ac) return;
+    const t = ac.currentTime + delay, src = ac.createBufferSource(); src.buffer = ac.noise;
+    const lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.setValueAtTime(900 * size, t); lp.frequency.exponentialRampToValueAtTime(120, t + .9);
+    const gn = ac.createGain(); gn.gain.setValueAtTime(0, t); gn.gain.linearRampToValueAtTime(.55 * size, t + .01); gn.gain.exponentialRampToValueAtTime(.001, t + 1.4);
+    src.connect(lp).connect(gn).connect(ac.destination); src.start(t, Math.random()); src.stop(t + 1.5);
+  }
+  $('#sound').addEventListener('click', e => {
+    if (!ac) initAudio(); else ac.resume();
+    soundOn = !soundOn; e.currentTarget.setAttribute('aria-pressed', soundOn); e.currentTarget.textContent = soundOn ? 'Sound on' : 'Sound off';
+    if (!soundOn && hissGain) hissGain.gain.value = 0;
+  });
+
+  /* Sky */
+  const sky = makeSky($('#sky'), .18);
+  const S = () => sky.size();
+  const launch = (x, y, type, pal, s) => { sky.launch(x, y, type, pal, s); boom(.9 + Math.random() * .2, type === 'willow' ? 1.2 : .8); };
+  const SCENE = {
+    baraat(n) { const { W, H } = S(); for (let k = 1; k <= 6; k++) { if ((n + k) % 3) continue; sky.fountain(W * (.12 + k * .126), H * .9, 'silver', 5); } if (n % 40 === 0) launch(W * (.3 + Math.random() * .4), H * .25, 'peony', 'gold', .8); return .25; },
+    mehndi(n) { const { W, H } = S(); sky.smoke(W * .28, H * .9, n % 2 ? 'reveal' : 'flag'); sky.smoke(W * .72, H * .9, n % 2 ? 'flag' : 'reveal'); sky.fountain(W * .5, H * .9, 'mix', 6); sky.wheel(W * .4, H * .78, 'gold', n); sky.wheel(W * .6, H * .78, 'gold', n + 2); return .18; },
+    dinner(n) { const { W, H } = S(); if (n % 12 === 0) { sky.launch(W * (.25 + Math.random() * .5), H * (.2 + Math.random() * .2), 'ring', Math.random() < .5 ? 'pink' : 'violet', .9); } return 0; },
+    finale(n) { const { W, H } = S(); if (n % 7 === 0) launch(W * (.15 + Math.random() * .7), H * (.12 + Math.random() * .22), Math.random() < .65 ? 'willow' : 'chrysanthemum', 'gold', 1.15); sky.fountain(W * .5, H * .9, 'gold', 4); return .12; },
+    end(n) { const { W, H } = S(); if (n % 22 === 0) launch(W * (.2 + Math.random() * .6), H * (.15 + Math.random() * .25), null, null, 1); return 0; }
+  };
+
+  /* Scroll position decides the time of night */
+  let cur = -1, minutes = 0;
+  const story = $('#story');
+  function onScroll() {
+    const r = story.getBoundingClientRect(), max = story.offsetHeight - innerHeight;
+    const f = Math.min(1, Math.max(0, -r.top / max));
+    minutes = f * END;
+    const total = 19 * 60 + minutes, h = Math.floor(total / 60), m = Math.floor(total % 60);
+    $('#clock').textContent = `${h - 12}:${String(m).padStart(2, '0')}`;
+    let idx = -1; CH.forEach((c, i) => { if (minutes >= c.at - 25) idx = i; });
+    if (idx !== cur) {
+      cur = idx;
+      document.querySelectorAll('.card').forEach((el, i) => el.classList.toggle('on', i === cur));
+      document.querySelectorAll('#times li').forEach((el, i) => el.classList.toggle('on', i === cur));
+    }
+    $('#hint').style.opacity = f > .02 ? 0 : 1;
+  }
+  addEventListener('scroll', onScroll, { passive: true }); onScroll();
+
+  if (reduce) {
+    const show = () => { const { W, H } = S(); sky.fit(); ['peony', 'willow', 'ring'].forEach((t, i) => sky.fx[t](W * (.3 + i * .2), H * (.25 + i * .05), window.Fireworks.PAL.gold, 1)); sky.still(30); };
+    addEventListener('scroll', () => { clearTimeout(show.t); show.t = setTimeout(show, 150); }, { passive: true }); show();
+    return;
+  }
+  sky.run();
+  let n = 0;
+  setInterval(() => {
+    if (cur < 0) { if (n % 30 === 0) { const { W, H } = S(); launch(W * (.3 + Math.random() * .4), H * .3, null, null, .8); } n++; return; }
+    const hiss = SCENE[CH[cur].fx](n++);
+    if (hissGain) hissGain.gain.value = soundOn ? hiss * .35 : 0;
+  }, 70);
+})();
+</script>
+</body>
+</html>

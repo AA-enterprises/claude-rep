@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Noor Concepts</title>
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;800;900&family=Hanken+Grotesk:wght@400;500;600;700&display=swap">
+<style>
+/* Three concept directions for Noor Fireworks, each built around one interaction no fireworks shop has. */
+:root{--bg:#08070c;--surface:#17141f;--line:#2e2940;--text:#f6f1e7;--muted:#b6afc6;--gold:#ffc23d;--gold-ink:#1a1205;
+  --display:"Big Shoulders Display","Arial Narrow",sans-serif;--body:"Hanken Grotesk","Helvetica Neue",Arial,sans-serif;color-scheme:dark}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:400 16px/1.55 var(--body)}
+:focus-visible{outline:2px solid var(--gold);outline-offset:3px}
+.wrap{max-width:1240px;margin:0 auto;padding:clamp(40px,7vw,96px) clamp(16px,3vw,32px)}
+h1{margin:0;font:900 clamp(48px,8vw,112px)/.9 var(--display);text-transform:uppercase;max-width:12ch}
+.lede{color:var(--muted);max-width:60ch;margin-top:18px;font-size:17px}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:clamp(40px,5vw,64px)}
+.c{position:relative;display:grid;grid-template-rows:auto 1fr;color:var(--text);background:var(--surface);border:1px solid var(--line);border-radius:18px;overflow:hidden;text-decoration:none;transition:border-color .2s,transform .2s}
+.c:hover{border-color:var(--gold);transform:translateY(-3px)}
+.thumb{position:relative;aspect-ratio:4/3;background:radial-gradient(90% 80% at 50% 100%,#2a1240,#08070c 80%)}
+.thumb canvas{position:absolute;inset:0;width:100%;height:100%}
+.thumb b{position:absolute;left:16px;top:14px;font:800 15px/1 var(--display);color:var(--gold)}
+.body{padding:20px 22px 24px;display:grid;gap:10px;align-content:start}
+.body h2{margin:0;font:900 34px/.95 var(--display);text-transform:uppercase}
+.body p{color:var(--muted);margin:0;font-size:15px}
+.ref{font-size:13px;color:#8f88a3;border-top:1px solid var(--line);padding-top:12px;margin-top:6px}
+.go{font-weight:700;color:var(--gold)}
+@media (max-width:900px){.grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<main class="wrap">
+  <h1>Three ideas for Noor</h1>
+  <p class="lede">Each idea is built around one thing a visitor can do that no fireworks shop online lets them do. Same Noor colours and type as today; the difference is the experience. Open each one, try it, and tell us which to build into the full site.</p>
+  <div class="grid">
+    <a class="c" href="build.html"><div class="thumb"><canvas data-k="build"></canvas><b>Idea 1</b></div><div class="body"><h2>Build your show</h2><p>The shop is a Karachi rooftop. Pick fireworks, they line up on the roof, press Fire and watch your own show. The show you built is your order.</p><p class="ref">Learns from playful, game-like sites such as Messenger by abeto, Awwwards Developer Site of the Year 2025.</p><span class="go">Open idea 1</span></div></a>
+    <a class="c" href="night.html"><div class="thumb"><canvas data-k="night"></canvas><b>Idea 2</b></div><div class="body"><h2>One wedding night</h2><p>Scroll moves a clock from 7 pm to 11:30 pm. Baraat, mehndi, dinner, rukhsati: each moment fires the products used then, with sound you can switch on.</p><p class="ref">Learns from scroll storytelling sites such as Santioni Spirits (FWA of the Month) and Shopify Editions.</p><span class="go">Open idea 2</span></div></a>
+    <a class="c" href="names.html"><div class="thumb"><canvas data-k="names"></canvas><b>Idea 3</b></div><div class="body"><h2>Names in the sky</h2><p>Type the couple's names and rockets spell them across the sky. Drag to draw with fire. It leads to a real product: a lit name board for the stage.</p><p class="ref">Learns from signature-interaction sites such as Lando Norris by OFF+BRAND, Awwwards Site of the Year 2025.</p><span class="go">Open idea 3</span></div></a>
+  </div>
+</main>
+<script src="fx.js"></script>
+<script>
+(() => {
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const { makeSky } = window.Fireworks;
+  const RUN = {
+    build(s, n) { const { W, H } = s.size(); s.fountain(W * .25, H * .85, 'gold', 3); if (n % 14 === 0) s.launch(W * (.4 + Math.random() * .4), H * .3, null, null, .6); },
+    night(s, n) { const { W, H } = s.size(); if (n % 9 === 0) s.launch(W * (.2 + Math.random() * .6), H * .3, 'willow', 'gold', .7); },
+    names(s, n) { const { W, H } = s.size(); if (n % 16 === 0) s.launch(W * (.2 + Math.random() * .6), H * .35, 'ring', Math.random() < .5 ? 'pink' : 'violet', .7); }
+  };
+  document.querySelectorAll('[data-k]').forEach(cv => {
+    const s = makeSky(cv, .2), fn = RUN[cv.dataset.k];
+    if (reduce) { for (let i = 0; i < 40; i++) { fn(s, i * 14); s.step(); } return; }
+    s.run(); let n = 0; setInterval(() => { if (s.visible) fn(s, n++); }, 80);
+  });
+})();
+</script>
+</body>
+</html>

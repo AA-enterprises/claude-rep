@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Noor Show Builder</title>
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;800;900&family=Hanken+Grotesk:wght@400;500;600;700&display=swap">
+<style>
+/* Concept 1: the rooftop is the shop. Pick fireworks, they appear on the roof, press Fire and watch your own show. The show you built is your order. */
+:root{
+  --bg:#08070c;--surface:#17141f;--surface-2:#211d2c;--line:#2e2940;
+  --text:#f6f1e7;--muted:#b6afc6;--gold:#ffc23d;--gold-ink:#1a1205;--wa:#0e7a3e;
+  --display:"Big Shoulders Display","Arial Narrow",sans-serif;--body:"Hanken Grotesk","Helvetica Neue",Arial,sans-serif;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--text);font:400 15px/1.5 var(--body);overflow:hidden}
+button{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+.stage{position:fixed;inset:0}
+.stage canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+.top{position:fixed;top:0;left:0;right:0;z-index:5;display:flex;justify-content:space-between;align-items:center;padding:16px clamp(16px,3vw,32px)}
+.logo{font:900 26px/1 var(--display);text-transform:uppercase;letter-spacing:.02em;text-decoration:none;color:var(--text)}
+.logo small{display:block;font:600 10px/1 var(--body);letter-spacing:.14em;color:var(--gold);margin-top:3px}
+.back{font-size:13px;color:var(--muted);text-decoration:none;border:1px solid var(--line);padding:9px 14px;border-radius:999px;background:rgba(8,7,12,.6)}
+.back:hover{color:var(--text);border-color:var(--muted)}
+.intro{position:fixed;left:clamp(16px,3vw,32px);top:84px;z-index:4;max-width:min(560px,calc(100% - 32px));pointer-events:none}
+.intro h1{margin:0;font:900 clamp(48px,7vw,104px)/.9 var(--display);text-transform:uppercase}
+.intro p{margin-top:12px;color:var(--muted);max-width:42ch;font-size:16px}
+.panel{position:fixed;left:0;right:0;bottom:0;z-index:5;background:linear-gradient(180deg,rgba(8,7,12,0),rgba(8,7,12,.92) 22%);padding:44px clamp(16px,3vw,32px) calc(16px + env(safe-area-inset-bottom,0px))}
+.row{display:flex;gap:8px;overflow-x:auto;padding-bottom:6px;scrollbar-width:none}
+.row::-webkit-scrollbar{display:none}
+.chip{flex:none;display:grid;gap:2px;text-align:left;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:10px 14px;cursor:pointer;min-width:150px;transition:border-color .2s,transform .15s}
+.chip:hover{border-color:var(--gold);transform:translateY(-2px)}
+.chip b{font:800 18px/1 var(--display);text-transform:uppercase}
+.chip span{font-size:12px;color:var(--muted)}
+.chip i{font-style:normal;font-weight:700;color:var(--gold);font-size:13px}
+.label{font-size:12px;color:var(--muted);margin:0 0 8px;display:flex;justify-content:space-between}
+.lineup{display:flex;gap:6px;min-height:40px;align-items:center;flex-wrap:wrap;margin-top:12px}
+.slot{display:inline-flex;align-items:center;gap:8px;background:var(--surface-2);border-radius:999px;padding:6px 6px 6px 12px;font-size:13px;font-weight:600}
+.slot.on{background:var(--gold);color:var(--gold-ink)}
+.slot button{width:22px;height:22px;border-radius:50%;border:0;background:rgba(255,255,255,.1);cursor:pointer;line-height:1}
+.empty{color:var(--muted);font-size:13px}
+.foot{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;margin-top:14px}
+.total{font:900 34px/1 var(--display);font-variant-numeric:tabular-nums}
+.total small{display:block;font:500 12px/1.3 var(--body);color:var(--muted)}
+.actions{display:flex;gap:10px;flex-wrap:wrap}
+.btn{display:inline-flex;align-items:center;gap:8px;font:700 15px/1 var(--body);padding:14px 20px;border-radius:999px;border:0;cursor:pointer;text-decoration:none}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.btn-gold{background:var(--gold);color:var(--gold-ink)}
+.btn-wa{background:var(--wa);color:#fff}
+.bar{height:3px;background:var(--line);border-radius:3px;margin-top:12px;overflow:hidden}
+.bar i{display:block;height:100%;width:0;background:var(--gold)}
+@media (max-width:640px){.panel{padding-top:40px}.label span:last-child{display:none}.foot{margin-top:10px}.actions .btn{padding:12px 16px;font-size:14px}.intro{top:72px}.intro p{font-size:14px}.chip{min-width:130px}.total{font-size:28px}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="stage"><canvas id="bg" aria-hidden="true"></canvas><canvas id="fx" aria-label="Your rooftop show"></canvas></div>
+<header class="top"><a class="logo" href="./">Noor<small>Fireworks</small></a><a class="back" href="./">All three ideas</a></header>
+<div class="intro"><h1>Build your show. Then light it.</h1><p>Pick fireworks below. Each one lands on the roof in firing order. Press Fire to watch your show over Karachi, then send it to us as your order.</p></div>
+<section class="panel" aria-label="Show builder">
+  <p class="label"><span>Add to your show</span><span>Tap to add, more than once if you like</span></p>
+  <div class="row" id="chips"></div>
+  <div class="lineup" id="lineup" aria-live="polite"></div>
+  <div class="bar" aria-hidden="true"><i id="prog"></i></div>
+  <div class="foot">
+    <p class="total" id="total">PKR 0<small>About 0 seconds of sky time</small></p>
+    <div class="actions"><button class="btn btn-gold" id="fire" disabled>Fire my show</button><a class="btn btn-wa" id="order" href="#" target="_blank" rel="noopener" aria-disabled="true">Order this show on WhatsApp</a></div>
+  </div>
+</section>
+<script src="fx.js"></script>
+<script>
+(() => {
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const { PAL, makeSky, play } = window.Fireworks;
+  const ITEMS = [
+    { n: 'Golden phuljhari', p: 650, k: 'fountain', c: 'gold', s: 6, d: '10 sparklers' },
+    { n: 'Rainbow fountain', p: 1200, k: 'fountain', c: 'mix', s: 7, d: '2 m of colour' },
+    { n: 'Roman candles', p: 900, k: 'roman', c: 'green', s: 5, d: '8 balls × 4' },
+    { n: 'Sky Whistler', p: 2400, k: 'rocket', c: 'pink', s: 5, d: '12 rockets' },
+    { n: 'Chirya 16-shot', p: 4500, k: 'peony', c: 'pink', s: 5, d: '16 shots' },
+    { n: 'Crossette 25-shot', p: 8900, k: 'crossette', c: 'blue', s: 6, d: '25 shots' },
+    { n: 'Night Garden 49', p: 18500, k: 'peony', c: 'violet', s: 8, d: '49 shots' },
+    { n: 'Mela Finale 100', p: 42000, k: 'chrysanthemum', c: 'gold', s: 10, d: '100 shots, finale' }
+  ];
+  const MAX = 8;
+  const lineup = [];
+  const $ = s => document.querySelector(s);
+  const fmt = v => 'PKR ' + v.toLocaleString('en-US');
+
+  /* Background: sky, stars, skyline, the roof and the boxes on it */
+  const bg = $('#bg'), g = bg.getContext('2d');
+  let W = 0, H = 0, roofY = 0, stars = [], towers = [];
+  function fitBg() {
+    const d = Math.min(devicePixelRatio || 1, 2); W = innerWidth; H = innerHeight;
+    bg.width = W * d; bg.height = H * d; g.setTransform(d, 0, 0, d, 0, 0);
+    stars = Array.from({ length: 160 }, () => [Math.random() * W, Math.random() * H * .6, Math.random() * .7 + .2]);
+    towers = []; for (let x = -20; x < W + 40;) { const w = 18 + Math.random() * 60, h = 20 + Math.random() * (Math.random() < .15 ? 170 : 80); towers.push([x, w, h, Array.from({ length: Math.floor(w * h / 260) }, () => [Math.random(), Math.random(), Math.random() < .35])]); x += w + Math.random() * 10; }
+    drawBg();
+  }
+  function slotX(i, n) { const pad = Math.min(140, W * .12); return n <= 1 ? W / 2 : pad + (W - pad * 2) * (i / (n - 1)); }
+  function drawBg() {
+    roofY = Math.round($('.panel').getBoundingClientRect().top + 30);
+    const sky = g.createLinearGradient(0, 0, 0, roofY); sky.addColorStop(0, '#07060c'); sky.addColorStop(1, '#2a1240');
+    g.fillStyle = sky; g.fillRect(0, 0, W, H);
+    stars.forEach(([x, y, a]) => { g.fillStyle = `rgba(255,255,255,${a * .6})`; g.fillRect(x, y, 1.2, 1.2); });
+    towers.forEach(([x, w, h, win]) => {
+      g.fillStyle = '#0d0a18'; g.fillRect(x, roofY - h, w, h + 2);
+      win.forEach(([u, v, lit]) => { if (lit) { g.fillStyle = 'rgba(255,194,61,.5)'; g.fillRect(x + 3 + u * (w - 6), roofY - h + 4 + v * (h - 8), 2, 2); } });
+    });
+    /* the roof: a parapet wall and floor */
+    g.fillStyle = '#16121f'; g.fillRect(0, roofY, W, H - roofY);
+    g.fillStyle = '#1f1a2b'; g.fillRect(0, roofY, W, 14);
+    g.fillStyle = 'rgba(255,255,255,.04)'; for (let x = 0; x < W; x += 34) g.fillRect(x, roofY + 14, 1, H);
+    /* boxes in firing order */
+    lineup.forEach((it, i) => {
+      const x = slotX(i, lineup.length), w = it.k === 'chrysanthemum' || it.p > 9000 ? 46 : 30, h = it.k === 'rocket' || it.k === 'roman' ? 40 : 26;
+      g.fillStyle = it.on ? '#ffc23d' : '#3a3150'; g.fillRect(x - w / 2, roofY + 2 - h, w, h);
+      g.fillStyle = it.on ? '#1a1205' : '#b6afc6'; g.font = '700 11px Hanken Grotesk, sans-serif'; g.textAlign = 'center'; g.fillText(String(i + 1), x, roofY - h / 2 + 6);
+    });
+  }
+
+  /* Fireworks layer */
+  const fxc = $('#fx'), sky = makeSky(fxc, .2);
+  if (!reduce) sky.run();
+
+  /* Product chips */
+  ITEMS.forEach(it => {
+    const b = document.createElement('button'); b.className = 'chip'; b.type = 'button';
+    b.innerHTML = `<b>${it.n}</b><span>${it.d}</span><i>${fmt(it.p)}</i>`;
+    b.setAttribute('aria-label', `Add ${it.n}, ${fmt(it.p)}`);
+    b.addEventListener('click', () => { if (lineup.length >= MAX || playing) return; lineup.push({ ...it }); update(); preview(lineup.length - 1); });
+    $('#chips').appendChild(b);
+  });
+  function preview(i) { const it = lineup[i]; const x = slotX(i, lineup.length); burst(it, x, 1); }
+
+  function update() {
+    $('#lineup').innerHTML = lineup.length ? lineup.map((it, i) => `<span class="slot ${it.on ? 'on' : ''}">${i + 1}. ${it.n}<button type="button" data-rm="${i}" aria-label="Remove ${it.n}" ${playing ? 'disabled' : ''}>×</button></span>`).join('') : '<span class="empty">Your show is empty. Start with a fountain, end with a finale cake.</span>';
+    const total = lineup.reduce((a, it) => a + it.p, 0), secs = Math.round(lineup.reduce((a, it) => a + it.s * 6, 0));
+    $('#total').innerHTML = `${fmt(total)}<small>About ${secs >= 60 ? Math.round(secs / 60 * 10) / 10 + ' minutes' : secs + ' seconds'} of sky time, ${lineup.length} of ${MAX} slots</small>`;
+    $('#fire').disabled = !lineup.length || playing;
+    const o = $('#order');
+    if (lineup.length) {
+      const txt = ['Assalam o Alaikum Noor Fireworks, I built this show on your website:', '', ...lineup.map((it, i) => `${i + 1}. ${it.n} = ${fmt(it.p)}`), '', `Total: ${fmt(total)}`];
+      o.href = 'https://wa.me/923000000000?text=' + encodeURIComponent(txt.join('\n')); o.removeAttribute('aria-disabled');
+    } else { o.href = '#'; o.setAttribute('aria-disabled', 'true'); }
+    drawBg();
+  }
+  $('#lineup').addEventListener('click', e => { const b = e.target.closest('[data-rm]'); if (!b) return; lineup.splice(+b.dataset.rm, 1); update(); });
+  $('#order').addEventListener('click', e => { if (!lineup.length) e.preventDefault(); });
+
+  /* One firework at roof position x; t is how far into its own run it is */
+  function burst(it, x, t) {
+    const top = roofY * (.18 + Math.random() * .3);
+    if (it.k === 'fountain') { for (let i = 0; i < 2; i++) sky.fountain(x + (Math.random() - .5) * 6, roofY, it.c, 9); }
+    else if (it.k === 'roman') sky.roman(x, roofY, it.c);
+    else if (it.k === 'rocket') sky.launch(x + (Math.random() - .5) * 60, top, 'peony', it.c, .8);
+    else sky.launch(x + (Math.random() - .5) * 80, top, it.k, it.c, it.k === 'chrysanthemum' ? 1.2 : .9);
+    if (reduce) sky.still(40);
+  }
+
+  /* Play the whole lineup in order, each item overlapping the next a little */
+  let playing = false;
+  $('#fire').addEventListener('click', () => {
+    if (!lineup.length || playing) return;
+    playing = true; update();
+    const scale = reduce ? .2 : 1;
+    let t0 = 0; const plan = lineup.map((it, i) => { const start = t0; t0 += it.s * 1000 * .7 * scale; return { it, i, start, end: start + it.s * 1000 * scale }; });
+    const total = plan[plan.length - 1].end + 2500 * scale, began = performance.now();
+    const rate = it => it.k === 'fountain' ? 70 : it.k === 'roman' ? 520 : it.k === 'rocket' ? 650 : it.k === 'chrysanthemum' ? 260 : 420;
+    const last = plan.map(() => 0);
+    const tick = now => {
+      const t = now - began;
+      plan.forEach((p, j) => {
+        const on = t >= p.start && t <= p.end;
+        if (on !== !!p.it.on) { p.it.on = on; update(); }
+        if (on && now - last[j] > rate(p.it)) { last[j] = now; burst(p.it, slotX(p.i, lineup.length), t - p.start); }
+      });
+      $('#prog').style.width = Math.min(100, t / total * 100) + '%';
+      if (t < total) requestAnimationFrame(tick);
+      else { playing = false; lineup.forEach(it => it.on = false); $('#prog').style.width = '0'; update(); }
+    };
+    requestAnimationFrame(tick);
+  });
+
+  addEventListener('resize', () => { fitBg(); sky.fit(); });
+  fitBg(); update();
+  /* A starter show so the roof is not empty on arrival */
+  [0, 4, 7].forEach(i => lineup.push({ ...ITEMS[i] })); update();
+  if (!reduce) setTimeout(() => preview(2), 600);
+})();
+</script>
+</body>
+</html>
