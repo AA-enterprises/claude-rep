@@ -31,6 +31,15 @@ window.NOOR = {
   */
   reviews: null,
 
+  /* "Brands we've worked with" strip. Add a logo to assets/brands/ and a line here; remove all lines to hide the section. */
+  brands: [
+    { name: 'HBL Pakistan Super League', img: 'assets/brands/hbl-psl.png' },
+    { name: 'Pakistan Cricket Board', img: 'assets/brands/pcb.png' },
+    { name: 'Hum Bridal Couture Week', img: 'assets/brands/hum-bridal-couture-week.png' },
+    { name: 'Port Grand', img: 'assets/brands/port-grand.png' },
+    { name: 'DHA Creek Club', img: 'assets/brands/dacc.png' }
+  ],
+
   cities: ['Karachi', 'Lahore', 'Islamabad', 'Rawalpindi', 'Faisalabad', 'Multan', 'Peshawar', 'Hyderabad', 'Other city'],
 
   showrooms: [

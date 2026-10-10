@@ -439,6 +439,16 @@
   });
   updateBadge(false);
 
+  /* ---------- Brands we've worked with: a slow moving strip of logo tiles ---------- */
+  const BR = window.NOOR.brands || [];
+  if (BR.length) {
+    const row = $('#brandRow'), tile = (b, hide) => `<li${hide ? ' aria-hidden="true"' : ''}><figure><span class="br-logo"><img src="${esc(b.img)}" alt="${hide ? '' : esc(b.name)}" loading="lazy" decoding="async"></span><figcaption>${esc(b.name)}</figcaption></figure></li>`;
+    /* two copies so the strip loops without a gap; the copy is hidden from screen readers */
+    row.innerHTML = BR.map(b => tile(b)).join('') + BR.map(b => tile(b, 1)).join('');
+    row.style.setProperty('--n', BR.length);
+    $('#brands').hidden = false;
+  }
+
   /* ---------- Reviews: shown only when real figures are set in config.js ---------- */
   const RV = window.NOOR.reviews;
   if (RV && RV.sources && RV.sources.length) {
@@ -499,4 +509,34 @@
     if (!d) { d = document.createElement('div'); d.className = 'sent'; d.setAttribute('role', 'status'); enq.querySelector('.f-foot').before(d); }
     d.textContent = `Thanks, ${n.value.trim().split(' ')[0]}. WhatsApp is open with your message. Press send there and we reply within one working day.`;
   });
+
+  /* ---------- 3D scroll: blocks roll up from below as they come into view, tied to scroll position ---------- */
+  (() => {
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const SEL = 'main section:not(.vhero) :is(.zig-copy > *, .zig-media, .rooms > *, .cats > *, .offers > *, .grid > *, .head, .band-title, .reasons > li, .faq > *, .br-track, .wrap > *)';
+    let els = [], ticking = false;
+    function scan() {
+      const all = [...document.querySelectorAll(SEL)].filter(e => !e.closest('[hidden]'));
+      /* keep only the innermost blocks so nothing is tilted twice */
+      els = all.filter(e => !all.some(o => o !== e && e.contains(o)));
+      els.forEach(e => e.classList.add('roll'));
+      update();
+    }
+    function update() {
+      ticking = false;
+      const vh = innerHeight, span = Math.min(vh * .42, 380);
+      els.forEach(e => {
+        const top = e.getBoundingClientRect().top;
+        const p = Math.min(1, Math.max(0, (vh - top) / span)), k = 1 - Math.pow(1 - p, 2);
+        if (k >= .999) { if (e.style.transform) { e.style.transform = ''; e.style.opacity = ''; } return; }
+        e.style.transform = `perspective(1100px) translate3d(0,${(1 - k) * 90}px,0) rotateX(${(1 - k) * 42}deg)`;
+        e.style.opacity = String(.1 + .9 * k);
+      });
+    }
+    const req = () => { if (!ticking) { ticking = true; requestAnimationFrame(update); } };
+    addEventListener('scroll', req, { passive: true });
+    addEventListener('resize', req);
+    let t; new MutationObserver(() => { clearTimeout(t); t = setTimeout(scan, 120); }).observe($('#main'), { childList: true, subtree: true, attributes: true, attributeFilter: ['hidden'] });
+    scan();
+  })();
 })();
