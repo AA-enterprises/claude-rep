@@ -1,4 +1,4 @@
-/* Noor Fireworks: page behaviour, shop and cart. Data lives in config.js. */
+/* Pak Fireworks: page behaviour, shop and cart. Data lives in config.js. */
 (function () {
   const { business: BIZ, promo: PROMO, cities: CITIES, showrooms: ROOMS, categories: CATS, items: ITEMS } = window.NOOR;
   const PHOTOS = window.NOOR.photos || {};
@@ -41,7 +41,7 @@
   }
 
   /* ---------- Video hero ---------- */
-  const BRAND = 'NOOR', SUB = 'FIREWORKS';
+  const BRAND = 'PAK', SUB = 'FIREWORKS';
   (function videoHero() {
     const sec = $('#top'), vid = $('#heroVid'), btn = $('#vidBtn'), cv = $('#nameFx');
     const setHH = () => document.documentElement.style.setProperty('--hh', ($('header.site').offsetHeight + ($('.promo') ? $('.promo').offsetHeight : 0)) + 'px');

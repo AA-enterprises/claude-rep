@@ -1,14 +1,14 @@
 /*
-  Noor Fireworks: business details and catalogue.
+  Pak Fireworks: business details and catalogue.
   Edit this file to change phone numbers, prices, stock and products.
   Everything else on the site reads from here.
 */
 window.NOOR = {
   business: {
-    name: 'Noor Fireworks',
-    phone: '+92 300 0000000',        // shown on the site
-    whatsapp: '923000000000',        // international format, digits only (used for wa.me links)
-    email: 'hello@noorfireworks.pk',
+    name: 'Pak Fireworks',
+    phone: '+92 313 1008807',        // shown on the site
+    whatsapp: '923131008807',        // international format, digits only (used for wa.me links)
+    email: 'hello@pakfireworks.pk',
     hours: 'Mon–Sat, 10 am to 7 pm'
   },
 
@@ -34,7 +34,7 @@ window.NOOR = {
   cities: ['Karachi', 'Lahore', 'Islamabad', 'Rawalpindi', 'Faisalabad', 'Multan', 'Peshawar', 'Hyderabad', 'Other city'],
 
   showrooms: [
-    { city: 'Karachi', area: 'Korangi Industrial Area, Karachi', hours: 'Mon–Sat, 10 am to 8 pm', phone: '+92 300 0000000',
+    { city: 'Karachi', area: 'Korangi Industrial Area, Karachi', hours: 'Mon–Sat, 10 am to 8 pm', phone: '+92 313 1008807',
       map: 'https://www.google.com/maps/search/?api=1&query=Korangi+Industrial+Area+Karachi' }
   ],
 

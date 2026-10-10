@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Noor Wedding Night</title>
+<title>Pak Fireworks Wedding Night</title>
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;800;900&family=Hanken+Grotesk:wght@400;500;600;700&display=swap">
@@ -59,7 +59,7 @@ body{margin:0;background:var(--bg);color:var(--text);font:400 16px/1.55 var(--bo
 </style>
 </head>
 <body>
-<header class="top"><a class="logo" href="./">Noor<small>Fireworks</small></a><div class="tools"><button class="pill" id="sound" aria-pressed="false">Sound off</button><a class="pill" href="./">All three ideas</a></div></header>
+<header class="top"><a class="logo" href="./">Pak<small>Fireworks</small></a><div class="tools"><button class="pill" id="sound" aria-pressed="false">Sound off</button><a class="pill" href="./">All three ideas</a></div></header>
 
 <div class="story" id="story">
   <div class="stage">
@@ -100,8 +100,8 @@ body{margin:0;background:var(--bg);color:var(--text);font:400 16px/1.55 var(--bo
   CH.forEach((c, i) => {
     const el = document.createElement('section'); el.className = 'card'; el.id = 'ch' + i;
     el.innerHTML = `<p class="when">${c.t}</p><h2>${c.h}</h2><p>${c.p}</p>` +
-      (c.used.length ? `<ul class="used">${c.used.map(([n, p]) => `<li><b>${n}</b><span>${p ? fmt(p) : 'Quoted'}</span>${p ? `<button class="add" type="button" data-n="${n}" data-p="${p}">Add</button>` : `<a class="add" href="https://wa.me/923000000000?text=${encodeURIComponent('Assalam o Alaikum Noor Fireworks, I would like a quote for a wedding display.')}" target="_blank" rel="noopener">Ask</a>`}</li>`).join('')}</ul>` :
-        `<div class="ctas"><a class="btn btn-gold" href="https://wa.me/923000000000?text=${encodeURIComponent('Assalam o Alaikum Noor Fireworks, I would like to check a date for a wedding display.')}" target="_blank" rel="noopener">Check your date</a><a class="btn" style="border:1px solid rgba(246,241,231,.5)" href="./">See the other ideas</a></div>`);
+      (c.used.length ? `<ul class="used">${c.used.map(([n, p]) => `<li><b>${n}</b><span>${p ? fmt(p) : 'Quoted'}</span>${p ? `<button class="add" type="button" data-n="${n}" data-p="${p}">Add</button>` : `<a class="add" href="https://wa.me/923131008807?text=${encodeURIComponent('Assalam o Alaikum Pak Fireworks, I would like a quote for a wedding display.')}" target="_blank" rel="noopener">Ask</a>`}</li>`).join('')}</ul>` :
+        `<div class="ctas"><a class="btn btn-gold" href="https://wa.me/923131008807?text=${encodeURIComponent('Assalam o Alaikum Pak Fireworks, I would like to check a date for a wedding display.')}" target="_blank" rel="noopener">Check your date</a><a class="btn" style="border:1px solid rgba(246,241,231,.5)" href="./">See the other ideas</a></div>`);
     $('#cards').appendChild(el);
     if (i < 4) { const li = document.createElement('li'); li.textContent = `${c.t}  ${c.h}`; $('#times').appendChild(li); }
   });
@@ -110,7 +110,7 @@ body{margin:0;background:var(--bg);color:var(--text);font:400 16px/1.55 var(--bo
     bag.push([b.dataset.n, +b.dataset.p]); b.textContent = 'Added'; b.classList.add('in');
     const total = bag.reduce((a, x) => a + x[1], 0), el = $('#bag');
     el.textContent = `Order ${bag.length} item${bag.length > 1 ? 's' : ''}, ${fmt(total)}, on WhatsApp`; el.classList.add('on');
-    el.href = 'https://wa.me/923000000000?text=' + encodeURIComponent(['Assalam o Alaikum Noor Fireworks, for our wedding night I would like:', '', ...bag.map(([n, p]) => `• ${n} = ${fmt(p)}`), '', `Total: ${fmt(total)}`].join('\n'));
+    el.href = 'https://wa.me/923131008807?text=' + encodeURIComponent(['Assalam o Alaikum Pak Fireworks, for our wedding night I would like:', '', ...bag.map(([n, p]) => `• ${n} = ${fmt(p)}`), '', `Total: ${fmt(total)}`].join('\n'));
   });
 
   /* Sound: synthesised booms and hiss, off until the visitor turns it on */

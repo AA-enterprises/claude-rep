@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Noor Names in Fire</title>
+<title>Pak Fireworks Names in Fire</title>
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;800;900&family=Hanken+Grotesk:wght@400;500;600;700&display=swap">
@@ -50,7 +50,7 @@ input:focus{outline:none}
 </style>
 </head>
 <body>
-<header class="top"><a class="logo" href="./">Noor<small>Fireworks</small></a><a class="back" href="./">All three ideas</a></header>
+<header class="top"><a class="logo" href="./">Pak<small>Fireworks</small></a><a class="back" href="./">All three ideas</a></header>
 
 <section class="hero" id="hero">
   <canvas id="sky" aria-hidden="true"></canvas>
@@ -110,7 +110,7 @@ input:focus{outline:none}
   let rockets = [], stars = [], trails = [], t0 = 0, phase = 0;
   const ease = t => t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
   function write(text) {
-    const pts = sample(text.trim() || 'Noor'); if (!pts.length) return;
+    const pts = sample(text.trim() || 'Pak Fireworks'); if (!pts.length) return;
     const xs = pts.map(p => p[0]), minX = Math.min(...xs), maxX = Math.max(...xs), n = Math.max(2, Math.min(5, Math.round((maxX - minX) / 180)));
     const ty = pts.reduce((a, p) => a + p[1], 0) / pts.length;
     rockets = Array.from({ length: n }, (_, i) => { const x = minX + (maxX - minX) * (i + .5) / n; return { x0: x + (Math.random() - .5) * 60, y0: H + 10, x, y: ty, d: i * 180, b: false, bt: 0 }; });
@@ -173,7 +173,7 @@ input:focus{outline:none}
   if (!reduce) { const loop = now => { draw(now); requestAnimationFrame(loop); }; requestAnimationFrame(loop); }
 
   const nm = $('#nm');
-  const setAsk = () => { $('#ask').href = 'https://wa.me/923000000000?text=' + encodeURIComponent(`Assalam o Alaikum Noor Fireworks, we would like a lit name board for our wedding that says: ${nm.value.trim() || 'our names'}`); };
+  const setAsk = () => { $('#ask').href = 'https://wa.me/923131008807?text=' + encodeURIComponent(`Assalam o Alaikum Pak Fireworks, we would like a lit name board for our wedding that says: ${nm.value.trim() || 'our names'}`); };
   nm.addEventListener('input', () => { setAsk(); paintBoard(); });
   $('#f').addEventListener('submit', e => { e.preventDefault(); write(nm.value); });
   setAsk();
@@ -184,7 +184,7 @@ input:focus{outline:none}
   let LW = 0, LH = 0, dots = [];
   function paintBoard() {
     const d = Math.min(devicePixelRatio || 1, 2), r = lc.getBoundingClientRect(); LW = r.width; LH = r.height; lc.width = LW * d; lc.height = LH * d; lg.setTransform(d, 0, 0, d, 0, 0);
-    const text = (nm.value.trim() || 'Noor').toUpperCase(), fs = Math.min(LW / (text.length * .5), LH * .32);
+    const text = (nm.value.trim() || 'Pak Fireworks').toUpperCase(), fs = Math.min(LW / (text.length * .5), LH * .32);
     const c = document.createElement('canvas'); c.width = Math.ceil(LW); c.height = Math.ceil(LH); const x = c.getContext('2d');
     x.fillStyle = '#fff'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.font = `800 ${fs}px "Big Shoulders Display", sans-serif`; x.fillText(text, LW / 2, LH * .5);
     const data = x.getImageData(0, 0, c.width, c.height).data, step = Math.max(5, Math.round(fs / 12)); dots = [];

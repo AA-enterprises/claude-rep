@@ -1,6 +1,6 @@
-# Noor Fireworks website
+# Pak Fireworks website
 
-A static website for Noor Fireworks, laid out as one long page: a 3D fireworks hero, then alternating text and picture rows (buy online, showroom, occasions, displays, special options, why choose us, delivery, order today), with the shop, combo packs, safety, FAQ and contact in between. It is an online fireworks shop with a working cart, plus pages for wedding fireworks, displays, delivery, showrooms, safety and contact. Orders and enquiries are sent to the shop on WhatsApp, so there is no server, database or payment gateway to run.
+A static website for Pak Fireworks, laid out as one long page: a 3D fireworks hero, then alternating text and picture rows (buy online, showroom, occasions, displays, special options, why choose us, delivery, order today), with the shop, combo packs, safety, FAQ and contact in between. It is an online fireworks shop with a working cart, plus pages for wedding fireworks, displays, delivery, showrooms, safety and contact. Orders and enquiries are sent to the shop on WhatsApp, so there is no server, database or payment gateway to run.
 
 ## Files
 
@@ -55,7 +55,7 @@ Any static host works. Two free options:
 
 ## Photos and video
 
-The hero video and the photos in `assets/photos/` are licensed from Adobe Stock (free collection) through the shop owner's Adobe account. They are placeholders for real Noor photography:
+The hero video and the photos in `assets/photos/` are licensed from Adobe Stock (free collection) through the shop owner's Adobe account. They are placeholders for real Pak Fireworks photography:
 
 - Category tiles use one photo per category (`photos` in `js/config.js`).
 - Each product can show its own photo: add `img: 'assets/products/your-photo.jpg'` to that item in `js/config.js`. Until then a product shows its category photo.

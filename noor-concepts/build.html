@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Noor Show Builder</title>
+<title>Pak Fireworks Show Builder</title>
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;800;900&family=Hanken+Grotesk:wght@400;500;600;700&display=swap">
@@ -60,7 +60,7 @@ button{font:inherit;color:inherit}
 </head>
 <body>
 <div class="stage"><canvas id="bg" aria-hidden="true"></canvas><canvas id="fx" aria-label="Your rooftop show"></canvas></div>
-<header class="top"><a class="logo" href="./">Noor<small>Fireworks</small></a><a class="back" href="./">All three ideas</a></header>
+<header class="top"><a class="logo" href="./">Pak<small>Fireworks</small></a><a class="back" href="./">All three ideas</a></header>
 <div class="intro"><h1>Build your show. Then light it.</h1><p>Pick fireworks below. Each one lands on the roof in firing order. Press Fire to watch your show over Karachi, then send it to us as your order.</p></div>
 <section class="panel" aria-label="Show builder">
   <p class="label"><span>Add to your show</span><span>Tap to add, more than once if you like</span></p>
@@ -145,8 +145,8 @@ button{font:inherit;color:inherit}
     $('#fire').disabled = !lineup.length || playing;
     const o = $('#order');
     if (lineup.length) {
-      const txt = ['Assalam o Alaikum Noor Fireworks, I built this show on your website:', '', ...lineup.map((it, i) => `${i + 1}. ${it.n} = ${fmt(it.p)}`), '', `Total: ${fmt(total)}`];
-      o.href = 'https://wa.me/923000000000?text=' + encodeURIComponent(txt.join('\n')); o.removeAttribute('aria-disabled');
+      const txt = ['Assalam o Alaikum Pak Fireworks, I built this show on your website:', '', ...lineup.map((it, i) => `${i + 1}. ${it.n} = ${fmt(it.p)}`), '', `Total: ${fmt(total)}`];
+      o.href = 'https://wa.me/923131008807?text=' + encodeURIComponent(txt.join('\n')); o.removeAttribute('aria-disabled');
     } else { o.href = '#'; o.setAttribute('aria-disabled', 'true'); }
     drawBg();
   }
