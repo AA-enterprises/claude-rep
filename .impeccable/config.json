@@ -29,6 +29,15 @@
         ],
         "createdAt": "2026-10-09T02:22:24.552Z",
         "reason": "Claude decision: verified in desktop and mobile screenshots; every flagged container insets its text via .wrap (16-32px) or its own padding (24-56px)"
+      },
+      {
+        "rule": "border-accent-on-rounded",
+        "value": "*",
+        "files": [
+          "noor-fireworks/css/styles.css"
+        ],
+        "createdAt": "2026-10-10T05:57:47.507Z",
+        "reason": "Claude decision: flagged rule is the nav links' transparent 3px border-bottom used as a hover/active underline on square-cornered links; no rounded card involved"
       }
     ]
   }
