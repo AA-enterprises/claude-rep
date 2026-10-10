@@ -196,7 +196,7 @@
   ITEMS.forEach(it => {
     it.off = it.was ? Math.round((1 - it.pv / it.was) * 100) : 0;
     const el = document.createElement('article'); el.className = 'card'; it.el = el;
-    const flag = it.pro ? '<span class="flag lic">Licensed only</span>' : it.bogo ? '<span class="flag bogo">Buy 1 get 1 free</span>' : it.off ? `<span class="flag">${it.off}% off</span>` : '';
+    const flag = it.pro ? '<span class="flag lic">Licensed only</span>' : it.off ? `<span class="flag">${it.off}% off</span>` : '';
     const btn = it.pro ? '<button class="add q" type="button">Request a quote</button>'
       : it.st === 'out' ? '<button class="add" type="button" disabled>Sold out</button>'
       : `<button class="add" type="button">${it.st === 'pre' ? 'Pre-order' : 'Add to cart'}</button>`;
@@ -270,27 +270,19 @@
 
   /* ---------- Cart ---------- */
   let cart = store.get('noor-cart', {});            // { id: qty }
-  let codeOn = store.get('noor-code', false);
   const buyer = store.get('noor-buyer', {});
   Object.keys(cart).forEach(id => { if (!PRODUCTS[id] || PRODUCTS[id].pro) delete cart[id]; });
 
   const count = () => Object.values(cart).reduce((a, b) => a + b, 0);
 
-  /* Totals. Buy one get one: across all offer cakes, every second unit (cheapest first) is free. */
+  /* Totals. Orders at or above PROMO.freeDeliveryAt get free delivery and a small gift. */
   function totals() {
     const lines = Object.entries(cart).map(([id, qty]) => ({ p: PRODUCTS[id], qty, id }));
-    const subtotal = lines.reduce((a, l) => a + l.p.pv * l.qty, 0);
-    const units = [];
-    lines.forEach(l => { if (l.p.bogo) for (let i = 0; i < l.qty; i++) units.push(l.p.pv); });
-    units.sort((a, b) => b - a);
-    let bogo = 0; for (let i = 1; i < units.length; i += 2) bogo += units[i];
-    const afterBogo = subtotal - bogo;
-    const code = codeOn ? Math.round(afterBogo * PROMO.percent / 100) : 0;
-    const total = afterBogo - code;
-    return { lines, subtotal, bogo, code, total, gift: total >= PROMO.freeGiftAt, freeUnits: Math.floor(units.length / 2) };
+    const total = lines.reduce((a, l) => a + l.p.pv * l.qty, 0);
+    return { lines, total, gift: total >= PROMO.freeDeliveryAt };
   }
 
-  function saveCart() { store.set('noor-cart', cart); store.set('noor-code', codeOn); }
+  function saveCart() { store.set('noor-cart', cart); }
 
   function updateBadge(bump) {
     const n = count(), b = $('#cartBtn');
@@ -302,11 +294,9 @@
   function addToCart(id, btn) {
     cart[id] = (cart[id] || 0) + 1; saveCart(); updateBadge(true); renderCart();
     const p = PRODUCTS[id];
-    if (!p.bogo) toast(`${p.n} added to your cart`);
-    else toast(cakeUnits() % 2 === 0 ? `${p.n} added. Your free cake is applied.` : `${p.n} added. Add one more offer cake and the cheaper one is free.`);
+    toast(`${p.n} added to your cart`);
     if (btn) { const old = btn.textContent; btn.textContent = 'Added'; btn.classList.add('in'); setTimeout(() => { btn.textContent = old; btn.classList.remove('in'); }, 1400); }
   }
-  const cakeUnits = () => Object.entries(cart).reduce((a, [id, q]) => a + (PRODUCTS[id].bogo ? q : 0), 0);
 
   function setQty(id, q) {
     if (q <= 0) delete cart[id]; else cart[id] = Math.min(99, q);
@@ -321,7 +311,7 @@
       foot2.innerHTML = '';
       return;
     }
-    const toGift = Math.max(0, PROMO.freeGiftAt - t.total);
+    const toGift = Math.max(0, PROMO.freeDeliveryAt - t.total);
     body.innerHTML = `
       <ul class="lines">${t.lines.map(l => `
         <li class="line">
@@ -330,17 +320,12 @@
             <div class="qty"><button type="button" data-dec="${l.id}" aria-label="Remove one ${esc(l.p.n)}">−</button><output aria-live="polite" aria-label="Quantity">${l.qty}</output><button type="button" data-inc="${l.id}" aria-label="Add one more ${esc(l.p.n)}">+</button></div></div>
           <div><p class="amt">${fmt(l.p.pv * l.qty)}</p><button class="rm" type="button" data-rm="${l.id}">Remove</button></div>
         </li>`).join('')}
-        ${t.gift ? `<li class="line"><span class="sw" style="--bg:var(--saffron)">${CAKE_ICON}</span><div><h3>${esc(PROMO.freeGift)}</h3><p class="free">Free with orders over ${fmt(PROMO.freeGiftAt)}</p></div><p class="amt">Free</p></li>` : ''}
+        ${t.gift ? `<li class="line"><span class="sw" style="--bg:var(--saffron)">${CAKE_ICON}</span><div><h3>${esc(PROMO.freeGift)}</h3><p class="free">On orders over ${fmt(PROMO.freeDeliveryAt)}</p></div><p class="amt">Free</p></li>` : ''}
       </ul>
-      ${t.gift ? '' : `<div class="gift">Add ${fmt(toGift)} more for a ${esc(PROMO.freeGift.toLowerCase())}.<div class="meter" aria-hidden="true"><i style="width:${Math.min(100, t.total / PROMO.freeGiftAt * 100)}%"></i></div></div>`}
-      <form class="code" id="codeForm"><label class="sr" for="codeIn">Discount code</label><input id="codeIn" placeholder="Discount code" autocomplete="off" value="${codeOn ? PROMO.code : ''}" ${codeOn ? 'disabled' : ''}><button class="btn btn-ink" type="submit">${codeOn ? 'Remove' : 'Apply'}</button></form>
-      <p class="code-msg ok" id="codeMsg" ${codeOn ? '' : 'hidden'}>${codeOn ? `${PROMO.code} applied: ${PROMO.percent}% off` : ''}</p>
+      ${t.gift ? '' : `<div class="gift">Add ${fmt(toGift)} more for ${esc(PROMO.freeGift.toLowerCase())}.<div class="meter" aria-hidden="true"><i style="width:${Math.min(100, t.total / PROMO.freeDeliveryAt * 100)}%"></i></div></div>`}
       <dl class="sum">
-        <div><dt>Subtotal</dt><dd>${fmt(t.subtotal)}</dd></div>
-        ${t.bogo ? `<div class="save"><dt>Buy 1 get 1 free (${t.freeUnits} cake${t.freeUnits > 1 ? 's' : ''})</dt><dd>− ${fmt(t.bogo)}</dd></div>` : ''}
-        ${t.code ? `<div class="save"><dt>${PROMO.code} (${PROMO.percent}% off)</dt><dd>− ${fmt(t.code)}</dd></div>` : ''}
         <div class="total"><dt>Total</dt><dd>${fmt(t.total)}</dd></div>
-        <div class="note"><dt>Delivery</dt><dd>Confirmed on WhatsApp by city</dd></div>
+        ${t.gift ? '<div class="save"><dt>Delivery</dt><dd>Free</dd></div>' : '<div class="note"><dt>Delivery</dt><dd>Confirmed on WhatsApp by city</dd></div>'}
         <div class="note"><dt>Advance to pay</dt><dd>${fmt(Math.ceil(t.total / 2))} (half)</dd></div>
       </dl>
       <form class="checkout" id="checkout" novalidate>
@@ -354,7 +339,7 @@
         <label class="check"><input type="checkbox" id="c-age" required aria-describedby="c-age-err"> I am 18 or older and will follow the safety label on every item.</label>
         <p class="err" id="c-age-err" hidden>Fireworks are sold to adults only. Tick the box to continue.</p>
       </form>`;
-    foot2.innerHTML = `<button class="btn btn-wa" type="submit" form="checkout"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><use href="#i-wa"/></svg>Send order on WhatsApp</button><small>We reply with delivery charge and payment details. Nothing is charged online.</small>`;
+    foot2.innerHTML = `<button class="btn btn-wa" type="submit" form="checkout"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><use href="#i-wa"/></svg>Send order on WhatsApp</button><small>We reply with ${t.gift ? 'payment details' : 'delivery charge and payment details'}. Nothing is charged online.</small>`;
   }
 
   /* Cart events (delegated, so they survive re-renders) */
@@ -376,12 +361,6 @@
   });
   body.addEventListener('submit', e => {
     e.preventDefault();
-    if (e.target.id === 'codeForm') {
-      const inp = $('#codeIn'), msg = $('#codeMsg');
-      if (codeOn) { codeOn = false; saveCart(); renderCart(); $('#codeIn').focus(); return; }
-      if (inp.value.trim().toUpperCase() === PROMO.code) { codeOn = true; saveCart(); renderCart(); toast(`${PROMO.code} applied`); $('#codeForm button').focus(); }
-      else { msg.hidden = false; msg.className = 'code-msg bad'; msg.textContent = inp.value.trim() ? `"${inp.value.trim()}" is not a valid code. Try ${PROMO.code}.` : 'Type a code first.'; inp.focus(); }
-    }
     if (e.target.id === 'checkout') sendOrder();
   });
 
@@ -401,10 +380,7 @@
     const L = [`Assalam o Alaikum ${BIZ.name}, I would like to order:`, ''];
     t.lines.forEach(l => L.push(`• ${l.qty} × ${l.p.n} = ${fmt(l.p.pv * l.qty)}${l.p.st === 'pre' ? ' (pre-order)' : ''}`));
     if (t.gift) L.push(`• ${PROMO.freeGift} = Free`);
-    L.push('', `Subtotal: ${fmt(t.subtotal)}`);
-    if (t.bogo) L.push(`Buy 1 get 1 free: −${fmt(t.bogo)}`);
-    if (t.code) L.push(`${PROMO.code} (${PROMO.percent}% off): −${fmt(t.code)}`);
-    L.push(`Total before delivery: ${fmt(t.total)}`, '');
+    L.push('', t.gift ? `Total: ${fmt(t.total)} (free delivery)` : `Total before delivery: ${fmt(t.total)}`, '');
     L.push(`Name: ${name.value.trim()}`, `Phone: ${phone.value.trim()}`, `City: ${city.value}`, `Address: ${addr.value.trim()}`, '', 'I confirm I am 18 or older.');
     openWhatsApp(L.join('\n'));
     toast('WhatsApp is open with your order. Press send there to place it.');
@@ -487,12 +463,6 @@
   }
 
   /* ---------- Misc ---------- */
-  $('#copyCode').addEventListener('click', e => {
-    const b = e.currentTarget;
-    const done = () => { b.textContent = 'Copied'; setTimeout(() => { b.textContent = 'Copy code'; }, 1600); };
-    if (navigator.clipboard) navigator.clipboard.writeText(PROMO.code).then(done).catch(selectCode); else selectCode();
-    function selectCode() { const r = document.createRange(); r.selectNodeContents($('#codeTxt')); getSelection().removeAllRanges(); getSelection().addRange(r); toast('Code selected. Copy it from here.'); }
-  });
   const nav = $('#mainNav'), mb = $('#menuBtn');
   mb.addEventListener('click', () => { const o = nav.classList.toggle('open'); mb.setAttribute('aria-expanded', o); });
   function closeMenu() { nav.classList.remove('open'); mb.setAttribute('aria-expanded', 'false'); }

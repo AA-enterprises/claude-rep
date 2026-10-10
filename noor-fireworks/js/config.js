@@ -19,10 +19,8 @@ window.NOOR = {
   },
 
   promo: {
-    code: 'MELA15',
-    percent: 15,
-    freeGiftAt: 25000,               // free sparkler pack at or above this cart total (PKR)
-    freeGift: 'Free sparkler pack'
+    freeDeliveryAt: 50000,           // free delivery and a small gift at or above this cart total (PKR)
+    freeGift: 'Free delivery and a small gift'
   },
 
   /*
@@ -84,13 +82,13 @@ window.NOOR = {
     img: optional photo of the actual product box, for example 'assets/products/night-garden.jpg'
     n: name, k: category, q: size/shots, d: duration, x: keep-back distance
     pv: price (PKR), was: old price, st: ok | few | pre | out
-    low: low noise, pro: licensed only (price on request), bogo: part of the cake offer
+    low: low noise, pro: licensed only (price on request)
     fx / c / bg: the animation shown on the card
   */
   items: [
     { id: 'night-garden-49', n: 'Night Garden 49-shot cake', k: 'Cakes & barrages', q: '49 shots', d: '40 s', x: '25 m', pv: 18500, was: 21000, st: 'few', fx: 'peony', c: 'violet', bg: '#2a0f3d', pop: 10 },
-    { id: 'chirya-16', n: 'Chirya 16-shot cake', k: 'Cakes & barrages', q: '16 shots', d: '20 s', x: '15 m', pv: 4500, st: 'ok', bogo: 1, fx: 'peony', c: 'pink', bg: '#3a0f2e', pop: 9 },
-    { id: 'crossette-25', n: 'Crossette 25-shot cake', k: 'Cakes & barrages', q: '25 shots', d: '25 s', x: '20 m', pv: 8900, st: 'ok', bogo: 1, fx: 'crossette', c: 'blue', bg: '#0f2a6b', pop: 8 },
+    { id: 'chirya-16', n: 'Chirya 16-shot cake', k: 'Cakes & barrages', q: '16 shots', d: '20 s', x: '15 m', pv: 4500, st: 'ok', fx: 'peony', c: 'pink', bg: '#3a0f2e', pop: 9 },
+    { id: 'crossette-25', n: 'Crossette 25-shot cake', k: 'Cakes & barrages', q: '25 shots', d: '25 s', x: '20 m', pv: 8900, st: 'ok', fx: 'crossette', c: 'blue', bg: '#0f2a6b', pop: 8 },
     { id: 'mela-finale-100', n: 'Mela Finale 100-shot', k: 'Cakes & barrages', q: '100 shots', d: '55 s', x: '25 m', pv: 42000, was: 46000, st: 'pre', fx: 'chrysanthemum', c: 'gold', bg: '#1b1240', pop: 7 },
     { id: 'butterfly-36', n: 'Butterfly low-noise cake', k: 'Cakes & barrages', q: '36 shots', d: '45 s', x: '15 m', pv: 9800, st: 'ok', low: 1, fx: 'ring', c: 'pink', bg: '#401040', pop: 7 },
     { id: 'sky-whistler', n: 'Sky Whistler rockets', k: 'Rockets', q: '12 pcs', d: '3 s each', x: '25 m', pv: 2400, st: 'ok', fx: 'rocket', c: 'pink', bg: '#13235c', pop: 9 },

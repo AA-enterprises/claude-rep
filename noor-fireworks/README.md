@@ -29,10 +29,9 @@ The phone number and email also appear in `index.html` (in the structured data b
 ## How ordering works
 
 1. A customer adds products to the cart. The cart remembers them on that phone or computer.
-2. Buy one, get one free is applied automatically to products marked `bogo: 1` (the 16 and 25-shot cakes): every second offer cake, cheapest first, is free.
-3. Code `MELA15` takes 15% off. A free sparkler pack is added at PKR 25,000 and above.
-4. The customer fills in name, phone, city and address, confirms they are 18+, and presses **Send order on WhatsApp**. WhatsApp opens with the full order written out, ready to send to you.
-5. You reply with the delivery charge and payment details, as before.
+2. Orders of PKR 50,000 or more get free delivery and a small gift (`promo.freeDeliveryAt` in `js/config.js`). The cart shows how much more is needed below that.
+3. The customer fills in name, phone, city and address, confirms they are 18+, and presses **Send order on WhatsApp**. WhatsApp opens with the full order written out, ready to send to you.
+4. You reply with the delivery charge (unless it is free) and payment details, as before.
 
 The contact form works the same way: it opens WhatsApp with the enquiry written out.
 

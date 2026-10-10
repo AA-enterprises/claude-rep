@@ -141,10 +141,10 @@ nav.main{border-top:1px solid var(--line)}
 .hero-cta{display:flex;flex-wrap:wrap;gap:12px;margin-top:26px;justify-content:center}
 .vhero .btn-line{backdrop-filter:blur(4px);background:rgba(255,255,255,.05)}
 .codepill{margin-top:18px;display:inline-flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:center;font-weight:600;font-size:14px;background:rgba(8,7,12,.65);border:1px solid rgba(255,255,255,.18);padding:7px 7px 7px 16px;border-radius:999px;backdrop-filter:blur(6px)}
-.codepill b{font:500 14px/1 var(--mono);color:var(--gold);letter-spacing:.06em}
+.codepill b{font:700 14px/1 var(--body);color:var(--gold)}
 .codepill button{font:700 12px/1 var(--body);background:var(--gold);color:var(--gold-ink);border:0;border-radius:999px;padding:9px 12px;cursor:pointer}
 .hint{position:absolute;left:0;right:0;bottom:18px;z-index:3;text-align:center;font-size:13px;color:var(--muted);pointer-events:none}
-@media (max-width:640px){.hint{display:none}.vhero{min-height:600px}.brand{font-size:clamp(70px,21vw,96px)}.codepill{border-radius:18px;padding:10px 10px 10px 16px}}
+@media (max-width:640px){.hint{display:none}.vhero{min-height:600px}.brand{font-size:clamp(70px,21vw,96px)}.codepill{border-radius:18px;padding:10px 16px}}
 
 /* Zig-zag rows */
 .zig{padding-block:clamp(64px,9vw,120px)}
@@ -462,3 +462,5 @@ footer a:hover{color:var(--gold)}
 @media (prefers-reduced-motion:reduce){.br-row{animation:none;width:auto;flex-wrap:wrap;justify-content:center;row-gap:16px;padding-inline:16px}.br-row li[aria-hidden],.br-track.rev{display:none}.br-track{-webkit-mask-image:none;mask-image:none}.br-logo::after{animation:none;display:none}}
 .roll{transform-origin:50% 0%}
 main{overflow-x:clip}
+.codepill{padding:11px 18px}
+.codepill::before{content:'';width:7px;height:7px;border-radius:50%;background:var(--gold);box-shadow:0 0 10px var(--gold)}
