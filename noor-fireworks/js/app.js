@@ -59,27 +59,32 @@
     sync();
 
     /* Brand name formed by sparks: three rockets rise, burst, and their stars settle into the letters */
-    if (reduce) return;
+    if (reduce) { sec.classList.add('formed'); return; }
     const g = cv.getContext('2d'), brand = $('#brand');
     let W = 0, H = 0, pts = [], stars = [], rockets = [], t0 = 0, t0f = 0, phase = 0, raf = 0;
     function sample() {
-      /* Trace the logo image: every few pixels that are solid become a spark, coloured like the logo there */
-      const r = brand.getBoundingClientRect(), s = sec.getBoundingClientRect(), img = brand.querySelector('img');
-      if (!img || !img.complete || !r.width) return [];
-      const c = document.createElement('canvas'); c.width = Math.ceil(r.width); c.height = Math.ceil(r.height);
-      const x = c.getContext('2d'); x.drawImage(img, 0, 0, c.width, c.height);
-      const d = x.getImageData(0, 0, c.width, c.height).data, out = [], step = Math.max(3, Math.round(c.width / 170));
-      for (let y = 0; y < c.height; y += step) for (let xx = 0; xx < c.width; xx += step) {
-        const o = (y * c.width + xx) * 4;
-        if (d[o + 3] > 150) out.push([r.left - s.left + xx, r.top - s.top + y, y / c.height, [d[o], d[o + 1], d[o + 2]]]);
-      }
+      /* Draw each word of the name off-screen in the same font, then every few solid pixels becomes a spark */
+      const s = sec.getBoundingClientRect(), out = [];
+      brand.querySelectorAll('span').forEach((w, wi) => {
+        const r = w.getBoundingClientRect(), cs = getComputedStyle(w), fs = parseFloat(cs.fontSize);
+        if (!r.width) return;
+        const c = document.createElement('canvas'); c.width = Math.ceil(r.width + fs); c.height = Math.ceil(r.height);
+        const x = c.getContext('2d'); x.font = `${cs.fontWeight} ${fs}px ${cs.fontFamily}`; x.letterSpacing = cs.letterSpacing;
+        const m = x.measureText(w.textContent), asc = m.fontBoundingBoxAscent || fs * .8, des = m.fontBoundingBoxDescent || fs * .2;
+        x.fillStyle = '#fff'; x.fillText(w.textContent, 0, (r.height - asc - des) / 2 + asc);
+        const d = x.getImageData(0, 0, c.width, c.height).data, step = Math.max(3, Math.round(fs / 30));
+        const pal = wi ? [[255, 236, 160], [244, 182, 60]] : [[150, 255, 196], [40, 200, 110]];
+        for (let y = 0; y < c.height; y += step) for (let xx = 0; xx < c.width; xx += step) if (d[(y * c.width + xx) * 4 + 3] > 140) {
+          const k = y / c.height; out.push([r.left - s.left + xx, r.top - s.top + y, k, pal[0].map((v, i) => Math.round(v + (pal[1][i] - v) * k))]);
+        }
+      });
       return out;
     }
     const COL = k => { const a = [[255, 247, 214], [255, 212, 92], [255, 154, 60], [255, 79, 154]]; const f = Math.min(.999, Math.max(0, k)) * (a.length - 1), i = f | 0, u = f - i; return a[i].map((v, j) => Math.round(v + (a[i + 1][j] - v) * u)); };
     function fit() { const dpr = Math.min(devicePixelRatio || 1, 2), r = sec.getBoundingClientRect(); W = r.width; H = r.height; cv.width = W * dpr; cv.height = H * dpr; g.setTransform(dpr, 0, 0, dpr, 0, 0); }
     const ease = t => t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
     function start() {
-      fit(); pts = sample(); if (!pts.length) return;
+      fit(); pts = sample(); if (!pts.length) { sec.classList.add('formed'); return; }
       sec.classList.add('forming');
       const xs = [W * .3, W * .5, W * .7], ty = pts.reduce((a, p) => a + p[1], 0) / pts.length - 20;
       rockets = xs.map((x, i) => ({ x: x + (Math.random() - .5) * 40, y: H + 10, tx: x, ty, d: 300 + i * 260, b: false }));
@@ -106,13 +111,12 @@
         if (k < 1) { g.fillStyle = `rgba(${c[0]},${c[1]},${c[2]},.18)`; g.beginPath(); g.arc(s.x, s.y, 5, 0, 7); g.fill(); }
       });
       rockets.forEach(r => { if (r.b) { const u = (t - r.bt) / 260; if (u < 1) { g.fillStyle = `rgba(255,240,210,${.35 * (1 - u)})`; g.beginPath(); g.arc(r.tx, r.ty, 90 * u + 10, 0, 7); g.fill(); } } });
-      if (settled === stars.length && phase === 1) { phase = 2; t0f = now; sec.classList.remove('forming'); }
+      if (settled === stars.length && phase === 1) { phase = 2; t0f = now; sec.classList.remove('forming'); sec.classList.add('formed'); }
       if (phase === 2) { const f = Math.min(1, (now - t0f) / 1400); cv.style.opacity = String(1 - f); if (f >= 1) { g.clearRect(0, 0, W, H); cv.style.opacity = '1'; phase = 0; return; } }
       raf = requestAnimationFrame(frame);
     }
-    const logoImg = brand.querySelector('img');
-    Promise.all([document.fonts ? document.fonts.ready : 0, logoImg && logoImg.decode ? logoImg.decode().catch(() => {}) : 0]).then(() => setTimeout(start, 600));
-    addEventListener('resize', () => { if (phase === 0) return; cancelAnimationFrame(raf); phase = 0; g.clearRect(0, 0, W, H); sec.classList.remove('forming'); });
+    (document.fonts ? document.fonts.ready : Promise.resolve()).then(() => setTimeout(start, 600));
+    addEventListener('resize', () => { if (phase === 0) return; cancelAnimationFrame(raf); phase = 0; g.clearRect(0, 0, W, H); sec.classList.remove('forming'); sec.classList.add('formed'); });
   })();
 
   /* ---------- Hero video: play while on screen, still frame for reduced motion ---------- */
