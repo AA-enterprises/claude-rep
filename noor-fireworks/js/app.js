@@ -439,14 +439,22 @@
   });
   updateBadge(false);
 
-  /* ---------- Brands we've worked with: a slow moving strip of logo tiles ---------- */
+  /* ---------- Brands we've worked with: two strips of logo tiles drifting in opposite directions ---------- */
   const BR = window.NOOR.brands || [];
   if (BR.length) {
-    const row = $('#brandRow'), tile = (b, hide) => `<li${hide ? ' aria-hidden="true"' : ''}><figure><span class="br-logo"><img src="${esc(b.img)}" alt="${hide ? '' : esc(b.name)}" loading="lazy" decoding="async"></span><figcaption>${esc(b.name)}</figcaption></figure></li>`;
-    /* two copies so the strip loops without a gap; the copy is hidden from screen readers */
-    row.innerHTML = BR.map(b => tile(b)).join('') + BR.map(b => tile(b, 1)).join('');
-    row.style.setProperty('--n', BR.length);
-    $('#brands').hidden = false;
+    const tile = (b, hide) => `<li${hide ? ' aria-hidden="true"' : ''}><figure><span class="br-logo"><img src="${esc(b.img)}" alt="${hide ? '' : esc(b.name)}" loading="lazy" decoding="async"></span><figcaption>${esc(b.name)}</figcaption></figure></li>`;
+    const half = Math.ceil(BR.length / 2), BR2 = BR.slice(half).concat(BR.slice(0, half)).reverse();
+    /* Repeat the logos until one set is wider than the screen, then double it so the loop never shows a gap */
+    function fill(row, list, quiet) {
+      row.innerHTML = list.map(b => tile(b, quiet)).join('');
+      const one = row.scrollWidth || 1, reps = Math.max(1, Math.ceil(innerWidth * 1.1 / one));
+      const set = Array.from({ length: reps }, (_, r) => list.map(b => tile(b, quiet || r > 0)).join('')).join('');
+      row.innerHTML = set + set.replace(/<li>/g, '<li aria-hidden="true">').replace(/alt="[^"]*"/g, 'alt=""');
+      row.style.animationDuration = Math.round(one * reps / 38) + 's';
+    }
+    const build = () => { fill($('#brandRow'), BR); fill($('#brandRow2'), BR2, 1); };
+    $('#brands').hidden = false; build();
+    let bw = innerWidth, bt; addEventListener('resize', () => { clearTimeout(bt); bt = setTimeout(() => { if (innerWidth !== bw) { bw = innerWidth; build(); } }, 200); });
   }
 
   /* ---------- Reviews: shown only when real figures are set in config.js ---------- */

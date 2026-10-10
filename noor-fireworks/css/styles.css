@@ -434,17 +434,31 @@ footer a:hover{color:var(--gold)}
 @media (prefers-reduced-motion:reduce){.vhero.formed .brand{animation:none}}
 
 /* Brands we've worked with */
-.brands{overflow:hidden}
-.br-track{overflow:hidden;-webkit-mask-image:linear-gradient(90deg,transparent,#000 8%,#000 92%,transparent);mask-image:linear-gradient(90deg,transparent,#000 8%,#000 92%,transparent)}
-.br-row{display:flex;gap:20px;width:max-content;margin:0;padding:6px 0;list-style:none;animation:brands calc(var(--n,5) * 6s) linear infinite}
+.brands{position:relative;overflow:hidden;padding-block:clamp(48px,6vw,80px);background:radial-gradient(ellipse 60% 70% at 50% 0%,rgba(255,194,61,.09),transparent 70%),#0b0a10;border-block:1px solid var(--line)}
+.br-head{text-align:center;margin-bottom:clamp(26px,3.4vw,40px)}
+.br-kick{display:inline-flex;align-items:center;gap:14px;margin:0 0 10px;font:700 12px/1 var(--body);letter-spacing:.42em;padding-left:.42em;text-transform:uppercase;color:var(--gold)}
+.br-kick::before,.br-kick::after{content:'';width:46px;height:1px;background:linear-gradient(90deg,transparent,var(--gold))}
+.br-kick::after{transform:scaleX(-1)}
+.br-head h2{margin:0;font-size:clamp(34px,4.4vw,58px)}
+.br-track{overflow:hidden;-webkit-mask-image:linear-gradient(90deg,transparent,#000 7%,#000 93%,transparent);mask-image:linear-gradient(90deg,transparent,#000 7%,#000 93%,transparent)}
+.br-track.rev{margin-top:18px}
+.br-row{display:flex;width:max-content;margin:0;padding:10px 0;list-style:none;animation:brands 60s linear infinite}
+.br-track.rev .br-row{animation-direction:reverse}
 .br-track:hover .br-row{animation-play-state:paused}
-@keyframes brands{to{transform:translateX(calc(-50% - 10px))}}
+@keyframes brands{to{transform:translateX(-50%)}}
+.br-row li{padding-right:20px}
 .br-row figure{margin:0;display:grid;gap:12px;justify-items:center}
-.br-logo{display:block;box-sizing:border-box;width:220px;height:140px;padding:20px 26px;background:#fbf8f1;border-radius:16px;box-shadow:0 1px 0 rgba(255,255,255,.6) inset,0 14px 30px rgba(0,0,0,.35);transition:transform .35s ease,box-shadow .35s ease}
-.br-logo img{display:block;width:100%;height:100%;min-height:0;object-fit:contain}
-.br-row li:hover .br-logo{transform:translateY(-4px);box-shadow:0 1px 0 rgba(255,255,255,.6) inset,0 18px 40px rgba(255,194,61,.18)}
+.br-logo{position:relative;display:block;box-sizing:border-box;width:220px;height:132px;padding:20px 28px;overflow:hidden;background:linear-gradient(180deg,#fffdf7,#f6efdf);border-radius:16px;box-shadow:0 0 0 1px rgba(255,194,61,.45),0 14px 30px rgba(0,0,0,.4);transition:transform .45s cubic-bezier(.2,.8,.2,1),box-shadow .45s ease}
+.br-logo::after{content:'';position:absolute;inset:-20% auto -20% 0;width:45%;background:linear-gradient(100deg,transparent,rgba(255,255,255,.75),transparent);transform:translateX(-140%) skewX(-18deg);animation:br-sheen 7s ease-in-out infinite;pointer-events:none}
+.br-row li:nth-child(3n+2) .br-logo::after{animation-delay:2.3s}
+.br-row li:nth-child(3n) .br-logo::after{animation-delay:4.6s}
+@keyframes br-sheen{0%,72%{transform:translateX(-140%) skewX(-18deg)}88%,100%{transform:translateX(330%) skewX(-18deg)}}
+.br-logo img{position:relative;display:block;width:100%;height:100%;min-height:0;object-fit:contain;transition:transform .45s cubic-bezier(.2,.8,.2,1)}
+.br-row li:hover .br-logo{transform:translateY(-6px) rotateX(8deg);box-shadow:0 0 0 1.5px var(--gold),0 22px 44px rgba(255,194,61,.22)}
+.br-row li:hover .br-logo img{transform:scale(1.06)}
 .br-row figcaption{font-size:13px;font-weight:600;color:var(--muted);text-align:center;max-width:220px}
-@media (max-width:640px){.br-logo{width:168px;height:112px;padding:16px 18px}.br-row{gap:14px}.br-row figcaption{font-size:12px;max-width:168px}@keyframes brands{to{transform:translateX(calc(-50% - 7px))}}}
-@media (prefers-reduced-motion:reduce){.br-row{animation:none;width:auto;flex-wrap:wrap;justify-content:center;padding-inline:16px}.br-row li[aria-hidden]{display:none}.br-track{-webkit-mask-image:none;mask-image:none}}
+.br-track.rev figcaption{display:none}
+@media (max-width:640px){.br-logo{width:164px;height:104px;padding:14px 18px}.br-row li{padding-right:14px}.br-row figcaption{font-size:12px;max-width:164px}.br-kick::before,.br-kick::after{width:28px}}
+@media (prefers-reduced-motion:reduce){.br-row{animation:none;width:auto;flex-wrap:wrap;justify-content:center;row-gap:16px;padding-inline:16px}.br-row li[aria-hidden],.br-track.rev{display:none}.br-track{-webkit-mask-image:none;mask-image:none}.br-logo::after{animation:none;display:none}}
 .roll{transform-origin:50% 0%}
 main{overflow-x:clip}
