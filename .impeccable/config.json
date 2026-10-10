@@ -38,6 +38,16 @@
         ],
         "createdAt": "2026-10-10T05:57:47.507Z",
         "reason": "Claude decision: flagged rule is the nav links' transparent 3px border-bottom used as a hover/active underline on square-cornered links; no rounded card involved"
+      },
+      {
+        "rule": "marquee",
+        "value": "*",
+        "files": [
+          "noor-fireworks/css/styles.css",
+          "noor-fireworks/index.html"
+        ],
+        "createdAt": "2026-10-10T06:32:48.044Z",
+        "reason": "User requested: asked for an animated brands strip ('koi achi si brand animation'); strip pauses on hover and falls back to a static wrapped grid under prefers-reduced-motion"
       }
     ]
   }
