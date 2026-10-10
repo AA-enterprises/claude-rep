@@ -63,16 +63,16 @@
     const g = cv.getContext('2d'), brand = $('#brand');
     let W = 0, H = 0, pts = [], stars = [], rockets = [], t0 = 0, t0f = 0, phase = 0, raf = 0;
     function sample() {
-      const r = brand.getBoundingClientRect(), s = sec.getBoundingClientRect();
-      const cs = getComputedStyle(brand), fs = parseFloat(cs.fontSize), fam = cs.fontFamily;
+      /* Trace the logo image: every few pixels that are solid become a spark, coloured like the logo there */
+      const r = brand.getBoundingClientRect(), s = sec.getBoundingClientRect(), img = brand.querySelector('img');
+      if (!img || !img.complete || !r.width) return [];
       const c = document.createElement('canvas'); c.width = Math.ceil(r.width); c.height = Math.ceil(r.height);
-      const x = c.getContext('2d');
-      x.fillStyle = '#fff'; x.textAlign = 'center'; x.textBaseline = 'alphabetic';
-      x.font = `800 ${fs}px ${fam}`; x.fillText(BRAND, c.width / 2, fs * .78);
-      const sfs = fs * .28; x.font = `800 ${sfs}px ${fam}`;
-      x.fillText(SUB.split('').join(String.fromCharCode(8202, 8202, 8202)), c.width / 2 + sfs * .16, fs * .86 + sfs * .35 + sfs * .8);
-      const d = x.getImageData(0, 0, c.width, c.height).data, out = [], step = Math.max(3, Math.round(fs / 34));
-      for (let y = 0; y < c.height; y += step) for (let xx = 0; xx < c.width; xx += step) if (d[(y * c.width + xx) * 4 + 3] > 140) out.push([r.left - s.left + xx, r.top - s.top + y, y / c.height]);
+      const x = c.getContext('2d'); x.drawImage(img, 0, 0, c.width, c.height);
+      const d = x.getImageData(0, 0, c.width, c.height).data, out = [], step = Math.max(3, Math.round(c.width / 170));
+      for (let y = 0; y < c.height; y += step) for (let xx = 0; xx < c.width; xx += step) {
+        const o = (y * c.width + xx) * 4;
+        if (d[o + 3] > 150) out.push([r.left - s.left + xx, r.top - s.top + y, y / c.height, [d[o], d[o + 1], d[o + 2]]]);
+      }
       return out;
     }
     const COL = k => { const a = [[255, 247, 214], [255, 212, 92], [255, 154, 60], [255, 79, 154]]; const f = Math.min(.999, Math.max(0, k)) * (a.length - 1), i = f | 0, u = f - i; return a[i].map((v, j) => Math.round(v + (a[i + 1][j] - v) * u)); };
@@ -83,7 +83,7 @@
       sec.classList.add('forming');
       const xs = [W * .3, W * .5, W * .7], ty = pts.reduce((a, p) => a + p[1], 0) / pts.length - 20;
       rockets = xs.map((x, i) => ({ x: x + (Math.random() - .5) * 40, y: H + 10, tx: x, ty, d: 300 + i * 260, b: false }));
-      stars = pts.map(p => ({ r: rockets[Math.min(2, Math.floor(p[0] / W * 3))], tx: p[0], ty: p[1], k: p[2], a: Math.random() * 6.283, sp: .6 + Math.random() * 1.4, ph: Math.random() * 6.283, x: 0, y: 0 }));
+      stars = pts.map(p => ({ r: rockets[Math.min(2, Math.floor(p[0] / W * 3))], tx: p[0], ty: p[1], k: p[2], col: p[3], a: Math.random() * 6.283, sp: .6 + Math.random() * 1.4, ph: Math.random() * 6.283, x: 0, y: 0 }));
       t0 = performance.now(); phase = 1; cancelAnimationFrame(raf); raf = requestAnimationFrame(frame);
     }
     function frame(now) {
@@ -101,7 +101,7 @@
         const ox = r.tx + Math.cos(s.a) * rr * Math.min(1, u * 3), oy = r.ty + Math.sin(s.a) * rr * Math.min(1, u * 3) + u * u * 30;
         const k = ease(Math.min(1, Math.max(0, (u - .28) / .72)));
         s.x = ox + (s.tx - ox) * k; s.y = oy + (s.ty - oy) * k; if (k >= 1) settled++;
-        const c = COL(s.k), tw = k >= 1 ? .55 + .45 * Math.sin(now / 170 * s.sp + s.ph) : 1;
+        const c = s.col ? s.col.map(v => Math.min(255, v + (255 - v) * .3)) : COL(s.k), tw = k >= 1 ? .55 + .45 * Math.sin(now / 170 * s.sp + s.ph) : 1;
         g.fillStyle = `rgba(${c[0]},${c[1]},${c[2]},${.9 * tw})`; g.beginPath(); g.arc(s.x, s.y, k >= 1 ? 1.7 : 2.2, 0, 7); g.fill();
         if (k < 1) { g.fillStyle = `rgba(${c[0]},${c[1]},${c[2]},.18)`; g.beginPath(); g.arc(s.x, s.y, 5, 0, 7); g.fill(); }
       });
@@ -110,7 +110,8 @@
       if (phase === 2) { const f = Math.min(1, (now - t0f) / 1400); cv.style.opacity = String(1 - f); if (f >= 1) { g.clearRect(0, 0, W, H); cv.style.opacity = '1'; phase = 0; return; } }
       raf = requestAnimationFrame(frame);
     }
-    (document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve()).then(() => setTimeout(start, 700));
+    const logoImg = brand.querySelector('img');
+    Promise.all([document.fonts ? document.fonts.ready : 0, logoImg && logoImg.decode ? logoImg.decode().catch(() => {}) : 0]).then(() => setTimeout(start, 600));
     addEventListener('resize', () => { if (phase === 0) return; cancelAnimationFrame(raf); phase = 0; g.clearRect(0, 0, W, H); sec.classList.remove('forming'); });
   })();
 
