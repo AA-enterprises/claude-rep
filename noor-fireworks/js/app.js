@@ -63,20 +63,21 @@
     const g = cv.getContext('2d'), brand = $('#brand');
     let W = 0, H = 0, pts = [], stars = [], rockets = [], t0 = 0, t0f = 0, phase = 0, raf = 0;
     function sample() {
-      /* Draw each word of the name off-screen in the same font, then every few solid pixels becomes a spark */
-      const s = sec.getBoundingClientRect(), out = [];
-      brand.querySelectorAll('span').forEach((w, wi) => {
-        const r = w.getBoundingClientRect(), cs = getComputedStyle(w), fs = parseFloat(cs.fontSize);
+      /* Draw "PAK" and "FIREWORKS" off-screen exactly where they sit, then every few solid pixels becomes a spark */
+      const s = sec.getBoundingClientRect(), b = brand.getBoundingClientRect(), out = [];
+      const parts = [brand.firstChild, brand.querySelector('span') && brand.querySelector('span').firstChild];
+      parts.forEach(node => {
+        if (!node || !node.textContent.trim()) return;
+        const rg = document.createRange(); rg.selectNodeContents(node);
+        const r = rg.getBoundingClientRect(), cs = getComputedStyle(node.parentElement), fs = parseFloat(cs.fontSize);
         if (!r.width) return;
-        const c = document.createElement('canvas'); c.width = Math.ceil(r.width + fs); c.height = Math.ceil(r.height);
+        const c = document.createElement('canvas'); c.width = Math.ceil(r.width + fs); c.height = Math.ceil(r.height + fs * .2);
         const x = c.getContext('2d'); x.font = `${cs.fontWeight} ${fs}px ${cs.fontFamily}`; x.letterSpacing = cs.letterSpacing;
-        const m = x.measureText(w.textContent), asc = m.fontBoundingBoxAscent || fs * .8, des = m.fontBoundingBoxDescent || fs * .2;
-        x.fillStyle = '#fff'; x.fillText(w.textContent, 0, (r.height - asc - des) / 2 + asc);
-        const d = x.getImageData(0, 0, c.width, c.height).data, step = Math.max(3, Math.round(fs / 30));
-        const pal = wi ? [[255, 236, 160], [244, 182, 60]] : [[150, 255, 196], [40, 200, 110]];
-        for (let y = 0; y < c.height; y += step) for (let xx = 0; xx < c.width; xx += step) if (d[(y * c.width + xx) * 4 + 3] > 140) {
-          const k = y / c.height; out.push([r.left - s.left + xx, r.top - s.top + y, k, pal[0].map((v, i) => Math.round(v + (pal[1][i] - v) * k))]);
-        }
+        const asc = x.measureText(node.textContent).fontBoundingBoxAscent || fs * .8;
+        x.fillStyle = '#fff'; x.fillText(node.textContent, 0, asc);
+        const d = x.getImageData(0, 0, c.width, c.height).data, step = Math.max(2, Math.round(fs / 30));
+        for (let y = 0; y < c.height; y += step) for (let xx = 0; xx < c.width; xx += step) if (d[(y * c.width + xx) * 4 + 3] > 140)
+          out.push([r.left - s.left + xx, r.top - s.top + y, (r.top + y - b.top) / b.height]);
       });
       return out;
     }
