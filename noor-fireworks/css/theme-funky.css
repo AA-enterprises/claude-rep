@@ -1,0 +1,108 @@
+/* Pak Fireworks: "Mela pop" theme.
+   Loaded after styles.css and only restyles: colours, outlines, shadows and backgrounds.
+   Layout, text and features are untouched. Remove the <link> to this file to go back to black and gold. */
+:root{
+  --bg:#150a2e;
+  --bg-2:#1e0f42;
+  --surface:#2a1559;
+  --surface-2:#371d70;
+  --line:#5a37a8;
+  --text:#fff7ea;
+  --muted:#d6c8f5;
+  --gold:#ffd23f;
+  --gold-ink:#1a0b33;
+  --pink:#ff4fa3;
+  --sale:#ff2e7e;
+  --cyan:#3be8ff;
+  --lime:#b8ff3c;
+  --ink:#1a0b33;
+  --pop:5px;
+}
+::selection{background:var(--pink);color:#fff}
+:focus-visible{outline-color:var(--cyan)}
+
+/* Confetti: a scatter of small coloured dots behind the alternate bands */
+.zig.alt,.band{position:relative;background-color:var(--bg-2);background-image:
+  radial-gradient(circle at 12% 18%,rgba(255,79,163,.22) 0 3px,transparent 4px),
+  radial-gradient(circle at 78% 32%,rgba(59,232,255,.2) 0 3px,transparent 4px),
+  radial-gradient(circle at 42% 72%,rgba(255,210,63,.22) 0 3px,transparent 4px),
+  radial-gradient(circle at 90% 84%,rgba(184,255,60,.2) 0 3px,transparent 4px),
+  radial-gradient(circle at 26% 52%,rgba(255,255,255,.1) 0 2px,transparent 3px);
+  background-size:220px 220px,260px 260px,240px 240px,300px 300px,180px 180px}
+/* Zig-zag edge where a band starts, like the trim on a mela tent */
+.zig.alt::before,.band::before{content:"";position:absolute;left:0;right:0;top:0;height:10px;pointer-events:none;
+  background:linear-gradient(45deg,var(--pink) 50%,transparent 50%) 0 0/20px 10px repeat-x,linear-gradient(-45deg,var(--pink) 50%,transparent 50%) 0 0/20px 10px repeat-x;
+  opacity:.9}
+.band::before{background:linear-gradient(45deg,var(--cyan) 50%,transparent 50%) 0 0/20px 10px repeat-x,linear-gradient(-45deg,var(--cyan) 50%,transparent 50%) 0 0/20px 10px repeat-x}
+
+/* Promo strip */
+.promo{background:repeating-linear-gradient(-45deg,var(--pink) 0 22px,#ff62ad 22px 44px);color:#fff;text-shadow:0 1px 0 rgba(26,11,51,.35)}
+
+/* Section headings: stacked retro shadow */
+.zig-copy h2,.head h2,.band-title,.order-in h2,.br-head h2{text-shadow:3px 3px 0 var(--pink),6px 6px 0 rgba(59,232,255,.55)}
+.br-kick,.offer-tag{color:var(--cyan)}
+.br-kick::before{background:linear-gradient(90deg,transparent,var(--cyan))}
+.br-kick::after{background:linear-gradient(90deg,transparent,var(--cyan))}
+
+/* Buttons become stickers with a hard shadow */
+.btn{border-width:2px}
+.btn-gold,.add{border:2px solid var(--ink);box-shadow:var(--pop) var(--pop) 0 var(--pink);transition:transform .15s,box-shadow .15s,background .2s,color .2s}
+.btn-gold:hover,.add:hover{background:var(--gold);transform:translate(-2px,-2px);box-shadow:calc(var(--pop) + 2px) calc(var(--pop) + 2px) 0 var(--pink);filter:none}
+.btn-gold:active,.add:active{transform:translate(3px,3px);box-shadow:1px 1px 0 var(--pink)}
+.add{box-shadow:3px 3px 0 var(--pink)}
+.add:hover{box-shadow:5px 5px 0 var(--pink)}
+.add.in{background:var(--lime);color:var(--ink)}
+.add.q{border-color:var(--muted);box-shadow:3px 3px 0 var(--cyan)}
+.btn-line{border-color:var(--cyan);color:var(--text);box-shadow:var(--pop) var(--pop) 0 rgba(59,232,255,.35)}
+.btn-line:hover{background:var(--cyan);border-color:var(--cyan);color:var(--ink);transform:translate(-2px,-2px)}
+.btn-wa{border:2px solid var(--ink);box-shadow:var(--pop) var(--pop) 0 var(--lime)}
+
+/* Every card picks a colour in turn: pink, cyan, sun, lime */
+.grid>*,.cats>*,.offers>*,.reasons>li,.steps>li,.rooms>*,.br-row li{--c:var(--pink)}
+.grid>:nth-child(4n+2),.cats>:nth-child(4n+2),.offers>:nth-child(4n+2),.reasons>li:nth-child(4n+2),.steps>li:nth-child(4n+2),.br-row li:nth-child(4n+2){--c:var(--cyan)}
+.grid>:nth-child(4n+3),.cats>:nth-child(4n+3),.reasons>li:nth-child(4n+3),.steps>li:nth-child(4n+3),.br-row li:nth-child(4n+3){--c:var(--gold)}
+.grid>:nth-child(4n),.cats>:nth-child(4n),.reasons>li:nth-child(4n),.steps>li:nth-child(4n),.br-row li:nth-child(4n){--c:var(--lime)}
+.card,.offer,.room,.reasons li,.steps li{border:2px solid rgba(255,255,255,.14);box-shadow:6px 6px 0 var(--c);transition:transform .45s cubic-bezier(.2,.8,.2,1),box-shadow .25s,border-color .2s}
+.card:hover,.offer:hover{border-color:var(--c);box-shadow:9px 9px 0 var(--c)}
+.cat{border:2px solid var(--c);box-shadow:5px 5px 0 var(--c)}
+.cat:hover,.cat:focus-visible{border-color:var(--c);box-shadow:8px 8px 0 var(--c)}
+.cat::before{background:linear-gradient(180deg,rgba(21,10,46,0) 30%,rgba(21,10,46,.92) 100%)}
+.room .dir,.room a{color:var(--gold)}
+.steps li::before{background:var(--c);color:var(--ink);border:2px solid var(--ink)}
+.reasons b{color:var(--c)}
+
+/* Stickers and labels */
+.flag{transform:rotate(-4deg);border:2px solid var(--ink);box-shadow:3px 3px 0 var(--ink)}
+.flag.lic{background:var(--cyan);color:var(--ink)}
+.lown,.cat em{background:var(--ink);border:1.5px solid var(--lime);color:var(--lime)}
+.pill{border-width:2px}
+.pill:hover{border-color:var(--cyan)}
+.pill[aria-pressed="true"]{background:var(--gold);border-color:var(--ink);box-shadow:3px 3px 0 var(--pink)}
+
+/* Hero touches (the name itself stays as it is) */
+.vhero .shade{background:linear-gradient(180deg,rgba(21,10,46,.55),rgba(21,10,46,.15) 35%,rgba(21,10,46,.35) 70%,var(--bg)),radial-gradient(70% 60% at 50% 45%,transparent,rgba(21,10,46,.55))}
+.kicker{border:2px solid var(--cyan);background:rgba(21,10,46,.7)}
+.kicker i{background:var(--lime)}
+.codepill{border:2px solid var(--pink);background:rgba(21,10,46,.75);box-shadow:4px 4px 0 var(--pink)}
+.codepill::before{background:var(--lime);box-shadow:none}
+
+/* Brands: tiles keep their light card, outlined in the card colour */
+.brands{background:radial-gradient(ellipse 60% 70% at 50% 0%,rgba(255,79,163,.16),transparent 70%),var(--bg)}
+.br-logo{box-shadow:0 0 0 2px var(--c),6px 6px 0 var(--c)}
+.br-row li:hover .br-logo{box-shadow:0 0 0 2px var(--c),9px 9px 0 var(--c)}
+
+/* Order banner and FAQ */
+.order-cta{background:radial-gradient(80% 90% at 50% 100%,#5a1a6e 0%,#24104f 50%,var(--bg) 100%)}
+.order-cta::after{background:linear-gradient(180deg,var(--bg),rgba(21,10,46,.2) 40%,rgba(21,10,46,.5) 75%,var(--bg))}
+.faq details{border-bottom:2px dashed var(--line)}
+.faq summary::after{background:var(--surface-2);color:var(--cyan)}
+.faq details[open] summary::after{background:var(--pink);color:#fff}
+
+/* Header and footer */
+header.site{background:rgba(21,10,46,.92);border-bottom:2px solid var(--line)}
+.nav-row .hotlink{color:var(--pink)}
+.cart-btn span{background:var(--pink)}
+footer{background:#0e0620;border-top:0;position:relative}
+footer::before{content:"";position:absolute;left:0;right:0;top:0;height:5px;background:linear-gradient(90deg,var(--pink),var(--gold),var(--cyan),var(--lime))}
+
+@media (max-width:640px){:root{--pop:4px}.card,.offer,.room,.reasons li,.steps li{box-shadow:5px 5px 0 var(--c)}}
