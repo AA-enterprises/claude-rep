@@ -106,3 +106,55 @@ footer{background:#0e0620;border-top:0;position:relative}
 footer::before{content:"";position:absolute;left:0;right:0;top:0;height:5px;background:linear-gradient(90deg,var(--pink),var(--gold),var(--cyan),var(--lime))}
 
 @media (max-width:640px){:root{--pop:4px}.card,.offer,.room,.reasons li,.steps li{box-shadow:5px 5px 0 var(--c)}}
+
+/* ---------- Extra delight: still theme only, nothing moves out of place ---------- */
+/* Slow aurora of colour behind the page */
+body::before{content:"";position:fixed;inset:-20%;z-index:-1;pointer-events:none;opacity:.55;
+  background:radial-gradient(32% 28% at 18% 22%,rgba(255,79,163,.28),transparent 70%),radial-gradient(30% 26% at 82% 30%,rgba(59,232,255,.22),transparent 70%),radial-gradient(34% 30% at 50% 85%,rgba(140,70,255,.3),transparent 70%);
+  animation:aurora 26s ease-in-out infinite alternate}
+@keyframes aurora{to{transform:translate3d(4%,-3%,0) rotate(8deg) scale(1.08)}}
+
+/* Floating confetti that drifts inside the coloured bands */
+.zig.alt>*,.band>*{position:relative;z-index:1}
+.zig.alt::after,.band::after{content:"";position:absolute;inset:0;pointer-events:none;opacity:.8;
+  background-image:radial-gradient(circle,var(--gold) 0 2px,transparent 3px),radial-gradient(circle,var(--cyan) 0 2px,transparent 3px),radial-gradient(circle,var(--pink) 0 2.5px,transparent 3.5px),radial-gradient(circle,var(--lime) 0 2px,transparent 3px);
+  background-size:310px 290px,270px 330px,350px 260px,230px 370px;background-position:30px 40px,160px 120px,90px 210px,220px 60px;
+  animation:confetti 18s linear infinite}
+@keyframes confetti{to{background-position:30px 330px,160px 450px,90px 470px,220px 430px}}
+
+/* Promo stripes roll along */
+.promo{background-size:62.2px 62.2px;animation:stripes 2.4s linear infinite}
+@keyframes stripes{to{background-position:62.2px 0}}
+
+/* Headings: the retro shadow colours shift slowly */
+.zig-copy h2,.head h2,.band-title,.order-in h2,.br-head h2{animation:retro 6s ease-in-out infinite alternate}
+@keyframes retro{0%{text-shadow:3px 3px 0 var(--pink),6px 6px 0 rgba(59,232,255,.55)}50%{text-shadow:3px 3px 0 var(--cyan),6px 6px 0 rgba(255,210,63,.55)}100%{text-shadow:3px 3px 0 var(--gold),6px 6px 0 rgba(255,79,163,.55)}}
+
+/* Buttons wobble like jelly on hover */
+.btn-gold:hover,.add:hover,.btn-line:hover{animation:jelly .55s cubic-bezier(.3,1.6,.5,1)}
+@keyframes jelly{0%{transform:translate(-2px,-2px) scale(1)}30%{transform:translate(-2px,-2px) scale(1.08,.92)}55%{transform:translate(-2px,-2px) scale(.95,1.05)}80%{transform:translate(-2px,-2px) scale(1.02,.98)}100%{transform:translate(-2px,-2px) scale(1)}}
+
+/* Little sparkles pop in the corner of each card on hover */
+.card::after,.offer::after{content:"✦";position:absolute;top:8px;left:50%;margin-left:-10px;z-index:3;font-size:20px;color:var(--c);opacity:0;transform:scale(.3) rotate(-40deg);transition:opacity .25s,transform .45s cubic-bezier(.3,1.6,.5,1);pointer-events:none}
+.offer{position:relative}
+.card:hover::after,.offer:hover::after{opacity:1;transform:scale(1) rotate(0)}
+
+/* Stock dots breathe, "few left" a little faster */
+.stock::before{animation:breathe 2.4s ease-in-out infinite}
+.stock.few::before{animation-duration:1.1s}
+@keyframes breathe{50%{transform:scale(1.5);opacity:.55}}
+
+/* WhatsApp button: gentle bob and a ripple ring */
+.wa-float{animation:bob 3.2s ease-in-out infinite}
+.wa-float::after{content:"";position:absolute;inset:-2px;border-radius:inherit;border:2px solid var(--lime);animation:ripple 2.4s ease-out infinite;pointer-events:none}
+@keyframes bob{50%{transform:translateY(-5px)}}
+@keyframes ripple{0%{transform:scale(1);opacity:.9}100%{transform:scale(1.35,1.6);opacity:0}}
+
+/* Rainbow scroll meter along the top edge (length set by theme-funky.js) */
+.fx-meter{position:fixed;left:0;top:0;height:4px;width:100%;z-index:31;pointer-events:none;transform-origin:0 50%;transform:scaleX(0);background:linear-gradient(90deg,var(--pink),var(--gold),var(--cyan),var(--lime))}
+#fxSky{position:fixed;inset:0;width:100%;height:100%;z-index:60;pointer-events:none}
+
+@media (prefers-reduced-motion:reduce){
+  body::before,.zig.alt::after,.band::after,.promo,.zig-copy h2,.head h2,.band-title,.order-in h2,.br-head h2,.stock::before,.wa-float,.wa-float::after{animation:none}
+  .btn-gold:hover,.add:hover,.btn-line:hover{animation:none}
+}
