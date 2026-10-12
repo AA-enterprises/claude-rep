@@ -19,23 +19,23 @@ from .util import BotError, run, say
 # Video mein jaisa banda bol raha hai (buddha, jawan, aurat...) waisi awaaz; kahani /
 # documentary ke liye "narrator" = bhaari, thehri hui mard ki awaaz.
 STYLES = {
-    "narrator": ("male", "-4%", "-10Hz", 0.84),
-    "man": ("male", "+2%", "-3Hz", 0.88),
-    "young_man": ("male", "+6%", "+4Hz", 0.92),
-    "old_man": ("male", "-6%", "-14Hz", 0.84),
+    "narrator": ("male", "-3%", "-4Hz", 0.9),
+    "man": ("male", "+0%", "-2Hz", 0.92),
+    "young_man": ("male", "+5%", "+3Hz", 0.95),
+    "old_man": ("male", "-6%", "-8Hz", 0.88),
     "woman": ("female", "+0%", "+0Hz", 1.0),
-    "girl": ("female", "+6%", "+14Hz", 1.12),
+    "girl": ("female", "+6%", "+10Hz", 1.1),
     "boy": ("child", "+8%", "+45Hz", 1.25),
 }
 GENDER_STYLE = {"male": "narrator", "female": "woman", "child": "boy"}
 
 # Studio jaisa asar (TV/story channels ki awaaz aise hi process hoti hai):
-# documentary = bhaari bass + saaf alfaaz + dabi hui (compressed) awaaz + halki goonj
+# documentary = thora bass + saaf alfaaz + dabi hui (compressed) awaaz. Goonj (echo) nahi:
+# chhoti goonj awaaz ko "robot" jaisa (dhaatu) bana deti thi.
 FX = {
-    "documentary": ("highpass=f=70,bass=g=5:f=120:w=0.8,equalizer=f=2800:t=q:w=1.2:g=2.5,"
-                    "acompressor=threshold=0.1:ratio=3:attack=10:release=120:makeup=2,"
-                    "aecho=0.85:0.5:35|70:0.10|0.06,"),
-    "warm": "bass=g=3:f=130:w=0.8,acompressor=threshold=0.1:ratio=2.5:attack=10:release=120,",
+    "documentary": ("highpass=f=70,bass=g=3:f=120:w=0.8,equalizer=f=2800:t=q:w=1.2:g=1.5,"
+                    "acompressor=threshold=0.1:ratio=2.5:attack=10:release=120:makeup=1.5,"),
+    "warm": "bass=g=2:f=130:w=0.8,",
     "none": "",
 }
 STYLE_FX = {"narrator": "documentary", "man": "warm", "old_man": "warm", "young_man": "warm"}
@@ -51,8 +51,11 @@ def styled(cfg: dict, style: str) -> dict:
              child_rate=custom.get("rate", cfg["voice"].get("child_rate", "+8%")),
              child_pitch=custom.get("pitch", cfg["voice"].get("child_pitch", "+45Hz")),
              fx=custom.get("fx", STYLE_FX.get(style, "none") if cfg["voice"].get("studio_fx", True) else "none"))
+    v["style"] = style
     if custom.get("voice"):  # Misal: narrator: {voice: ur-IN-SalmanNeural}
         v["edge_voice"] = custom["voice"]
+    if custom.get("gemini_voice"):  # Misal: narrator: {gemini_voice: Algenib}
+        v["gemini_voice"] = custom["gemini_voice"]
     return dict(cfg, voice=v)
 
 
@@ -116,6 +119,79 @@ def _elevenlabs(text: str, out: Path, cfg: dict):
     if r.status_code != 200:
         raise BotError(f"ElevenLabs error {r.status_code}: {r.text[:300]}")
     out.write_bytes(r.content)
+
+
+# Gemini (Google AI Studio): insaan jaisi awaaz. Har andaaz ki apni awaaz + hidayat.
+GEMINI_MODELS = ["gemini-2.5-flash-preview-tts", "gemini-3.1-flash-tts-preview", "gemini-2.5-pro-preview-tts"]
+GEMINI_VOICES = {
+    "narrator": ("Charon", "a deep, heavy, calm and gripping male storyteller voice, like a famous "
+                           "Pakistani documentary and mystery-story narrator slowly building suspense"),
+    "man": ("Orus", "a natural, confident adult man talking"),
+    "young_man": ("Puck", "a natural, energetic young man in his twenties talking"),
+    "old_man": ("Algenib", "a natural, slow, slightly gravelly voice of an old man in his seventies"),
+    "woman": ("Kore", "a natural, warm adult woman talking"),
+    "girl": ("Leda", "a natural, cheerful young girl talking"),
+    "boy": ("Puck", "a natural, cheerful young boy talking"),
+}
+_gemini_model = None  # Jo model chal gaya, wahi aage
+
+
+def gemini_ready() -> bool:
+    return bool(os.environ.get("GEMINI_API_KEY", "").strip())
+
+
+def _gemini(text: str, out: Path, cfg: dict):
+    """Gemini TTS: text ko asli insaan jaisi awaaz mein. out = .wav"""
+    global _gemini_model
+    import requests
+    import wave
+
+    v = cfg["voice"]
+    style = v.get("style") or GENDER_STYLE.get(v.get("gender", "male"), "narrator")
+    name, how = GEMINI_VOICES.get(style, GEMINI_VOICES["narrator"])
+    name = v.get("gemini_voice") or name
+    lang = languages.voice(cfg)["name"].split(" (")[0]
+    prompt = f"Read the following {lang} text aloud in {how}. Speak natural, fluent {lang}:\n{text}"
+    key = os.environ.get("GEMINI_API_KEY", "").strip()
+    body = {"contents": [{"parts": [{"text": prompt}]}],
+            "generationConfig": {"responseModalities": ["AUDIO"],
+                                 "speechConfig": {"voiceConfig": {"prebuiltVoiceConfig": {"voiceName": name}}}}}
+    models = [v["gemini_model"]] if v.get("gemini_model") else (
+        [_gemini_model] if _gemini_model else GEMINI_MODELS)
+    last = ""
+    for model in models:
+        try:
+            r = requests.post(f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
+                              headers={"x-goog-api-key": key, "Content-Type": "application/json"},
+                              json=body, timeout=120)
+        except requests.RequestException as e:
+            raise BotError(f"Gemini awaaz se rabta nahi hua: {e}") from e
+        if r.status_code == 404:  # Ye model nahi: agla aazmao
+            last = f"{model} nahi mila"
+            continue
+        if r.status_code == 429:
+            raise BotError("Gemini ki muft had abhi khatam (429). Thori der/kal phir chalegi.")
+        if r.status_code in (400, 401, 403) and "key" in r.text.lower():
+            raise BotError("GEMINI_API_KEY ghalat hai. Telegram par /gemini NAYI-KEY bhejein.")
+        if r.status_code != 200:
+            raise BotError(f"Gemini awaaz nahi bani ({r.status_code}): {r.text[:200]}")
+        try:
+            part = r.json()["candidates"][0]["content"]["parts"][0]["inlineData"]
+            pcm = base64.b64decode(part["data"])
+        except (KeyError, IndexError, ValueError) as e:
+            raise BotError(f"Gemini ka jawab samajh nahi aaya: {r.text[:200]}") from e
+        rate = 24000
+        m = re.search(r"rate=(\d+)", part.get("mimeType", ""))
+        if m:
+            rate = int(m.group(1))
+        with wave.open(str(out), "wb") as w:
+            w.setnchannels(1)
+            w.setsampwidth(2)
+            w.setframerate(rate)
+            w.writeframes(pcm)
+        _gemini_model = model
+        return
+    raise BotError(f"Gemini awaaz ka koi model nahi chala ({last}).")
 
 
 GOOGLE_HEADERS = {
@@ -185,6 +261,16 @@ _edge_skip_until = 0.0
 _edge_fails = 0
 USED = collections.Counter()   # Kis engine ne kitni lines boleen (report ke liye)
 LAST_EDGE_ERROR = ""
+LAST_GEMINI_ERROR = ""
+_gemini_skip_until = 0.0
+
+
+def engine_name(cfg: dict) -> str:
+    """auto = Gemini key ho to Gemini (insaan jaisi), warna Microsoft (muft)."""
+    e = (cfg["voice"].get("engine") or "auto").lower()
+    if e == "auto":
+        return "gemini" if gemini_ready() else "edge"
+    return e
 _rubberband = None
 
 
@@ -219,11 +305,29 @@ def _pitch_filter(cfg: dict) -> str:
 
 def speak(text: str, out: Path, cfg: dict) -> Path:
     """Text ko awaaz mein badal kar WAV file banao (48kHz stereo)."""
-    global _edge_skip_until, _edge_fails, LAST_EDGE_ERROR
+    global _edge_skip_until, _edge_fails, LAST_EDGE_ERROR, LAST_GEMINI_ERROR, _gemini_skip_until
     mp3 = out.with_suffix(".mp3")
     extra = ""
-    engine = cfg["voice"]["engine"]
-    if engine == "elevenlabs":
+    engine = engine_name(cfg)
+    if engine == "gemini" and time.time() < _gemini_skip_until:
+        USED["gemini_failed"] += 1
+        engine = "edge"
+    if engine == "gemini":
+        try:
+            gem = out.with_suffix(".gemini.wav")
+            _gemini(text, gem, cfg)
+            mp3 = gem
+            USED["gemini"] += 1
+        except BotError as e:  # Gemini na chale to Microsoft
+            LAST_GEMINI_ERROR = str(e)[:150]
+            _gemini_skip_until = time.time() + 900  # 15 minute Gemini ko aaram, phir dobara
+            if not USED["gemini_failed"]:
+                say(f"  ⚠️  Gemini awaaz nahi bani ({LAST_GEMINI_ERROR}). Microsoft ki awaaz laga raha hoon.")
+            USED["gemini_failed"] += 1
+            engine = "edge"
+    if engine == "gemini":
+        pass
+    elif engine == "elevenlabs":
         _elevenlabs(text, mp3, cfg)
         USED["elevenlabs"] += 1
     elif engine == "google":
@@ -284,18 +388,22 @@ def fit(wav: Path, max_sec: float) -> Path:
 
 def report() -> str:
     """Is dafa kaunsi awaaz lagi: user ko seedha batao."""
-    ms, gg, el = USED["microsoft"], USED["google"], USED["elevenlabs"]
+    ms, gg, el, gm = USED["microsoft"], USED["google"], USED["elevenlabs"], USED["gemini"]
+    parts = []
+    if gm:
+        parts.append(f"🎙️ Awaaz: Gemini (insaan jaisi) ✅  {gm} lines")
+    if USED["gemini_failed"]:
+        parts.append(f"⚠️ Gemini {USED['gemini_failed']} lines par nahi chali: {LAST_GEMINI_ERROR}")
     if el:
-        return f"🎙️ Awaaz: ElevenLabs ({el} lines) ✅"
-    if ms and not gg:
-        return f"🎙️ Awaaz: Microsoft (asli Urdu awaaz) ✅  {ms} lines"
-    if gg and not ms:
-        return ("⚠️ Awaaz: sirf Google ki BACKUP awaaz lagi (saaf nahi hoti). Microsoft nahi chali: "
-                f"{LAST_EDGE_ERROR or 'wajah maloom nahi'}")
+        parts.append(f"🎙️ ElevenLabs ✅  {el} lines")
+    if ms:
+        parts.append(f"🎙️ Microsoft (machine jaisi muft awaaz)  {ms} lines")
     if gg:
-        return (f"⚠️ Awaaz: Microsoft {ms} lines, Google backup {gg} lines. Microsoft beech mein ruki: "
-                f"{LAST_EDGE_ERROR or 'wajah maloom nahi'}")
-    return ""
+        parts.append(f"⚠️ Google BACKUP awaaz (saaf nahi hoti)  {gg} lines. Microsoft nahi chali: "
+                     f"{LAST_EDGE_ERROR or 'wajah maloom nahi'}")
+    if not gm and not el and (ms or gg):
+        parts.append("💡 Insaan jaisi awaaz ke liye Gemini key lagayein: Telegram par /gemini likhein")
+    return "\n".join(parts)
 
 
 # /awaaz par namoone: pehle 4 = intro/outro/kahani wali (narrator) awaaz ke option,
@@ -311,9 +419,24 @@ SAMPLES = [
 ]
 NARRATOR_CHOICES = 4
 
+# Gemini ho to namoone Gemini ki insaan jaisi awaazon ke
+GEMINI_SAMPLES = [
+    ("Bhaari, thehri hui kahani wali awaaz (Charon)", "narrator", {"gemini_voice": "Charon"}),
+    ("Khurdari, gehri awaaz (Algenib)", "narrator", {"gemini_voice": "Algenib"}),
+    ("Mazboot, sanjeeda awaaz (Orus)", "narrator", {"gemini_voice": "Orus"}),
+    ("Josheeli awaaz (Fenrir)", "narrator", {"gemini_voice": "Fenrir"}),
+    ("Video mein buddha banda", "old_man", None),
+    ("Video mein jawan banda", "young_man", None),
+    ("Video mein aurat", "woman", None),
+]
+
+
+def samples(cfg: dict) -> list:
+    return GEMINI_SAMPLES if engine_name(cfg) == "gemini" else SAMPLES
+
 
 def sample_cfg(cfg: dict, idx: int) -> dict:
-    label, style, over = SAMPLES[idx]
+    label, style, over = samples(cfg)[idx]
     c = dict(cfg, dub=dict(cfg.get("dub", {})))
     if over is not None:  # Narrator option: config ki purani pasand ki jagah ye
         c["dub"]["styles"] = dict(c["dub"].get("styles") or {}, narrator=over)

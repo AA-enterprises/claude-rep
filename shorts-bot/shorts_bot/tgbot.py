@@ -33,6 +33,7 @@ HELP = """🤖 Shorts Bot commands
 /status  → abhi kya ban raha hai, line mein kya hai
 /awaaz  → saari awaazon ke namoone (aur batata hai Microsoft lagi ya Google backup)
 /awaaz 2  → 2 number wali awaaz channel ki awaaz bana do
+/gemini  → insaan jaisi awaaz (Gemini) lagane ka tareeqa
 /update  → bot ka naya version abhi lao (waise bhi khud har 30 minute check karta hai)
 
 ✏️ Short badalna (Short ke kisi message par REPLY karein; reply na karein to aakhri Short badlega):
@@ -322,6 +323,8 @@ class TelegramBot:
             self.voice_test(rest, to)
         elif cmd == "/update":
             self.update_now(to)
+        elif cmd == "/gemini":
+            self.set_gemini(rest, msg)
         elif cmd == "/sources":
             lines = [f"/{k}  → {v.get('name', k)}" for k, v in srcs.items()]
             self.reply("📺 Mehfooz channels:\n" + "\n".join(lines)
@@ -396,6 +399,31 @@ class TelegramBot:
             except Exception as e:  # Update ki ghalti se bot band na ho
                 say(f"⚠️  Khud update check nahi hua: {str(e)[:150]}")
 
+    def set_gemini(self, key: str, msg: dict):
+        """/gemini KEY: insaan jaisi awaaz (Gemini) ki key .env mein rakho. File kholni nahi parti."""
+        from . import voice
+        to = msg["message_id"]
+        key = key.strip()
+        if not key:
+            return self.reply(
+                "🎙️ Insaan jaisi awaaz (Gemini, muft) ke liye key chahiye:\n"
+                "1. Phone/computer par kholein: https://aistudio.google.com/apikey\n"
+                "2. Apne Gmail se login karein\n"
+                "3. 'Create API key' dabayein, key copy karein\n"
+                "4. Yahan bhejein: /gemini AAPKI-KEY\n\n"
+                "Key wala message main khud mita doonga taake chat mein na rahe.", to)
+        if not re.fullmatch(r"[A-Za-z0-9_\-]{20,}", key):
+            return self.reply("Ye key sahi nahi lag rahi. Poori key copy karke bhejein: /gemini AAPKI-KEY", to)
+        telegram._write_env(self.cfg["_base"] / ".env", "GEMINI_API_KEY", key)
+        os.environ["GEMINI_API_KEY"] = key
+        try:  # Key chat mein na rahe
+            telegram._call("deleteMessage", data={"chat_id": self.chat, "message_id": to})
+        except BotError:
+            pass
+        voice.USED.clear()
+        self.reply("✅ Gemini key lag gayi (aap ka message mita diya). Ab awaaz Gemini ki hogi.\n"
+                   "Namoone sunne ke liye: /awaaz")
+
     def voice_test(self, text: str, to: int = None):
         """/awaaz = har awaaz ka namoona. /awaaz 2 = 2 number wali awaaz channel ki awaaz bana do."""
         from . import config as config_mod
@@ -405,7 +433,7 @@ class TelegramBot:
             n = int(text.strip())
             if not 1 <= n <= voice.NARRATOR_CHOICES:
                 return self.reply(f"1 se {voice.NARRATOR_CHOICES} tak number likhein, jaise: /awaaz 2", to)
-            label, _, over = voice.SAMPLES[n - 1]
+            label, _, over = voice.samples(self.cfg)[n - 1]
             styles = dict(self.cfg["dub"].get("styles") or {}, narrator=over)
             self.cfg["dub"]["styles"] = styles
             config_mod.save_local(self.cfg["_base"], {"dub": {"styles": {"narrator": over}}})
@@ -417,7 +445,7 @@ class TelegramBot:
         folder.mkdir(parents=True, exist_ok=True)
         voice.USED.clear()
         sent = 0
-        for i, (label, _, over) in enumerate(voice.SAMPLES):
+        for i, (label, _, over) in enumerate(voice.samples(self.cfg)):
             try:
                 wav = voice.speak(line, folder / f"awaaz-{i + 1}", voice.sample_cfg(self.cfg, i))
                 mp3 = folder / f"awaaz-{i + 1}.mp3"

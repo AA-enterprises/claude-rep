@@ -28,17 +28,28 @@ def _style(ln: dict, cfg: dict) -> str:
 
 def make_track(video: Path, clip: dict, cfg: dict, work: Path, start: float, dur: float) -> Path:
     """Clip ke liye poora dub audio (WAV) banao: asal awaaz halki + har line ki Urdu awaaz."""
-    say("  Dubbing: har line Urdu awaaz mein bolwa raha hoon...")
     dcfg = _dub_cfg(cfg)
     lines = clip["lines"]
+    # Gemini (insaan jaisi awaaz): ek hi bande ki lagataar lines ek saath bolwao. Awaaz
+    # qudrati behti hai (voice-over jaisi) aur muft had bhi kam kharch hoti hai.
+    mode = cfg["dub"].get("mode", "auto")
+    together = mode == "voiceover" or (mode == "auto" and voice.engine_name(dcfg) == "gemini")
+    units = []  # (pehli line ka index, aakhri line ka index, andaaz)
+    for i, ln in enumerate(lines):
+        st = _style(ln, cfg)
+        if together and units and units[-1][2] == st:
+            units[-1][1] = i
+        else:
+            units.append([i, i, st])
+    say(f"  Dubbing: {len(units)} hisse Urdu awaaz mein bolwa raha hoon...")
     items = []
     free_at = 0.0  # Pichhli line kab khatam hui: lines kabhi ek doosre par na charhein
-    for i, ln in enumerate(lines):
-        text = (ln.get("translated") or "").strip() or ln["original"]
-        rel = max(0.0, ln["start"] - start, free_at)
-        nxt = (lines[i + 1]["start"] - start) if i + 1 < len(lines) else dur
+    for k, (a, b, st) in enumerate(units):
+        text = " ".join((ln.get("translated") or "").strip() or ln["original"] for ln in lines[a:b + 1])
+        rel = max(0.0, lines[a]["start"] - start, free_at)
+        nxt = (lines[b + 1]["start"] - start) if b + 1 < len(lines) else dur
         window = max(0.6, nxt - rel - 0.05)
-        wav = voice.speak(text, work / f"dub_{i:02d}", voice.styled(dcfg, _style(ln, cfg)))
+        wav = voice.speak(text, work / f"dub_{k:02d}", voice.styled(dcfg, st))
         tempo = min(max(duration(wav) / window, 1.0), MAX_SPEEDUP)
         items.append((wav, rel, tempo))
         free_at = rel + duration(wav) / tempo + 0.08

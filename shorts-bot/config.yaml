@@ -26,7 +26,8 @@ language:
   title_style: english
 
 voice:
-  engine: edge                  # edge = muft (Microsoft) | google = muft backup | elevenlabs = paid, zyada asli
+  engine: auto                  # auto = Gemini key ho to Gemini (insaan jaisi, muft had ke saath), warna Microsoft
+                                # gemini | edge = muft Microsoft (machine jaisi) | google = backup | elevenlabs = paid
   fallback_google: true         # Microsoft ki awaaz na mile to khud Google ki awaaz lagao
   gender: male                  # Intro (shuru) ki awaaz: male = bhaari mard (story/documentary andaaz)
                                 #   | female = larki | child = bachcha
@@ -94,6 +95,8 @@ transcript:
 
 dub:
   enabled: true                 # true = asal (English) baat Urdu awaaz mein dub ho (subtitles phir bhi)
+  mode: auto                    # auto = Gemini ho to ek bande ki lagataar baat ek saath (voice-over jaisi,
+                                #   qudrati), warna har line alag | voiceover | lines
   match_speaker: true           # true = jaisa banda video mein (buddha -> buddhi awaaz, jawan -> jawan,
                                 #   aurat -> aurat, kahani/documentary -> bhaari narrator awaaz)
   gender: male                  # match_speaker false ho to sab lines isi awaaz mein

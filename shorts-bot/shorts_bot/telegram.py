@@ -119,7 +119,13 @@ def setup(env_path: Path):
 
 
 def _write_env(env_path: Path, key: str, value: str):
-    lines = env_path.read_text(encoding="utf-8-sig").splitlines() if env_path.exists() else []
+    lines = []
+    if env_path.exists():
+        raw = env_path.read_bytes()
+        try:
+            lines = raw.decode("utf-8-sig").splitlines()
+        except UnicodeDecodeError:  # Notepad ki UTF-16 file
+            lines = raw.decode("utf-16").splitlines()
     lines = [ln for ln in lines if not ln.strip().startswith(f"{key}=")]
     lines.append(f"{key}={value}")
     env_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
