@@ -35,8 +35,9 @@ HELP = """🤖 Shorts Bot commands
 /awaaz 2  → 2 number wali awaaz channel ki awaaz bana do
 /awaaz tez  ya  /awaaz dheemi  → kahani wali awaaz ki raftar
 /save ASAD  → abhi wali awaaz "ASAD" naam se save (kisi namoone par reply karke bhejein to wohi)
-/awaaz ASAD  → save ki hui awaaz lagao (aur namoona sunao)
-Video par REPLY karke "awaaz ASAD"  → wahi video ASAD ki awaaz mein dobara
+awaaz ASAD  → ASAD ka namoona suno (kuch badalta nahi)
+Video par REPLY karke "awaaz ASAD"  → sirf WOHI video ASAD ki awaaz mein dobara
+/use ASAD  → aage ki sab videos ASAD ki awaaz mein
 /gemini  → insaan jaisi awaaz (Gemini) lagane ka tareeqa
 /check  → awaaz ya bot mein masla ho to jaanch (Microsoft, Gemini, computer ka time)
 /update  → bot ka naya version abhi lao (waise bhi khud har 30 minute check karta hai)
@@ -404,11 +405,17 @@ class TelegramBot:
                 and not text.startswith("/") and re.fullmatch(r"[\w\- ]{1,30}", text) \
                 and len(text.split()) <= 3:  # Awaaz par reply mein sirf naam = us naam se save
             text = "/save " + text
-        rv = re.fullmatch(r"/?(?:awaaz|awaz|aawaz|voice|آواز)\s+(.+)", text, re.I)
-        if rv and target and self.state.data["msg"].get(str(target)) \
-                and rv.group(1).strip().lower() not in ("tez", "fast", "dheemi", "dheema", "slow", "normal"):
-            say(f"\n📩 Telegram: {text[:80]}  (video nayi awaaz mein)")
-            return self.queue_job("video nayi awaaz mein", self.revoice, to, msg=msg, name=rv.group(1))
+        rv = re.fullmatch(r"/?(?:awaaz|awaz|aawaz|voice|آواز)\s+(\S+)", text, re.I)
+        if rv and rv.group(1).strip().lower() not in ("tez", "fast", "dheemi", "dheema", "slow", "normal",
+                                                       "save") and not rv.group(1).strip().isdigit():
+            say(f"\n📩 Telegram: {text[:80]}")
+            if not target:  # "awaaz ASAD" = sirf namoona sunao
+                return self.voice_sample(rv.group(1), to)
+            skey = self.state.data["msg"].get(str(target))
+            if not skey:
+                return self.reply("Ye message meri banayi kisi video ka nahi (ya purana hai). Jis video par "
+                                  "awaaz lagani hai usi VIDEO par reply karke likhein: awaaz ASAD", to)
+            return self.queue_job("video nayi awaaz mein", self.revoice, to, msg=msg, name=rv.group(1), key=skey)
         shown = "/gemini ****" if text.lower().startswith("/gemini ") else text[:80]  # Key kabhi screen par nahi
         say(f"\n📩 Telegram: {shown}")
         cmd, _, rest = text.partition(" ")
@@ -423,6 +430,8 @@ class TelegramBot:
             self.save_voice(rest[5:], msg)
         elif cmd == "/save":
             self.save_voice(rest, msg)
+        elif cmd == "/use":
+            self.use_voice(rest, to)
         elif cmd in ("/awaaz", "/voice"):
             self.voice_test(rest, to)
         elif cmd == "/update":
@@ -591,7 +600,7 @@ class TelegramBot:
             return
         presets = self.cfg.get("voice_presets") or {}
         if word and not word.isdigit() and len(word.split()) <= 3 and (presets or len(word) < 25):
-            return self.use_voice(text, to)  # /awaaz ASAD (ya اسد)
+            return self.voice_sample(text, to)  # /awaaz ASAD (ya اسد) = sirf namoona
         if text.strip().isdigit():
             n = int(text.strip())
             if not 1 <= n <= voice.NARRATOR_CHOICES:
@@ -741,27 +750,37 @@ class TelegramBot:
         run(["ffmpeg", "-y", "-v", "error", "-i", wav, "-b:a", "128k", mp3])
         self._send_voice(mp3, caption, settings)
 
+    def voice_sample(self, name: str, to: int = None):
+        """Sirf sunao: channel ki awaaz nahi badalti."""
+        key, settings = self._find_voice(name)
+        if not key:
+            names = ", ".join(sorted(self.cfg.get("voice_presets") or {})) or "abhi koi nahi"
+            return self.reply(f"'{name}' naam ki awaaz save nahi. Save ki hui: {names}", to)
+        self.reply(f"🎧 {key} ka namoona bana raha hoon...", to)
+        try:
+            self._voice_sample(settings, f"🎙️ {key} ka namoona\n"
+                                         f"• Kisi video par lagani ho: us VIDEO par reply karke likhein: awaaz {key}\n"
+                                         f"• Aage ki sab videos isi awaaz mein: /use {key}")
+        except BotError as e:
+            self.reply(f"⚠️ Namoona nahi bana: {str(e)[:200]}", to)
+
     def use_voice(self, name: str, to: int = None):
         key, settings = self._find_voice(name)
         if not key:
             names = ", ".join(sorted(self.cfg.get("voice_presets") or {})) or "abhi koi nahi"
             return self.reply(f"'{name}' naam ki awaaz save nahi. Save ki hui: {names}", to)
         self._set_narrator(settings)
-        self.reply(f"✅ Ab se intro, outro aur kahani wali awaaz: {key}. Namoona aa raha hai...", to)
-        try:
-            self._voice_sample(settings, f"🎙️ {key} ka namoona\n"
-                                         "Kisi video ko is awaaz mein dobara banana ho: us video par "
-                                         f"reply karke likhein: awaaz {key}")
-        except BotError as e:
-            self.reply(f"⚠️ Namoona nahi bana: {str(e)[:200]}", to)
+        self.reply(f"✅ Ab se aane wali sab videos ki awaaz: {key}", to)
 
-    def revoice(self, msg: dict, name: str, to: int = None):
-        """Bani hui video ko nayi awaaz mein dobara banao (video wahi, sirf awaaz nayi)."""
+    def revoice(self, msg: dict, name: str, to: int = None, key: str = None):
+        """Bani hui video ko nayi awaaz mein dobara banao (video wahi, sirf awaaz nayi).
+        Sirf wohi video jis par reply kiya ya jis ka naam liya; kabhi apne aap aakhri wali nahi."""
         from . import voice
-        reply_to = (msg.get("reply_to_message") or {}).get("message_id")
-        skey, info = self.state.target(reply_to)
+        skey = key
+        info = self.state.data["shorts"].get(skey) if skey else None
         if not info:
-            return self.reply("Kaunsi video? Video par reply karke likhein: awaaz ASAD", to)
+            return self.reply("Kaunsi video? Jis video par awaaz lagani hai usi VIDEO par reply karke "
+                              "likhein: awaaz ASAD", to)
         vkey, settings = self._find_voice(name)
         if not vkey:
             names = ", ".join(sorted(self.cfg.get("voice_presets") or {})) or "abhi koi nahi"
@@ -805,19 +824,35 @@ class TelegramBot:
         self.reply("🤔 Samajh raha hoon...", to)
         is_reply = bool((msg.get("reply_to_message") or {}).get("message_id"))
         names = {k: v.get("name", k) for k, v in srcs.items()}
+        rkey = self.state.data["msg"].get(str((msg.get("reply_to_message") or {}).get("message_id")))
+        shorts = self.state.data.get("shorts") or {}
+        titles = [v.get("title", "") for v in list(shorts.values())[-20:]]
         r = planner.route_message(self.cfg, text, names, bool(self.state.data.get("last")),
-                                  list(self.chat_log))
+                                  list(self.chat_log), titles,
+                                  (shorts.get(rkey) or {}).get("title", "") if rkey else "")
         act = r["action"]
         self.chat_log.append(f"User: {text[:300]}")
         if r.get("reply"):
             self.chat_log.append(f"Bot: {r['reply'][:300]}")
         if act == "voice_save" and r.get("topic"):
             return self.save_voice(r["topic"], msg)
+        if act == "voice_sample" and r.get("topic"):
+            return self.voice_sample(r["topic"], to)
         if act == "voice_use" and r.get("topic"):
-            target = (msg.get("reply_to_message") or {}).get("message_id")
-            if target and self.state.data["msg"].get(str(target)):  # Video par reply: wahi video nayi awaaz mein
-                return self.queue_job("video nayi awaaz mein", self.revoice, to, msg=msg, name=r["topic"])
             return self.use_voice(r["topic"], to)
+        if act == "voice_apply" and r.get("topic"):
+            skey = rkey
+            if not skey and is_reply:
+                return self.reply("Ye message meri banayi kisi video ka nahi. Jis video par awaaz lagani hai "
+                                  "usi VIDEO par reply karke likhein: awaaz " + r["topic"], to)
+            if not skey and r.get("video"):
+                want = r["video"].strip().casefold()
+                hits = [k for k, v in shorts.items() if v.get("title", "").strip().casefold() == want]
+                skey = hits[-1] if hits else None
+            if not skey:
+                return self.reply("Kis video par lagaun? Us VIDEO par reply karke likhein: awaaz "
+                                  + r["topic"] + "  (ya video ka title bata dein)", to)
+            return self.queue_job("video nayi awaaz mein", self.revoice, to, msg=msg, name=r["topic"], key=skey)
         if is_reply and act in ("unknown", "help", "chat"):
             act = "edit"  # Short par reply = usi ko badalna
         if act == "chat" and r.get("reply"):

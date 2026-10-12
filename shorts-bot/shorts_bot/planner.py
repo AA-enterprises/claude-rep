@@ -172,7 +172,9 @@ ROUTER_SYSTEM = """You are the command router of a Telegram bot that makes YouTu
 - "edit": they want to change the title, description or thumbnail of a Short they already got.
 - "help": they ask for the list of commands or what the bot can do.
 - "voice_save": they want to save the current / recent voice (or the voice sample they replied to) under a name, e.g. "is awaaz ko ASAD ke naam se save karo". Put the name in "topic".
-- "voice_use": they want to switch to a voice they saved earlier by name, e.g. "ASAD wali awaaz lagao". Put the name in "topic".
+- "voice_sample": they only want to HEAR a saved voice, e.g. "awaaz ASAD", "آواز اسد", "asad ki awaaz sunao". Put the voice name in "topic".
+- "voice_apply": they want a saved voice put on ONE specific video they already got, e.g. "ASAD awaaz is video pe laga do", "اسد آواز اس ویڈیو پہ لگا دو", "moon wali video mein asad ki awaaz". Put the voice name in "topic". If they replied to a video, leave "video" empty. Otherwise, if they named or described the video, put the exact title of the matching video from the list of their videos in "video". Never guess the most recent video if they did not say which.
+- "voice_use": they want a saved voice to become the default voice for all FUTURE videos, e.g. "ab se ASAD awaaz rakho", "aage sab videos ASAD ki awaaz mein". Put the name in "topic".
 - "chat": anything else: greetings, small talk, how are you, jokes, questions about YouTube, Shorts, views, titles, niches, the channel, or any general question. Answer it yourself in "reply".
 - "unknown": only if the message is empty or meaningless.
 For "source", "cc" and "link" also fill in the shape of what they want (use 0 / "default" when they don't say):
@@ -183,23 +185,29 @@ In "reply", write one short friendly Roman Urdu sentence telling them exactly wh
 For "chat": you are the friendly assistant of the YouTube channel "Lakhon Ki Baat" (Shorts about space, science and stories, from NASA, US government and Creative Commons videos, dubbed in Urdu). Talk like a helpful Pakistani friend: casual Roman Urdu, warm, a little humour, 1 to 4 short sentences, practical YouTube growth advice when asked. Never invent things the bot can't do; if they seem to want a Short, suggest an example command like "mars ki 1 video 30 sec ki". Use the recent conversation for context."""
 
 
-def route_message(cfg: dict, text: str, source_names: dict, has_short: bool, history: list = None) -> dict:
+def route_message(cfg: dict, text: str, source_names: dict, has_short: bool, history: list = None,
+                  videos: list = None, replied_video: str = "") -> dict:
     """Telegram par aam baat ko command mein badlo."""
     schema = {
         "type": "object",
         "properties": {
-            "action": {"type": "string", "enum": ["source", "cc", "link", "edit", "help", "chat", "voice_save", "voice_use", "unknown"]},
+            "action": {"type": "string", "enum": ["source", "cc", "link", "edit", "help", "chat", "voice_save", "voice_sample",
+                                                  "voice_apply", "voice_use", "unknown"]},
+            "video": {"type": "string"},
             "source": {"type": "string"}, "count": {"type": "integer"}, "topic": {"type": "string"},
             "mode": {"type": "string", "enum": ["single", "series", "default"]},
             "seconds": {"type": "integer"},
             "url": {"type": "string"}, "permission": {"type": "boolean"}, "reply": {"type": "string"},
         },
-        "required": ["action", "source", "count", "topic", "url", "permission", "mode", "seconds", "reply"],
+        "required": ["action", "source", "count", "topic", "url", "permission", "mode", "seconds", "reply",
+                     "video"],
         "additionalProperties": False,
     }
     channels = "\n".join(f"- {k}: {v}" for k, v in source_names.items())
     prompt = (f"Safe channels:\n{channels}\n\nThe user has {'already received a Short' if has_short else 'not received any Short yet'}."
               + ("\n\nRecent conversation:\n" + "\n".join(history[-8:]) if history else "")
+              + ("\n\nThe user's videos (titles):\n" + "\n".join(f"- {v}" for v in videos) if videos else "")
+              + (f"\n\nThis message is a REPLY to their video: {replied_video}" if replied_video else "")
               + f"\n\nMessage:\n{text}")
     return ask_claude(cfg, ROUTER_SYSTEM, prompt, schema, effort="low")
 
