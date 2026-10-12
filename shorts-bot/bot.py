@@ -129,13 +129,15 @@ def check(cfg: dict):
         found = shutil.which(tool)
         say(f"{'✅' if found else '❌'} {tool}: {found or 'NAHI MILA (README Step 2)'}")
         ok &= bool(found)
+    from shorts_bot.transcribe import _import_whisper
     try:
-        __import__("faster_whisper")
-        say("✅ faster_whisper (subtitles na hon to AI khud sunega)")
+        _import_whisper()
+        say("✅ Whisper (subtitles na hon to bot computer par khud sun kar banayega)")
+        whisper_ok = True
     except Exception as e:
         first = (str(e).strip().splitlines() or [type(e).__name__])[0]
-        say(f"⚠️  faster_whisper nahi chal raha (zaroori nahi): {first[:150]}")
-        say("   Bot sirf un videos par chalega jin ke YouTube subtitles hon (zyada tar podcasts ke hote hain).")
+        say(f"⚠️  Whisper computer par nahi chal raha: {first[:150]}")
+        whisper_ok = False
     for mod in ("anthropic", "yt_dlp", "edge_tts", "cv2", "yaml"):
         try:
             __import__(mod)
@@ -162,7 +164,13 @@ def check(cfg: dict):
         say(f"   {describe_env()}")
         say('   Hal: "notepad .env" chalayein, ek line likhein: ANTHROPIC_API_KEY=sk-ant-... aur Ctrl+S.')
     groq = os.environ.get("GROQ_API_KEY", "")
-    say(f"{'✅' if groq else 'ℹ️ '} GROQ_API_KEY {'set hai' if groq else 'nahi (zaroori nahi, sirf backup subtitles ke liye)'}")
+    if groq:
+        say("✅ GROQ_API_KEY set hai (backup subtitles)")
+    elif whisper_ok:
+        say("ℹ️  GROQ_API_KEY nahi (zaroori nahi, sirf backup subtitles ke liye)")
+    else:
+        say("⚠️  GROQ_API_KEY bhi nahi: jin videos ke YouTube subtitles na hon, un ke subtitles nahi banenge.")
+        say("   Hal: console.groq.com se muft key lein aur .env mein GROQ_API_KEY=... likhein (README).")
     lang = languages.get(cfg["language"]["target"])
     say(f"ℹ️  Zubaan: {lang['key']}  |  Awaaz: {cfg['voice']['gender']}  |  Layout: {cfg['video']['layout']}")
     say("\nSab theek hai! ✅" if ok else "\nUpar ❌ wali cheezein theek karein.")
