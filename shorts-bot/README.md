@@ -169,6 +169,8 @@ Computer par **`telegram.bat`** par double-click karein aur window khuli rehne d
 - `/title naya title`, `/desc nayi description`, `/thumb naya thumbnail text`
 - Ya seedha likhein: *"title aur chatpata karo"*, *"thumbnail par SHOCKING likho"*. AI khud badal dega.
 
+**Commands yaad na hon?** Apni zubaan mein likh dein (`/` ke saath ya baghair), AI samajh lega: *"mars wali video ka short bana do"*, *"space ke 2 short bhejo"*, *"business podcast ka short chahiye"*.
+
 Channels `sources.yaml` mein hain. Apne channels `sources.local.yaml` mein add karein (update se nahi badalti).
 ⚠️ Computer on aur `telegram.bat` chalti honi chahiye. Sirf aap ki Telegram chat ke messages mane jate hain.
 

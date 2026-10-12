@@ -160,6 +160,34 @@ def edit_metadata(cfg: dict, current: dict, request: str) -> dict:
     return ask_claude(cfg, EDIT_SYSTEM, prompt, schema, effort="low")
 
 
+ROUTER_SYSTEM = """You are the command router of a Telegram bot that makes YouTube Shorts. The user writes casually, often in Roman Urdu or Urdu, sometimes starting with "/". Decide what they want and return exactly one action:
+- "source": make Shorts from one of the listed safe channels. Put the channel key in "source" and how many Shorts in "count" (1 if not said, max 5). Pick the channel whose topic best fits (e.g. Mars, robots, rovers -> jpl; Earth, Sun, galaxies -> goddard; general space -> nasa).
+- "cc": make Shorts from a Creative Commons YouTube search. Put a short English search phrase in "topic" (e.g. "business podcast").
+- "link": they gave a YouTube link. Put it in "url". Set "permission" true only if they clearly say they have permission.
+- "edit": they want to change the title, description or thumbnail of a Short they already got.
+- "help": they ask what the bot can do, or say hello.
+- "unknown": anything else.
+In "reply", write one short friendly Roman Urdu sentence telling them what you will do."""
+
+
+def route_message(cfg: dict, text: str, source_names: dict, has_short: bool) -> dict:
+    """Telegram par aam baat ko command mein badlo."""
+    schema = {
+        "type": "object",
+        "properties": {
+            "action": {"type": "string", "enum": ["source", "cc", "link", "edit", "help", "unknown"]},
+            "source": {"type": "string"}, "count": {"type": "integer"}, "topic": {"type": "string"},
+            "url": {"type": "string"}, "permission": {"type": "boolean"}, "reply": {"type": "string"},
+        },
+        "required": ["action", "source", "count", "topic", "url", "permission", "reply"],
+        "additionalProperties": False,
+    }
+    channels = "\n".join(f"- {k}: {v}" for k, v in source_names.items())
+    prompt = (f"Safe channels:\n{channels}\n\nThe user has {'already received a Short' if has_short else 'not received any Short yet'}."
+              f"\n\nMessage:\n{text}")
+    return ask_claude(cfg, ROUTER_SYSTEM, prompt, schema, effort="low")
+
+
 def make_plan(src: dict, transcript: dict, cfg: dict, used: list, recent_hooks: list) -> dict:
     target = languages.get(cfg["language"]["target"])
     source = languages.get(transcript.get("language") or "en")

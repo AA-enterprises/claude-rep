@@ -32,6 +32,9 @@ HELP = """🤖 Shorts Bot commands
 /thumb naya thumbnail text
 Ya seedha likhein, jaise: "title aur chatpata karo" ya "thumbnail par SHOCKING likho"
 
+💬 Commands yaad na hon to apni zubaan mein likh dein, jaise:
+"mars wali video ka short bana do", "space ke 2 short bhejo", "business podcast ka short chahiye"
+
 /help  → ye list"""
 
 
@@ -209,13 +212,35 @@ class TelegramBot:
             else:
                 field = {"/title": "title", "/desc": "description", "/thumb": "thumbnail_text"}[cmd]
                 self.edit(msg, field=field, value=rest)
-        elif cmd.startswith("/") and cmd[1:] in srcs:
+        elif cmd.startswith("/") and cmd[1:] in srcs and (not rest or rest.isdigit()):
             count = int(rest) if rest.isdigit() else 1
             self.make_from_source(key=cmd[1:], count=max(1, min(count, 5)), to=to)
-        elif cmd.startswith("/"):
-            self.reply("Ye command samajh nahi aayi. /help dekhein.", to)
-        else:  # Aam baat: Short badalne ki darkhwast
+        else:  # Aam baat (/ ke saath ya baghair): AI samjhe ke kya chahiye
+            self.understand(msg, text.lstrip("/").strip(), srcs)
+
+    def understand(self, msg: dict, text: str, srcs: dict):
+        to = msg["message_id"]
+        is_reply = bool((msg.get("reply_to_message") or {}).get("message_id"))
+        names = {k: v.get("name", k) for k, v in srcs.items()}
+        r = planner.route_message(self.cfg, text, names, bool(self.state.data.get("last")))
+        act = r["action"]
+        if is_reply and act in ("unknown", "help"):
+            act = "edit"  # Short par reply = usi ko badalna
+        if act != "edit" and r.get("reply"):
+            self.reply("🤖 " + r["reply"], to)
+        if act == "source" and r.get("source") in srcs:
+            self.make_from_source(key=r["source"], count=max(1, min(int(r.get("count") or 1), 5)), to=to)
+        elif act == "cc" and r.get("topic"):
+            self.make_from_source(topic=r["topic"], to=to)
+        elif act == "link" and r.get("url", "").startswith("http"):
+            self.make_from_link(r["url"], bool(r.get("permission")), to)
+        elif act == "edit":
             self.edit(msg, request=text)
+        elif act == "help":
+            self.reply(HELP, to)
+        else:
+            self.reply("Ye baat samajh nahi aayi 🙏 Misal: \"mars ka short bhejo\", "
+                       "\"/nasa 2\", \"title chatpata karo\". Saari commands: /help", to)
 
     # ------------------------------------------------------------- loop
     def run(self):
