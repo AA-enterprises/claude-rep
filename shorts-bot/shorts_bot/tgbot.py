@@ -13,6 +13,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from . import planner, render, sources, telegram
+from .download import BOT_CHECK
 from .util import BotError, read_json, say, write_json
 
 HELP = """🤖 Shorts Bot commands
@@ -132,47 +133,62 @@ class TelegramBot:
         return f"{c['per_video']} Short(s), har ek {c['min_seconds']}-{c['max_seconds']} second"
 
     # ----------------------------------------------------------- commands
+    def fail(self, text: str, to: int = None):
+        """Ghalti sirf ek dafa batao. Wahi ghalti 15 minute ke andar dobara ho to chhota sa note."""
+        now = time.time()
+        last_text, last_time = getattr(self, "_last_err", ("", 0))
+        if text == last_text and now - last_time < 15 * 60:
+            self.reply("❌ Wahi masla abhi bhi hai (upar wala message dekhein).", to)
+        else:
+            self.reply("❌ " + text, to)
+        self._last_err = (text, now)
+
     def make_from_source(self, key: str = None, topic: str = None, count: int = None, to: int = None,
                          mode: str = None, seconds: int = None):
         what = f"'{topic}' (Creative Commons)" if topic else key
         cfg = self._cfg(count, mode, seconds)
-        self.reply(f"⏳ {what}: nayi video dhoond raha hoon... ({self._shape(cfg)})", to)
+        self.reply(f"⏳ {what}: video dhoond kar Short bana raha hoon ({self._shape(cfg)}). "
+                   "5-15 minute lagenge...", to)
         vids, kind, note = sources.candidates(self.cfg, key=key, topic=topic)
         if not vids:
-            self.reply("😕 Koi nayi munasib video nahi mili. Doosra channel/topic try karein.", to)
+            self.fail("Koi nayi munasib video nahi mili. Doosra channel/topic try karein.", to)
             return
-        made = 0
+        errors = []
         for url, title in vids[:6]:  # CC search mein kuch videos CC nahi niklti: agli try karo
-            self.reply(f"🎬 Video: {title[:80]}\n{url}\n⏳ Short ban raha hai (5-15 minute)...", to)
+            say(f"\n🎬 Koshish: {title[:70]}  {url}")
             try:
                 permission = f"Public domain: {note}" if kind == "public_domain" else None
                 out = self.process(url, cfg, self._args(strict=True),
                                    on_short=self.on_short, permission=permission)
-                made += len(out)
-                break
-            except BotError as e:
-                if "bot\" samajh" in str(e):  # YouTube ne roka: agli video bhi ruk jayegi
-                    self.reply("❌ " + str(e), to)
+                if out:
+                    self._last_err = ("", 0)
                     return
-                self.reply(f"⚠️ Ye video nahi chali: {str(e)[:300]}\nAgli try kar raha hoon...", to)
-        if not made:
-            self.reply("😕 Short nahi ban saka. Computer ki screen par tafseel dekhein.", to)
+            except BotError as e:
+                if str(e) == BOT_CHECK:  # YouTube ne roka: agli video bhi ruk jayegi
+                    self.fail(str(e), to)
+                    return
+                errors.append(str(e).splitlines()[0][:150])
+                say(f"  ⚠️  Ye video nahi chali, agli try kar raha hoon: {errors[-1]}")
+        reason = f"\nAakhri wajah: {errors[-1]}" if errors else ""
+        self.fail(f"{len(vids[:6])} videos try kin, Short nahi ban saka.{reason}", to)
 
     def make_from_link(self, url: str, allowed: bool, to: int = None, count: int = None,
                        mode: str = None, seconds: int = None):
         cfg = self._cfg(count, mode, seconds)
-        self.reply(f"⏳ Short ban raha hai (5-15 minute)... ({self._shape(cfg)})", to)
+        self.reply(f"⏳ Short ban raha hai ({self._shape(cfg)}). 5-15 minute lagenge...", to)
         permission = "User ne Telegram par ijazat confirm ki" if allowed else None
         try:
             out = self.process(url, cfg,
                                self._args(strict=not allowed),
                                on_short=self.on_short, permission=permission)
-            if not out:
-                self.reply("😕 Short nahi bana.", to)
+            if out:
+                self._last_err = ("", 0)
+            else:
+                self.fail("Short nahi bana.", to)
         except BotError as e:
             hint = ("\nAgar is video ki ijazat aap ke paas hai to likhein:\n/link " + url + " ijazat"
                     if "Creative Commons nahi" in str(e) else "")
-            self.reply(f"❌ {str(e)[:400]}{hint}", to)
+            self.fail(f"{str(e)[:600]}{hint}", to)
 
     def edit(self, msg: dict, field: str = None, value: str = None, request: str = None):
         to = msg["message_id"]
@@ -300,7 +316,7 @@ class TelegramBot:
                 try:
                     self.handle(msg)
                 except BotError as e:
-                    self.reply(f"❌ {str(e)[:500]}", msg.get("message_id"))
+                    self.fail(str(e)[:600], msg.get("message_id"))
                 except Exception as e:  # Bot band na ho: ghalti likh kar agla message
                     log = self.cfg["paths"]["work"] / "error-log.txt"
                     log.parent.mkdir(parents=True, exist_ok=True)

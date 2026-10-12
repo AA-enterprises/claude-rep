@@ -55,9 +55,24 @@ def is_bot_check(err) -> bool:
         or "page needs to be reloaded" in t
 
 
+class _Quiet:
+    """yt-dlp ki apni laal ERROR lines screen par na aayein; bot khud saaf Urdu mein batata hai."""
+    def debug(self, msg):
+        pass
+
+    def info(self, msg):
+        pass
+
+    def warning(self, msg):
+        pass
+
+    def error(self, msg):
+        pass
+
+
 def base_opts(cfg: dict) -> dict:
     """Har yt-dlp call ke liye: cookies (agar hon) taake YouTube \"bot\" na samjhe."""
-    opts = {}
+    opts = {"logger": _Quiet()}
     cookies = cfg["_base"] / "cookies.txt"
     browser = (cfg["video"].get("cookies_from_browser") or "").strip().lower()
     if cookies.exists():
