@@ -97,6 +97,7 @@ python bot.py LINK --voice male           (larke ki awaaz)
 python bot.py LINK --voice child          (bachche ki awaaz)
 python bot.py LINK --layout face          (chehre par zoom)
 python bot.py LINK --focus "paisa aur business"
+python bot.py LINK --lang english --no-voice   (Vyro jaisi campaigns: English, AI awaaz ke baghair)
 python bot.py --test-voice "Assalam o Alaikum, aaj ki baat suniye"
 ```
 

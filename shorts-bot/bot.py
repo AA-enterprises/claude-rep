@@ -323,6 +323,8 @@ def main():
     p.add_argument("--voice", choices=["female", "male", "child"], help="Awaaz: larki, larka ya bachcha")
     p.add_argument("--layout", choices=["blur", "face"], help="Video ka andaaz")
     p.add_argument("--focus", help='Topic, jaise "paisa aur business"')
+    p.add_argument("--no-voice", action="store_true",
+                   help="AI awaaz (hook/outro) ke baghair, sirf clip + captions (jaise Vyro briefs)")
     p.add_argument("--yes", action="store_true", help="Ijazat ka sawal mat poochho (ijazat pakki ho)")
     p.add_argument("--config", default=str(HERE / "config.yaml"))
     p.add_argument("--check", action="store_true", help="Installation check karo")
@@ -358,6 +360,9 @@ def main():
             cfg["video"]["layout"] = args.layout
         if args.focus:
             cfg["clips"]["focus"] = args.focus
+        if args.no_voice:
+            cfg["clips"]["hook"] = False
+            cfg["clips"]["outro"] = False
 
         if args.no_telegram:
             cfg["telegram"]["send"] = False
