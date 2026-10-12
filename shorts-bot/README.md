@@ -166,6 +166,7 @@ Ye aap ka apna chhota sa server hai jo bot ke messages Telegram tak pahunchata h
 
 | Masla | Hal |
 |---|---|
+| `Awaaz nahi bani (edge-tts) ... 403` | Microsoft ki muft awaaz kabhi kabhi ruk jati hai. Bot khud Google ki backup awaaz laga deta hai. Microsoft wali hi chahiye to: `python -m pip install -U edge-tts`, aur computer ka waqt/date sahi karein (Settings → Time → Sync now) |
 | `ffmpeg nahi mila` | Step 2 dobara karein, phir terminal band karke kholein |
 | `ANTHROPIC_API_KEY ... set nahi` | `.env` file ka naam check karein (`.env.txt` nahi hona chahiye) |
 | `credit khatam` | console.anthropic.com → Billing |

@@ -117,7 +117,19 @@ def process(source: str, cfg: dict, args) -> list:
     hist_path = cfg["paths"]["output"] / "history.json"
     history = read_json(hist_path, {"videos": {}, "hooks": []})
     used = history["videos"].get(src["id"], [])
-    plan = planner.make_plan(src, tr, cfg, used, history["hooks"])
+    # Pichhli dafa AI ne plan bana diya tha lekin baad mein kuch fail hua: wahi plan
+    # dobara use karo (AI ke paise dobara nahi lagte). Mukammal hone par mit jata hai.
+    key = f"{cfg['language']['target']}-{cfg['voice']['gender']}-{cfg['clips']['per_video']}-{cfg['clips']['focus']}"
+    plan_path = src["dir"] / f"plan-{slug(key, 60)}.json"
+    plan = read_json(plan_path)
+    if plan and plan.get("clips"):
+        plan["clips"] = [c for c in plan["clips"]
+                         if [c["start_index"], c["end_index"]] not in used]
+    if plan and plan.get("clips"):
+        say("  Pichhli dafa ka AI plan mil gaya (dobara paise nahi lagenge).")
+    else:
+        plan = planner.make_plan(src, tr, cfg, used, history["hooks"])
+        write_json(plan_path, plan)
     for k, c in enumerate(plan["clips"], 1):
         say(f"  {k}. [{c['category']}] {c['title']}")
 
@@ -152,6 +164,7 @@ def process(source: str, cfg: dict, args) -> list:
         history["videos"].setdefault(src["id"], []).append([clip["start_index"], clip["end_index"]])
         history["hooks"] = (history["hooks"] + [clip["hook_voice"]])[-60:]
         write_json(hist_path, history)
+    plan_path.unlink(missing_ok=True)
     return outputs
 
 

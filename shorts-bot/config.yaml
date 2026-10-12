@@ -22,7 +22,8 @@ language:
   title_style: roman
 
 voice:
-  engine: edge                  # edge = muft (Microsoft) | elevenlabs = paid, zyada asli awaaz
+  engine: edge                  # edge = muft (Microsoft) | google = muft backup | elevenlabs = paid, zyada asli
+  fallback_google: true         # Microsoft ki awaaz na mile to khud Google ki awaaz lagao
   gender: female                # female = larki | male = larka | child = bachcha
                                 # (har zubaan mein teeno chalti hain)
   edge_voice: ""                # Khaali chhorein to zubaan ke hisaab se khud chunega
