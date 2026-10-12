@@ -33,6 +33,7 @@ HELP = """🤖 Shorts Bot commands
 /status  → abhi kya ban raha hai, line mein kya hai
 /awaaz  → saari awaazon ke namoone (aur batata hai Microsoft lagi ya Google backup)
 /awaaz 2  → 2 number wali awaaz channel ki awaaz bana do
+/awaaz tez  ya  /awaaz dheemi  → kahani wali awaaz ki raftar
 /gemini  → insaan jaisi awaaz (Gemini) lagane ka tareeqa
 /update  → bot ka naya version abhi lao (waise bhi khud har 30 minute check karta hai)
 
@@ -432,11 +433,31 @@ class TelegramBot:
         from . import config as config_mod
         from . import voice
         from .util import run
+        word = text.strip().lower()
+        if word in ("tez", "fast", "dheemi", "dheema", "slow", "normal"):
+            cur = float((self.cfg["dub"].get("styles") or {}).get("narrator", {}).get("speed")
+                        or voice.STYLE_SPEED.get("narrator", 1.0))
+            new = 1.1 if word == "normal" else cur + (0.08 if word in ("tez", "fast") else -0.08)
+            new = round(min(max(new, 0.8), 1.4), 2)
+            styles = dict(self.cfg["dub"].get("styles") or {})
+            styles["narrator"] = dict(styles.get("narrator") or {}, speed=new)
+            self.cfg["dub"]["styles"] = styles
+            config_mod.save_local(self.cfg["_base"], {"dub": {"styles": {"narrator": {"speed": new}}}})
+            self.reply(f"✅ Kahani wali awaaz ki raftar ab {new}x. Namoona aa raha hai...", to)
+            wav = voice.speak("یہ کہانی انیس سو انہتر کی ہے، جب انسان نے پہلی بار چاند پر قدم رکھا۔",
+                              self.cfg["paths"]["output"] / "awaaz-raftar", voice.styled(self.cfg, "narrator"))
+            mp3 = wav.with_suffix(".mp3")
+            run(["ffmpeg", "-y", "-v", "error", "-i", wav, "-b:a", "128k", mp3])
+            telegram.send_document(mp3, f"Raftar {new}x  (aur tez: /awaaz tez, dheemi: /awaaz dheemi)",
+                                   mime="audio/mpeg")
+            return
         if text.strip().isdigit():
             n = int(text.strip())
             if not 1 <= n <= voice.NARRATOR_CHOICES:
                 return self.reply(f"1 se {voice.NARRATOR_CHOICES} tak number likhein, jaise: /awaaz 2", to)
             label, _, over = voice.samples(self.cfg)[n - 1]
+            keep = (self.cfg["dub"].get("styles") or {}).get("narrator", {}).get("speed")
+            over = dict(over, speed=keep) if keep else dict(over)
             styles = dict(self.cfg["dub"].get("styles") or {}, narrator=over)
             self.cfg["dub"]["styles"] = styles
             config_mod.save_local(self.cfg["_base"], {"dub": {"styles": {"narrator": over}}})

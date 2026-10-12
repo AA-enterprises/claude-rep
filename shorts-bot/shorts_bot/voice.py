@@ -38,6 +38,8 @@ FX = {
     "warm": "bass=g=2:f=130:w=0.8,",
     "none": "",
 }
+# Raftar (1.0 = jaisi bani; 1.1 = 10% tez). Narrator pehle dheema lagta tha.
+STYLE_SPEED = {"narrator": 1.1}
 STYLE_FX = {"narrator": "documentary", "man": "warm", "old_man": "warm", "young_man": "warm"}
 
 
@@ -50,7 +52,8 @@ def styled(cfg: dict, style: str) -> dict:
              pitch=custom.get("pitch", pitch), google_shift=float(custom.get("google_shift", shift)),
              child_rate=custom.get("rate", cfg["voice"].get("child_rate", "+8%")),
              child_pitch=custom.get("pitch", cfg["voice"].get("child_pitch", "+45Hz")),
-             fx=custom.get("fx", STYLE_FX.get(style, "none") if cfg["voice"].get("studio_fx", True) else "none"))
+             fx=custom.get("fx", STYLE_FX.get(style, "none") if cfg["voice"].get("studio_fx", True) else "none"),
+             speed=float(custom.get("speed", STYLE_SPEED.get(style, 1.0))))
     v["style"] = style
     if custom.get("voice"):  # Misal: narrator: {voice: ur-IN-SalmanNeural}
         v["edge_voice"] = custom["voice"]
@@ -124,8 +127,9 @@ def _elevenlabs(text: str, out: Path, cfg: dict):
 # Gemini (Google AI Studio): insaan jaisi awaaz. Har andaaz ki apni awaaz + hidayat.
 GEMINI_MODELS = ["gemini-2.5-flash-preview-tts", "gemini-3.1-flash-tts-preview", "gemini-2.5-pro-preview-tts"]
 GEMINI_VOICES = {
-    "narrator": ("Charon", "a deep, heavy, calm and gripping male storyteller voice, like a famous "
-                           "Pakistani documentary and mystery-story narrator slowly building suspense"),
+    "narrator": ("Charon", "a deep, heavy and gripping male storyteller voice, like a famous Pakistani "
+                           "documentary and mystery-story narrator, speaking at a lively, engaging, "
+                           "normal conversational pace (never slow or dragging)"),
     "man": ("Orus", "a natural, confident adult man talking"),
     "young_man": ("Puck", "a natural, energetic young man in his twenties talking"),
     "old_man": ("Algenib", "a natural, slow, slightly gravelly voice of an old man in his seventies"),
@@ -303,6 +307,11 @@ def _pitch_filter(cfg: dict) -> str:
             f"atempo={min(2.0, max(0.5, 1.05 / shift)):.3f},")
 
 
+def _speed_filter(cfg: dict) -> str:
+    sp = min(max(float(cfg["voice"].get("speed") or 1.0), 0.7), 1.5)
+    return "" if abs(sp - 1.0) < 0.01 else f"atempo={sp:.3f},"
+
+
 def speak(text: str, out: Path, cfg: dict) -> Path:
     """Text ko awaaz mein badal kar WAV file banao (48kHz stereo)."""
     global _edge_skip_until, _edge_fails, LAST_EDGE_ERROR, LAST_GEMINI_ERROR, _gemini_skip_until
@@ -365,7 +374,7 @@ def speak(text: str, out: Path, cfg: dict) -> Path:
     wav = out.with_suffix(".wav")
     # Shuru/aakhir ki khamoshi kaato, awaaz barabar karo
     run(["ffmpeg", "-y", "-v", "error", "-i", mp3, "-af",
-         extra + "silenceremove=start_periods=1:start_threshold=-45dB,areverse,"
+         extra + _speed_filter(cfg) + "silenceremove=start_periods=1:start_threshold=-45dB,areverse,"
          "silenceremove=start_periods=1:start_threshold=-45dB,areverse,"
          + FX.get(cfg["voice"].get("fx") or "none", "") +
          "loudnorm=I=-14:TP=-1.5:LRA=11",
@@ -421,7 +430,7 @@ NARRATOR_CHOICES = 4
 
 # Gemini ho to namoone Gemini ki insaan jaisi awaazon ke
 GEMINI_SAMPLES = [
-    ("Bhaari, thehri hui kahani wali awaaz (Charon)", "narrator", {"gemini_voice": "Charon"}),
+    ("Bhaari kahani wali awaaz (Charon)", "narrator", {"gemini_voice": "Charon"}),
     ("Khurdari, gehri awaaz (Algenib)", "narrator", {"gemini_voice": "Algenib"}),
     ("Mazboot, sanjeeda awaaz (Orus)", "narrator", {"gemini_voice": "Orus"}),
     ("Josheeli awaaz (Fenrir)", "narrator", {"gemini_voice": "Fenrir"}),
@@ -438,6 +447,8 @@ def samples(cfg: dict) -> list:
 def sample_cfg(cfg: dict, idx: int) -> dict:
     label, style, over = samples(cfg)[idx]
     c = dict(cfg, dub=dict(cfg.get("dub", {})))
-    if over is not None:  # Narrator option: config ki purani pasand ki jagah ye
+    if over is not None:  # Narrator option: config ki purani pasand ki jagah ye (raftar wahi)
+        speed = ((c["dub"].get("styles") or {}).get("narrator") or {}).get("speed")
+        over = dict(over, speed=speed) if speed and "speed" not in over else over
         c["dub"]["styles"] = dict(c["dub"].get("styles") or {}, narrator=over)
     return styled(c, style)
