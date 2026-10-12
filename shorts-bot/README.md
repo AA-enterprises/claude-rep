@@ -142,6 +142,8 @@ Har Short tayyar hote hi aap ke Telegram par video aur alag message mein title/d
 - Ya agar aap ke paas proxy hai: `.env` mein `TELEGRAM_PROXY=socks5h://127.0.0.1:1080` (apne proxy ka pata) likhein.
 - Check: browser mein https://api.telegram.org kholein. Page khul jaye to bot bhi chal jayega.
 
+**Insaan jaisi awaaz, zyada videos (Chirp 3 HD):** Google Cloud ki Chirp 3 HD awaazein (Charon wagera) har mahine ~10 lakh akhar muft deti hain (roz ~50-80 videos). Telegram par `/chirp` bhejein aur tareeqa follow karein (card lagta hai, lekin bot muft had se pehle khud ruk jata hai). Chirp na chale to bot Gemini, phir Microsoft laga deta hai.
+
 **Insaan jaisi awaaz (Gemini, muft):** Microsoft ki muft Urdu awaaz machine jaisi lagti hai. Asli insaan jaisi awaaz ke liye Telegram par `/gemini` bhejein aur tareeqa follow karein (Gmail se https://aistudio.google.com/apikey par key banti hai, phir `/gemini KEY`). Muft had khatam ho to bot khud Microsoft ki awaaz laga deta hai aur batata hai.
 
 **Awaaz chunna:** Telegram par `/awaaz` bhejein: har awaaz ka namoona aa jayega. Pasand wali ka number bhejein, jaise `/awaaz 2`. Har Short ke baad bot batata hai Microsoft ki awaaz lagi ya Google ki backup.

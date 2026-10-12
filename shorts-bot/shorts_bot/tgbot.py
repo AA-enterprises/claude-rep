@@ -38,6 +38,7 @@ HELP = """🤖 Shorts Bot commands
 awaaz ASAD  → ASAD ka namoona suno (kuch badalta nahi)
 Video par REPLY karke "awaaz ASAD"  → sirf WOHI video ASAD ki awaaz mein dobara
 /use ASAD  → aage ki sab videos ASAD ki awaaz mein
+/chirp  → Chirp 3 HD (insaan jaisi awaaz, roz ~50-80 videos muft) lagane ka tareeqa
 /gemini  → insaan jaisi awaaz (Gemini) lagane ka tareeqa
 /check  → awaaz ya bot mein masla ho to jaanch (Microsoft, Gemini, computer ka time)
 /update  → bot ka naya version abhi lao (waise bhi khud har 30 minute check karta hai)
@@ -398,8 +399,8 @@ class TelegramBot:
         to = msg["message_id"]
         if not text:
             return
-        if re.fullmatch(r"AIza[0-9A-Za-z_\-]{30,}", text):  # Sirf Gemini key paste ki
-            text = "/gemini " + text
+        if re.fullmatch(r"AIza[0-9A-Za-z_\-]{30,}", text):  # Sirf Google key paste ki (Gemini/Chirp)
+            text = "/key " + text
         target = (msg.get("reply_to_message") or {}).get("message_id")
         if (target in self.voice_msgs or self._old_voice(msg.get("reply_to_message"))) \
                 and not text.startswith("/") and re.fullmatch(r"[\w\- ]{1,30}", text) \
@@ -416,7 +417,7 @@ class TelegramBot:
                 return self.reply("Ye message meri banayi kisi video ka nahi (ya purana hai). Jis video par "
                                   "awaaz lagani hai usi VIDEO par reply karke likhein: awaaz ASAD", to)
             return self.queue_job("video nayi awaaz mein", self.revoice, to, msg=msg, name=rv.group(1), key=skey)
-        shown = "/gemini ****" if text.lower().startswith("/gemini ") else text[:80]  # Key kabhi screen par nahi
+        shown = "/key ****" if re.match(r"/(gemini|chirp|key) \S{15,}", text.lower()) else text[:80]  # Key screen par nahi
         say(f"\n📩 Telegram: {shown}")
         cmd, _, rest = text.partition(" ")
         cmd = cmd.lower().split("@")[0]
@@ -440,6 +441,8 @@ class TelegramBot:
             self.diagnose(to)
         elif cmd == "/gemini":
             self.set_gemini(rest, msg)
+        elif cmd in ("/chirp", "/key"):
+            self.set_google_key(rest, msg)
         elif cmd == "/sources":
             lines = [f"/{k}  → {v.get('name', k)}" for k, v in srcs.items()]
             self.reply("📺 Mehfooz channels:\n" + "\n".join(lines)
@@ -540,6 +543,13 @@ class TelegramBot:
             lines.append("✅ Microsoft awaaz: chal rahi hai")
         except BotError as e:
             lines.append("❌ Microsoft awaaz: " + str(e).splitlines()[-1][:150])
+        if voice.chirp_ready():
+            used = voice.chirp_usage(str(self.cfg["paths"]["output"] / "chirp-usage.json"))
+            err = voice.LAST_CHIRP_ERROR
+            lines.append(f"🎙️ Chirp 3 HD: lagi hui. Is mahine {used:,} / ~10,00,000 akhar muft"
+                         + (f"\n   Aakhri ghalti: {err}" if err else "  ✅"))
+        else:
+            lines.append("💡 Chirp 3 HD nahi lagi (roz ~50-80 videos insaan jaisi awaaz): /chirp")
         if voice.gemini_ready():
             err = voice.LAST_GEMINI_ERROR
             lines.append("🎙️ Gemini key: lagi hui" + (f"\n   Aakhri ghalti: {err}" if err else "  ✅"))
@@ -549,6 +559,63 @@ class TelegramBot:
         else:
             lines.append("💡 Gemini key nahi lagi (insaan jaisi awaaz): /gemini")
         self.reply("🔍 Jaanch ka nateeja:\n" + "\n".join(lines), to)
+
+    def set_google_key(self, key: str, msg: dict):
+        """Google ki key: khud check karo Chirp aur Gemini mein se kis par chalti hai, wahan laga do."""
+        from . import voice
+        to = msg["message_id"]
+        key = key.strip()
+        if key.lower() == "test":  # Purani Gemini key Chirp par bhi chalti hai?
+            key = os.environ.get("GEMINI_API_KEY", "").strip()
+            if not key:
+                return self.reply("Abhi koi Gemini key nahi lagi. Nayi key paste karein.", to)
+        elif not key:
+            used = voice.chirp_usage(str(self.cfg["paths"]["output"] / "chirp-usage.json"))
+            state = "✅ Chirp lagi hui hai. " if voice.chirp_ready() else ""
+            return self.reply(state + f"Is mahine istemal: {used:,} akhar (muft had ~10,00,000)\n\n"
+                              + "🎙️ Chirp 3 HD (insaan jaisi awaaz, roz ~50-80 videos muft) lagane ka tareeqa:\n\n"
+                "1. Kholein: https://console.cloud.google.com  aur apne Gmail se login karein\n"
+                "2. Upar 'Select a project' > wohi project chunein jis ki Gemini key hai (ya naya banayein)\n"
+                "3. Billing (card): https://console.cloud.google.com/billing  > 'Link a billing account' > "
+                "card daalein. Muft had ke andar paise nahi katte, aur bot khud had se pehle ruk jata hai.\n"
+                "4. Ye API ON karein: https://console.cloud.google.com/apis/library/texttospeech.googleapis.com "
+                "> 'Enable' dabayein\n"
+                "5. Key: https://console.cloud.google.com/apis/credentials > '+ Create credentials' > "
+                "'API key' > copy\n"
+                "6. Key yahin paste karke bhej dein (bas key). Main khud check karunga aur message mita doonga.\n\n"
+                "💡 Agar aap ne step 2 mein Gemini wala project chuna aur step 4 kiya, to shayad purani "
+                "Gemini key hi chal jaye: /chirp test bhejein.", to)
+        else:
+            if not re.fullmatch(r"[A-Za-z0-9_\-]{20,}", key):
+                return self.reply("Ye key sahi nahi lag rahi. Poori key copy karke bhejein.", to)
+            try:  # Key chat mein na rahe
+                telegram._call("deleteMessage", data={"chat_id": self.chat, "message_id": to})
+            except BotError:
+                pass
+        self.reply("🔍 Key check kar raha hoon...")
+        res = voice.check_google_key(key)
+        lines = []
+        env = self.cfg["_base"] / ".env"
+        if res.get("chirp") is True:
+            telegram._write_env(env, "GOOGLE_TTS_API_KEY", key)
+            os.environ["GOOGLE_TTS_API_KEY"] = key
+            lines.append("✅ Chirp 3 HD chal gayi! Ab awaaz Chirp ki hogi (insaan jaisi, roz ~50-80 videos muft).")
+        else:
+            lines.append(f"❌ {res.get('chirp')}")
+        if res.get("gemini") is True:
+            if not os.environ.get("GEMINI_API_KEY"):
+                telegram._write_env(env, "GEMINI_API_KEY", key)
+                os.environ["GEMINI_API_KEY"] = key
+            lines.append("✅ Gemini bhi chalti hai (Chirp ki had khatam ho to backup)." if res.get("chirp") is True
+                         else "✅ Gemini chal rahi hai (insaan jaisi awaaz, lekin roz sirf ~2-3 videos muft).")
+        elif res.get("chirp") is not True:
+            lines.append(f"❌ {res.get('gemini')}")
+        voice.USED.clear()
+        if res.get("chirp") is not True:
+            lines.append("\nChirp ka poora tareeqa: /chirp")
+        else:
+            lines.append("\nNamoone: /awaaz")
+        self.reply("\n".join(lines))
 
     def set_gemini(self, key: str, msg: dict):
         """/gemini KEY: insaan jaisi awaaz (Gemini) ki key .env mein rakho. File kholni nahi parti."""

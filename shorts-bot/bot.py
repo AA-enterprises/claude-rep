@@ -422,6 +422,7 @@ def main():
     p.add_argument("--update", action="store_true", help="GitHub se naya version lao")
     p.add_argument("--quiet", action="store_true", help=argparse.SUPPRESS)
     p.add_argument("--gemini-key", metavar="KEY", help="Insaan jaisi awaaz (Gemini) ki key .env mein rakho")
+    p.add_argument("--chirp-key", metavar="KEY", help="Chirp 3 HD (Google Cloud Text-to-Speech) ki key .env mein rakho")
     p.add_argument("--ask", action="store_true", help="Link poochho (start.bat ke liye)")
     p.add_argument("--version", action="store_true", help="Bot ka version dikhao")
     p.add_argument("--telegram", action="store_true",
@@ -470,6 +471,15 @@ def main():
             cfg["telegram"]["send"] = False
         if args.check:
             return check(cfg)
+        if args.chirp_key:
+            from shorts_bot import telegram as _tg
+            from shorts_bot import voice as _v
+            key = args.chirp_key.strip().strip('"').strip("'")
+            res = _v.check_google_key(key)
+            if res.get("chirp") is not True:
+                return say(f"❌ Chirp key nahi chali: {res.get('chirp')}")
+            _tg._write_env(HERE / ".env", "GOOGLE_TTS_API_KEY", key)
+            return say("✅ Chirp key .env mein rakh di. Ab: python bot.py --telegram  (phir Telegram par /awaaz)")
         if args.gemini_key:
             from shorts_bot import telegram as _tg
             key = args.gemini_key.strip().strip('"').strip("'")

@@ -108,6 +108,9 @@ dub:
   #   narrator: {fx: none}                       # studio asar band
   # Andaaz: narrator, man, young_man, old_man, woman, girl, boy
 
+chirp:
+  monthly_free_chars: 950000    # Chirp 3 HD: is se zyada akhar is mahine nahi (muft had ke andar, card par paisa nahi)
+
 thumbnail:
   make: true                    # Har Short ke saath thumbnail (.jpg) bhi banao
   language: roman               # Thumbnail ka text: roman (Roman Urdu) | urdu | english | same

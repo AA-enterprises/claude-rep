@@ -7,6 +7,7 @@ import json
 import os
 import re
 import subprocess
+import threading
 import time
 import urllib.parse
 from pathlib import Path
@@ -58,6 +59,8 @@ def styled(cfg: dict, style: str) -> dict:
              speed=float(custom.get("speed", STYLE_SPEED.get(style, 1.0))))
     v["style"] = style
     v["cache_dir"] = str(Path(cfg["paths"]["work"]) / "voice-cache") if cfg.get("paths") else ""
+    v["usage_file"] = str(Path(cfg["paths"]["output"]) / "chirp-usage.json") if cfg.get("paths") else ""
+    v["chirp_limit"] = int((cfg.get("chirp") or {}).get("monthly_free_chars", 950000))
     if custom.get("voice"):  # Misal: narrator: {voice: ur-IN-SalmanNeural}
         v["edge_voice"] = custom["voice"]
     if custom.get("gemini_voice"):  # Misal: narrator: {gemini_voice: Algenib}
@@ -248,6 +251,117 @@ def _gemini(text: str, out: Path, cfg: dict):
     raise BotError(f"Gemini awaaz ka koi model nahi chala ({last}).")
 
 
+# Google Chirp 3 HD (Google Cloud): wahi insaan jaisi awaazein (Charon, Algenib...), har mahine
+# ~10 lakh akhar muft. Bot khud ginta hai aur muft had se pehle ruk jata hai (card par paisa nahi).
+CHIRP_LANG = {"ur": "ur-IN", "ur-latn": "ur-IN", "hi": "hi-IN", "en": "en-US", "ar": "ar-XA",
+              "bn": "bn-IN", "fr": "fr-FR", "de": "de-DE", "es": "es-ES", "it": "it-IT", "id": "id-ID",
+              "ja": "ja-JP", "ko": "ko-KR", "pt": "pt-BR", "ru": "ru-RU", "tr": "tr-TR", "zh": "cmn-CN"}
+_chirp_lock = threading.Lock()
+
+
+def chirp_ready() -> bool:
+    return bool(os.environ.get("GOOGLE_TTS_API_KEY", "").strip())
+
+
+def chirp_usage(usage_file: str) -> int:
+    from .util import read_json
+    if not usage_file:
+        return 0
+    d = read_json(Path(usage_file), {})
+    return int(d.get("chars", 0)) if d.get("month") == time.strftime("%Y-%m") else 0
+
+
+def _chirp_count(usage_file: str, n: int):
+    from .util import read_json, write_json
+    if not usage_file:
+        return
+    with _chirp_lock:
+        month = time.strftime("%Y-%m")
+        d = read_json(Path(usage_file), {})
+        used = int(d.get("chars", 0)) if d.get("month") == month else 0
+        write_json(Path(usage_file), {"month": month, "chars": used + n})
+
+
+def _chirp(text: str, out: Path, cfg: dict):
+    """Chirp 3 HD: text -> insaan jaisi awaaz (.wav)."""
+    import requests
+
+    v = cfg["voice"]
+    style = v.get("style") or GENDER_STYLE.get(v.get("gender", "male"), "narrator")
+    name = v.get("gemini_voice") or GEMINI_VOICES.get(style, GEMINI_VOICES["narrator"])[0]
+    lang = CHIRP_LANG.get(languages.voice(cfg)["code"], "ur-IN")
+    cache = None
+    if v.get("cache_dir"):
+        import hashlib
+        cache = Path(v["cache_dir"]) / ("c" + hashlib.sha1(f"{lang}|{name}|{text}".encode("utf-8")).hexdigest()[:20] + ".wav")
+        if cache.exists() and cache.stat().st_size > 1000:
+            out.write_bytes(cache.read_bytes())
+            return
+    n = len(text)  # Google akhar (spaces samet) ginta hai
+    if chirp_usage(v.get("usage_file", "")) + n > v.get("chirp_limit", 950000):
+        raise BotError("Chirp ki is mahine ki muft had poori (paise na katein is liye ruk gaya). "
+                       "Agle mahine phir chalegi.")
+    key = os.environ.get("GOOGLE_TTS_API_KEY", "").strip()
+    body = {"input": {"text": text},
+            "voice": {"languageCode": lang, "name": f"{lang}-Chirp3-HD-{name}"},
+            "audioConfig": {"audioEncoding": "LINEAR16", "sampleRateHertz": 24000}}
+    try:
+        r = requests.post("https://texttospeech.googleapis.com/v1/text:synthesize",
+                          headers={"X-Goog-Api-Key": key}, json=body, timeout=120)
+    except requests.RequestException as e:
+        raise BotError(f"Chirp awaaz se rabta nahi hua: {e}") from e
+    if r.status_code != 200:
+        raise BotError(_google_error("Chirp", r))
+    try:
+        audio = base64.b64decode(r.json()["audioContent"])
+    except (KeyError, ValueError) as e:
+        raise BotError(f"Chirp ka jawab samajh nahi aaya: {r.text[:200]}") from e
+    out.write_bytes(audio)  # LINEAR16 = WAV (header ke saath)
+    _chirp_count(v.get("usage_file", ""), n)
+    if cache:
+        cache.parent.mkdir(parents=True, exist_ok=True)
+        cache.write_bytes(audio)
+
+
+def _google_error(what: str, r) -> str:
+    """Google Cloud ki ghalti ko seedhe alfaaz mein."""
+    t = r.text.lower()
+    if r.status_code == 429:
+        return f"{what}: had poori (429). Thori der baad phir chalegi."
+    if "billing" in t:
+        return f"{what}: Google Cloud mein billing (card) nahi lagi. /chirp ka tareeqa dekhein."
+    if "has not been used" in t or "is disabled" in t or "service_disabled" in t:
+        return f"{what}: Google Cloud mein 'Cloud Text-to-Speech API' Enable nahi. /chirp ka tareeqa dekhein."
+    if "api key not valid" in t or "api_key_invalid" in t:
+        return f"{what}: key ghalat hai. Nayi key paste karein."
+    if "voice" in t and ("not" in t or "invalid" in t):
+        return f"{what}: ye awaaz is zubaan mein nahi mili ({r.text[:120]})"
+    return f"{what} awaaz nahi bani ({r.status_code}): {r.text[:200]}"
+
+
+def check_google_key(key: str) -> dict:
+    """Key kis cheez par chalti hai? (muft calls: sirf list mangwate hain, had kharch nahi hoti)"""
+    import requests
+    res = {}
+    try:
+        r = requests.get("https://texttospeech.googleapis.com/v1/voices", params={"languageCode": "ur-IN"},
+                         headers={"X-Goog-Api-Key": key}, timeout=30)
+        if r.status_code == 200:
+            names = [vv["name"] for vv in r.json().get("voices", []) if "Chirp3-HD" in vv["name"]]
+            res["chirp"] = True if names else "Urdu Chirp awaazein nahi milin"
+        else:
+            res["chirp"] = _google_error("Chirp", r)
+    except requests.RequestException as e:
+        res["chirp"] = f"rabta nahi hua: {e}"
+    try:
+        r = requests.get("https://generativelanguage.googleapis.com/v1beta/models",
+                         headers={"x-goog-api-key": key}, timeout=30)
+        res["gemini"] = True if r.status_code == 200 else _google_error("Gemini", r)
+    except requests.RequestException as e:
+        res["gemini"] = f"rabta nahi hua: {e}"
+    return res
+
+
 GOOGLE_HEADERS = {
     "Referer": "http://translate.google.com/",
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -317,13 +431,15 @@ USED = collections.Counter()   # Kis engine ne kitni lines boleen (report ke liy
 LAST_EDGE_ERROR = ""
 LAST_GEMINI_ERROR = ""
 _gemini_skip_until = 0.0
+LAST_CHIRP_ERROR = ""
+_chirp_skip_until = 0.0
 
 
 def engine_name(cfg: dict) -> str:
     """auto = Gemini key ho to Gemini (insaan jaisi), warna Microsoft (muft)."""
     e = (cfg["voice"].get("engine") or "auto").lower()
     if e == "auto":
-        return "gemini" if gemini_ready() else "edge"
+        return "chirp" if chirp_ready() else "gemini" if gemini_ready() else "edge"
     return e
 _rubberband = None
 
@@ -365,9 +481,28 @@ def _speed_filter(cfg: dict) -> str:
 def speak(text: str, out: Path, cfg: dict) -> Path:
     """Text ko awaaz mein badal kar WAV file banao (48kHz stereo)."""
     global _edge_skip_until, _edge_fails, LAST_EDGE_ERROR, LAST_GEMINI_ERROR, _gemini_skip_until
+    global LAST_CHIRP_ERROR, _chirp_skip_until
     mp3 = out.with_suffix(".mp3")
     extra = ""
     engine = engine_name(cfg)
+    if engine == "chirp":
+        nxt = "gemini" if gemini_ready() else "edge"
+        if time.time() < _chirp_skip_until:
+            USED["chirp_failed"] += 1
+            engine = nxt
+        else:
+            try:
+                ch = out.with_suffix(".chirp.wav")
+                _chirp(text, ch, cfg)
+                mp3 = ch
+                USED["chirp"] += 1
+            except BotError as e:  # Chirp na chale to Gemini, phir Microsoft
+                LAST_CHIRP_ERROR = str(e)[:180]
+                _chirp_skip_until = time.time() + (3600 if "mahine" in LAST_CHIRP_ERROR else 600)
+                if not USED["chirp_failed"]:
+                    say(f"  ⚠️  Chirp awaaz nahi bani ({LAST_CHIRP_ERROR}). Doosri awaaz laga raha hoon.")
+                USED["chirp_failed"] += 1
+                engine = nxt
     if engine == "gemini" and time.time() < _gemini_skip_until:
         USED["gemini_failed"] += 1
         engine = "edge"
@@ -384,7 +519,7 @@ def speak(text: str, out: Path, cfg: dict) -> Path:
                 say(f"  ⚠️  Gemini awaaz nahi bani ({LAST_GEMINI_ERROR}). Microsoft ki awaaz laga raha hoon.")
             USED["gemini_failed"] += 1
             engine = "edge"
-    if engine == "gemini":
+    if engine in ("gemini", "chirp"):
         pass
     elif engine == "elevenlabs":
         _elevenlabs(text, mp3, cfg)
@@ -448,7 +583,12 @@ def fit(wav: Path, max_sec: float) -> Path:
 def report() -> str:
     """Is dafa kaunsi awaaz lagi: user ko seedha batao."""
     ms, gg, el, gm = USED["microsoft"], USED["google"], USED["elevenlabs"], USED["gemini"]
+    ch = USED["chirp"]
     parts = []
+    if ch:
+        parts.append(f"🎙️ Awaaz: Chirp 3 HD (insaan jaisi) ✅  {ch} lines")
+    if USED["chirp_failed"]:
+        parts.append(f"⚠️ Chirp {USED['chirp_failed']} lines par nahi chali: {LAST_CHIRP_ERROR}")
     if gm:
         parts.append(f"🎙️ Awaaz: Gemini (insaan jaisi) ✅  {gm} lines")
     if USED["gemini_failed"]:
@@ -460,7 +600,7 @@ def report() -> str:
     if gg:
         parts.append(f"⚠️ Google BACKUP awaaz (saaf nahi hoti)  {gg} lines. Microsoft nahi chali: "
                      f"{LAST_EDGE_ERROR or 'wajah maloom nahi'}")
-    if not gm and not el and (ms or gg):
+    if not gm and not el and not ch and (ms or gg):
         parts.append("💡 Insaan jaisi awaaz ke liye Gemini key lagayein: Telegram par /gemini likhein")
     return "\n".join(parts)
 
@@ -491,7 +631,7 @@ GEMINI_SAMPLES = [
 
 
 def samples(cfg: dict) -> list:
-    return GEMINI_SAMPLES if engine_name(cfg) == "gemini" else SAMPLES
+    return GEMINI_SAMPLES if engine_name(cfg) in ("gemini", "chirp") else SAMPLES
 
 
 def sample_cfg(cfg: dict, idx: int) -> dict:

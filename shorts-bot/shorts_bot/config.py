@@ -24,6 +24,7 @@ DEFAULTS = {
     "telegram": {"send": True},
     "dub": {"enabled": True, "mode": "auto", "gender": "male", "match_speaker": True, "original_volume": 0.05, "styles": {}},
     "thumbnail": {"make": True, "language": "roman"},
+    "chirp": {"monthly_free_chars": 950000},
     "paths": {"output": "output", "work": "work"},
 }
 
