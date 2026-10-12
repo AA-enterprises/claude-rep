@@ -10,7 +10,7 @@ channel:
 
 language:
   # Shorts kis zubaan mein banein (voice + captions + title):
-  # urdu, english, hindi, arabic, french, german, spanish, turkish,
+  # urdu, roman (Roman Urdu), english, hindi, arabic, french, german, spanish, turkish,
   # portuguese, italian, indonesian, bengali, russian, japanese, korean, chinese
   target: urdu                  # Subtitles (captions) ki zubaan
   # Awaaz (hook/outro), screen ka text, title, description aur thumbnail kis zubaan mein:
@@ -91,7 +91,7 @@ transcript:
 
 thumbnail:
   make: true                    # Har Short ke saath thumbnail (.jpg) bhi banao
-  language: urdu                # Thumbnail ka text: urdu | english | same (= awaaz wali zubaan)
+  language: roman               # Thumbnail ka text: roman (Roman Urdu) | urdu | english | same
 
 telegram:
   send: true                    # true = har tayyar Short Telegram par bhejo (agar jura ho)

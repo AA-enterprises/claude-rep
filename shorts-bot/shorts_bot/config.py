@@ -22,7 +22,7 @@ DEFAULTS = {
     "transcript": {"prefer_youtube_captions": True, "engine": "auto", "whisper_model": "small"},
     "safety": {"ask_permission": True},
     "telegram": {"send": True},
-    "thumbnail": {"make": True, "language": "urdu"},
+    "thumbnail": {"make": True, "language": "roman"},
     "paths": {"output": "output", "work": "work"},
 }
 

@@ -28,6 +28,9 @@ FONTS = {
 LANGUAGES = {
     "urdu": {"code": "ur", "name": "Urdu (Pakistani, Urdu script)", "font": "naskh",
              "voices": ("ur-PK-UzmaNeural", "ur-PK-AsadNeural")},
+    "roman": {"code": "ur-latn",
+              "name": "Roman Urdu (Urdu written in English/Latin letters, the casual way Pakistanis type on their phones, e.g. 'Mars ka raaz', 'Ye kya hua?')",
+              "font": "latin", "voices": ("ur-PK-UzmaNeural", "ur-PK-AsadNeural")},
     "english": {"code": "en", "name": "English", "font": "latin",
                 "voices": ("en-US-JennyNeural", "en-US-GuyNeural"), "child": "en-US-AnaNeural"},
     "hindi": {"code": "hi", "name": "Hindi (Devanagari script)", "font": "devanagari",
@@ -66,8 +69,12 @@ _BY_CODE = {v["code"]: k for k, v in LANGUAGES.items()}
 def get(name_or_code: str) -> dict:
     """Zubaan ka naam ("urdu") ya code ("ur", "en-US") dein, settings wapas milengi."""
     key = (name_or_code or "english").strip().lower()
+    key = {"roman urdu": "roman", "roman-urdu": "roman", "urdu roman": "roman"}.get(key, key)
     if key in LANGUAGES:
         return {"key": key, **LANGUAGES[key]}
+    if key in _BY_CODE:  # Poora code pehle (jaise "ur-latn" = Roman Urdu)
+        k = _BY_CODE[key]
+        return {"key": k, **LANGUAGES[k]}
     short = key.split("-")[0].split("_")[0]
     if short in _BY_CODE:
         k = _BY_CODE[short]
