@@ -43,10 +43,13 @@ def make_track(video: Path, clip: dict, cfg: dict, work: Path, start: float, dur
         items.append((wav, rel, tempo))
         free_at = rel + duration(wav) / tempo + 0.08
 
+    # Aakhri Urdu line clip ke baad tak jaye to video thora lamba karo (awaaz kabhi na kate)
+    extra = min(max(0.0, free_at - dur + 0.15), 3.0)
+    total = dur + extra
     orig = work / "dub_orig.wav"
     vol = float(cfg["dub"].get("original_volume", 0.05))
     run(["ffmpeg", "-y", "-v", "error", "-ss", f"{start:.3f}", "-t", f"{dur:.3f}", "-i", video,
-         "-vn", "-af", f"aresample=48000,volume={vol}", "-ac", "2", orig])
+         "-vn", "-af", f"aresample=48000,volume={vol},apad=whole_dur={total:.3f}", "-ac", "2", orig])
 
     inputs = ["-i", orig]
     chains, labels = [], ["[0:a]"]
@@ -56,8 +59,8 @@ def make_track(video: Path, clip: dict, cfg: dict, work: Path, start: float, dur
         chains.append(f"[{k}:a]atempo={tempo:.3f},adelay={ms}|{ms}[v{k}]")
         labels.append(f"[v{k}]")
     fc = ";".join(chains + [f"{''.join(labels)}amix=inputs={len(labels)}:normalize=0:duration=first,"
-                            f"atrim=0:{dur:.3f}[a]"])
+                            f"atrim=0:{total:.3f}[a]"])
     out = work / "dub_track.wav"
     run(["ffmpeg", "-y", "-v", "error", *inputs, "-filter_complex", fc, "-map", "[a]",
          "-ar", "48000", "-ac", "2", out])
-    return out
+    return out, extra

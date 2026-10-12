@@ -444,6 +444,7 @@ def main():
         if args.no_dub:
             cfg["dub"]["enabled"] = False
         if args.no_voice:
+            cfg["dub"]["enabled"] = False
             cfg["clips"]["hook"] = False
             cfg["clips"]["outro"] = False
 

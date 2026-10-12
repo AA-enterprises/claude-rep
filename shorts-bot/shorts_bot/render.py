@@ -237,7 +237,8 @@ def _action_times(video, start, end, need):
         hsv = cv2.cvtColor(small, cv2.COLOR_BGR2HSV)
         color = float(np.mean(hsv[..., 1])) / 255 * 10  # Rangeen frame thora behtar
         bright = float(np.mean(gray))
-        dark = 0 if bright > 25 else -20  # Andhera / khaali frame nahi
+        # Bilkul kaala / fade frame nahi (kaale aasmaan mein planet theek hai)
+        dark = 0 if bright > 8 else -20
         samples.append((t, motion + color + dark))
         prev, t = gray, t + step
     cap.release()
@@ -247,7 +248,8 @@ def _action_times(video, start, end, need):
     wins = []
     for i in range(0, max(1, len(samples) - n + 1)):
         chunk = samples[i:i + n]
-        wins.append((chunk[0][0], sum(x for _, x in chunk) / len(chunk)))
+        vals = sorted(x for _, x in chunk)  # Median: ek scene-cut ka jhatka poori window na jeete
+        wins.append((chunk[0][0], vals[len(vals) // 2]))
     wins.sort(key=lambda w: -w[1])
     picked = []
     for t0, sc in wins:  # Doosri window pehli se door ho (alag manzar)
@@ -299,19 +301,21 @@ def render_short(src: dict, clip: dict, voices: dict, cfg: dict, work: Path, fin
                                   caps, cfg, cwd, highlight=True))
 
     say("  Asal clip edit ho raha hai (captions ke saath)...")
-    ass = work / "main.ass"
-    caps.write(ass, caps.main_events(clip["lines"], start, top_y, dur))
-    extra_in, audio_in = [], "[0:a]"
+    extra_in, audio_in, mdur = [], "[0:a]", dur
     if cfg.get("dub", {}).get("enabled") and clip.get("dub", True):  # Asal baat ki jagah Urdu dubbing
         from .dub import make_track
-        extra_in, audio_in = ["-i", make_track(video, clip, cfg, work, start, dur)], "[1:a]"
-    fc = (f"[0:v]{layout()},{_subs_filter(ass, cwd, cfg['_fonts'])}[v];"
+        track, more = make_track(video, clip, cfg, work, start, dur)
+        extra_in, audio_in, mdur = ["-i", track], "[1:a]", dur + more
+    ass = work / "main.ass"
+    caps.write(ass, caps.main_events(clip["lines"], start, top_y, mdur))
+    hold = f",tpad=stop_mode=clone:stop_duration={mdur - dur + 0.1:.2f}" if mdur > dur else ""
+    fc = (f"[0:v]{layout()}{hold},{_subs_filter(ass, cwd, cfg['_fonts'])}[v];"
           f"{audio_in}aresample=48000,loudnorm=I=-14:TP=-1.5:LRA=11,"
-          f"afade=t=in:d=0.08,afade=t=out:st={dur - 0.25:.3f}:d=0.25[a]")
+          f"afade=t=in:d=0.08,afade=t=out:st={mdur - 0.25:.3f}:d=0.25[a]")
     main = work / "2_main.mp4"
-    run(["ffmpeg", "-y", "-v", "error", "-ss", f"{start:.3f}", "-t", f"{dur:.3f}", "-i", video,
-         *extra_in, "-filter_complex", fc, "-map", "[v]", "-map", "[a]", *_video_args(cfg), *AUDIO,
-         main], cwd=cwd)
+    run(["ffmpeg", "-y", "-v", "error", "-ss", f"{start:.3f}", "-t", f"{mdur:.3f}", "-i", video,
+         *extra_in, "-filter_complex", fc, "-map", "[v]", "-map", "[a]", "-t", f"{mdur:.3f}",
+         *_video_args(cfg), *AUDIO, main], cwd=cwd)
     parts.append(main)
 
     if voices.get("outro"):
