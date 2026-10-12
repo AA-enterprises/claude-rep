@@ -2,10 +2,10 @@
 
 Ye bot ek lambi podcast video ko kai viral **YouTube Shorts** mein badal deta hai. Har Short mein:
 
-**Default style (series):** English video ka ek poora scene **Part 1, Part 2, Part 3** (har part ~50 second) mein. Har part mein English awaaz ka suspense wala intro, **Urdu + English subtitles** (AI dekhta hai kahan Urdu zaroori hai, aasaan lines par sirf English), aakhir mein cliffhanger "Watch Part 2", English title, aur **Urdu thumbnail** "PART 1" ke saath. Alag alag moments chahiye to `config.yaml` mein `clips.mode: single`.
+**Default style (series):** English video ka ek poora scene **Part 1, Part 2, Part 3** (har part ~50 second) mein. **Poori video Urdu awaaz mein**: suspense wala Urdu intro (bhaari, story-channel jaisi mard ki awaaz), beech mein asal English baat ki jagah Urdu dubbing (video mein jaisa banda ho waisi awaaz: buddha, jawan, aurat; kahani/documentary ho to bhaari narrator), Urdu outro, saath **Urdu + English subtitles**, aakhir mein cliffhanger "Watch Part 2", English title, aur **Urdu thumbnail** "PART 1" ke saath. Alag alag moments chahiye to `config.yaml` mein `clips.mode: single`.
 
-1. **Hook:** shuru mein AI awaaz 2-4 second mein curiosity paida karti hai. Awaaz **larki, larke ya bachche** ki ho sakti hai, har zubaan mein (default: larki).
-2. **Asal clip:** podcast ka sab se viral hissa 9:16 vertical mein, aap ki zubaan ke **captions** ke saath (neeche chhoti peeli line mein asal English bhi).
+1. **Hook:** shuru mein AI awaaz 5-8 second mein kahani ki tarah suspense banati hai. Default: bhaari mard ki awaaz (`voice.gender: female` / `child` bhi chalti hai).
+2. **Asal clip:** sab se viral hissa 9:16 vertical mein, **Urdu mein dub** (asal awaaz peeche halki), Urdu + English **captions** ke saath. Dubbing band: `--no-dub` ya `dub.enabled: false`.
 3. **Outro:** AI awaaz apni raye/sabaq deti hai aur aakhir mein viewers se sawal poochti hai (comments ke liye).
 4. Halka **background music** (agar aap `music` folder mein daalein).
 5. Ek **thumbnail (.jpg)**: clip ka sab se achha frame (jahan chehra saaf ho) aur bare akharon mein AI ka likha chubhta hua text.
@@ -196,7 +196,10 @@ Channels `sources.yaml` mein hain. Apne channels `sources.local.yaml` mein add k
 | Title kis tarah likha jaye | `language.title_style: roman` / `target` / `english` |
 | Larki / larka / bachche ki awaaz | `voice.gender: female` / `male` / `child` |
 | Bachche ki awaaz kitni patli ho | `voice.child_pitch: "+45Hz"` |
-| Awaaz ki raftar | `voice.rate: "+5%"` |
+| Dubbing on/off | `dub.enabled: true` / `false` |
+| Bolne wale jaisi awaaz (buddha/jawan/aurat) | `dub.match_speaker: true` |
+| Awaaz aur bhaari / dheemi | `dub.styles: {narrator: {pitch: "-14Hz", rate: "-8%"}}` |
+| Asal awaaz peeche kitni | `dub.original_volume: 0.12` |
 | Har video se kitne Shorts | `clips.per_video: 3` |
 | Clip ki lambai | `clips.min_seconds` / `clips.max_seconds` |
 | Video ka andaaz | `video.layout: blur` (2-3 log) / `face` (1 banda) |
@@ -204,6 +207,8 @@ Channels `sources.yaml` mein hain. Apne channels `sources.local.yaml` mein add k
 | Music ki awaaz | `music.volume` |
 
 ### Behtar awaaz (ElevenLabs, paid)
+> Muft (Microsoft) Urdu mein mard ki ek hi awaaz hai (Asad); bot us ki pitch aur raftar badal kar buddhi, jawan aur bhaari narrator awaaz banata hai. Bilkul TV-anchor jaisi bhaari awaaz chahiye to ElevenLabs mein koi deep male voice chunein aur us ka ID `male` mein daalein.
+
 1. https://elevenlabs.io par account banayein. Voice Library se larki, larke aur bachche ki pasand ki awaazon ke **Voice ID** copy karein.
 2. `.env` mein `ELEVENLABS_API_KEY=...` likhein.
 3. `config.yaml` mein `voice.engine: elevenlabs` likhein, aur `voice.elevenlabs_voices` ke neeche `female`, `male`, `child` ke saamne IDs paste karein.

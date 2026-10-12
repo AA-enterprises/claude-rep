@@ -17,7 +17,7 @@ Your job for each podcast:
 1. Find the moments most likely to get millions of views as standalone Shorts: a surprising claim, a strong opinion, a personal story with a twist, a money or success lesson, a funny exchange, an emotional confession, a hot take, or a clear useful tip. The clip must make sense on its own, without the rest of the episode. Start on a line that grabs attention immediately (never on a filler word or mid-thought) and end on a payoff line, not mid-sentence.
 2. Translate the spoken lines in the clip into the caption language, naturally and briefly, the way a native speaker would say it, so it reads well as an on-screen caption. Keep names and brand names as they are.
 3. Write a narrator hook and outro in the spoken narrator language. The narrator is {narrator} talking straight to the viewer, like a friend sharing something they just heard. In languages with grammatical gender (Urdu, Hindi, Arabic, French, ...), use the verb and adjective forms that match a {gender} narrator.
-   - Hook (spoken before the clip): one or two short sentences, about 2-4 seconds when spoken. Create curiosity about what the speaker is about to say without giving the punchline away. Do not lie or exaggerate beyond what the clip delivers.
+   - Hook (spoken before the clip): two or three short sentences, about 5-8 seconds when spoken, like the opening of a gripping story video. Open with a striking question or a bold, specific fact from the clip, build suspense about what is coming, and end on a tease that makes the viewer stay (e.g. the equivalent of "and what happened next, nobody expected"). Never give the punchline away. Do not lie or exaggerate beyond what the clip delivers.
    - Outro (spoken after the clip): two or three short sentences, about 6-10 seconds when spoken. Add real value of your own: the lesson, why it matters, or a sharp opinion, then end with a question that makes viewers comment. This commentary is what makes the channel original, so it must be specific to this clip, never generic.
    - Every hook and outro must use a different opening and structure. Avoid formula phrases you have used before (a list of previous hooks may be given).
 4. Write thumbnail_text: 2 to 5 punchy words in the thumbnail language that make people tap (a number, a shocking claim or a strong emotion from the clip, e.g. the equivalent of "HE LOST EVERYTHING"). Honest, no fake claims.
@@ -32,7 +32,7 @@ Rules:
 
 NARRATORS = {
     "female": ("a warm, confident young woman", "female"),
-    "male": ("a warm, confident young man", "male"),
+    "male": ("a deep-voiced, serious male storyteller, like the narrator of a popular Urdu mystery and documentary channel: calm, heavy and gripping", "male"),
     "child": ("a cheerful, curious girl of about ten, speaking simply and with wonder", "female"),
 }
 
@@ -40,6 +40,9 @@ NARRATORS = {
 def _system(cfg: dict) -> str:
     narrator, gender = NARRATORS.get(cfg["voice"].get("gender"), NARRATORS["female"])
     return SYSTEM_TEMPLATE.format(narrator=narrator, gender=gender)
+
+
+VOICE_KINDS = ["narrator", "man", "young_man", "old_man", "woman", "girl", "boy"]
 
 
 def _schema():
@@ -57,8 +60,9 @@ def _schema():
                 "type": "array",
                 "items": {
                     "type": "object",
-                    "properties": {"index": {"type": "integer"}, "text": {"type": "string"}},
-                    "required": ["index", "text"],
+                    "properties": {"index": {"type": "integer"}, "text": {"type": "string"},
+                                   "voice": {"type": "string", "enum": VOICE_KINDS}},
+                    "required": ["index", "text", "voice"],
                     "additionalProperties": False,
                 },
             },
@@ -165,21 +169,23 @@ ROUTER_SYSTEM = """You are the command router of a Telegram bot that makes YouTu
 - "cc": make Shorts from a Creative Commons YouTube search. Put a short English search phrase in "topic" (e.g. "business podcast").
 - "link": they gave a YouTube link. Put it in "url". Set "permission" true only if they clearly say they have permission.
 - "edit": they want to change the title, description or thumbnail of a Short they already got.
-- "help": they ask what the bot can do, or say hello.
-- "unknown": anything else.
+- "help": they ask for the list of commands or what the bot can do.
+- "chat": anything else: greetings, small talk, how are you, jokes, questions about YouTube, Shorts, views, titles, niches, the channel, or any general question. Answer it yourself in "reply".
+- "unknown": only if the message is empty or meaningless.
 For "source", "cc" and "link" also fill in the shape of what they want (use 0 / "default" when they don't say):
 - "mode": "single" if they want separate stand-alone Shorts (e.g. "ek video bana do", "1 short 30 sec ka"); "series" if they want one longer scene split into consecutive parts (e.g. "2 minute ki video ke 3-4 clips", "part 1 part 2"); else "default".
 - "count": how many Shorts or parts (max 5). "3 ya 4" -> pick the one that fits the length best.
 - "seconds": length of each Short or part in seconds, at most 60. If they give a total scene length and a number of parts, divide it (e.g. 2 minutes in 3 parts -> 40). "1 minute se andar" -> 55.
-In "reply", write one short friendly Roman Urdu sentence telling them exactly what you will make (how many, how long)."""
+In "reply", write one short friendly Roman Urdu sentence telling them exactly what you will make (how many, how long).
+For "chat": you are the friendly assistant of the YouTube channel "Lakhon Ki Baat" (Shorts about space, science and stories, from NASA, US government and Creative Commons videos, dubbed in Urdu). Talk like a helpful Pakistani friend: casual Roman Urdu, warm, a little humour, 1 to 4 short sentences, practical YouTube growth advice when asked. Never invent things the bot can't do; if they seem to want a Short, suggest an example command like "mars ki 1 video 30 sec ki". Use the recent conversation for context."""
 
 
-def route_message(cfg: dict, text: str, source_names: dict, has_short: bool) -> dict:
+def route_message(cfg: dict, text: str, source_names: dict, has_short: bool, history: list = None) -> dict:
     """Telegram par aam baat ko command mein badlo."""
     schema = {
         "type": "object",
         "properties": {
-            "action": {"type": "string", "enum": ["source", "cc", "link", "edit", "help", "unknown"]},
+            "action": {"type": "string", "enum": ["source", "cc", "link", "edit", "help", "chat", "unknown"]},
             "source": {"type": "string"}, "count": {"type": "integer"}, "topic": {"type": "string"},
             "mode": {"type": "string", "enum": ["single", "series", "default"]},
             "seconds": {"type": "integer"},
@@ -190,7 +196,8 @@ def route_message(cfg: dict, text: str, source_names: dict, has_short: bool) -> 
     }
     channels = "\n".join(f"- {k}: {v}" for k, v in source_names.items())
     prompt = (f"Safe channels:\n{channels}\n\nThe user has {'already received a Short' if has_short else 'not received any Short yet'}."
-              f"\n\nMessage:\n{text}")
+              + ("\n\nRecent conversation:\n" + "\n".join(history[-8:]) if history else "")
+              + f"\n\nMessage:\n{text}")
     return ask_claude(cfg, ROUTER_SYSTEM, prompt, schema, effort="low")
 
 
@@ -229,7 +236,24 @@ def make_plan(src: dict, transcript: dict, cfg: dict, used: list, recent_hooks: 
             f"must last between {c['min_seconds']} and {c['max_seconds']} seconds. Check the timestamps.",
             "Give a translation for every segment index from start_index to end_index, inclusive.",
         ]
-    if cfg["captions"].get("smart_translation", True) and target["code"] != source["code"]:
+    dub = cfg.get("dub", {}).get("enabled") and target["code"] != source["code"]
+    if dub:
+        parts.append(
+            "DUBBING: every translation will be spoken by a voice actor over the video at the same "
+            "time as the original line, replacing it. So translate EVERY segment (never leave one empty), "
+            "in natural spoken everyday language (not bookish), and keep each translation about as short "
+            "as the original so it fits the same seconds. Write numbers as words.\n"
+            "For every translation also set 'voice' to match WHO is speaking that segment, so the dub "
+            "sounds like the person on screen: old_man (an elderly man, e.g. a retired astronaut "
+            "interviewed decades later), young_man, man (adult man, middle-aged), woman, girl, boy, "
+            "or narrator (an off-screen documentary or story narrator, e.g. a NASA video explaining the "
+            "Moon). Use the names, dates and context in the transcript to judge age. Keep the same "
+            "voice for the same person throughout.")
+    hook_g = "female" if cfg["voice"].get("gender") != "male" else "male"
+    outro_g = "male" if (cfg["voice"].get("outro_gender") or hook_g) == "male" else "female"
+    parts.append(f"hook_voice is spoken by a {hook_g} narrator and outro_voice by a {outro_g} narrator: "
+                 "use the matching grammatical gender in each.")
+    if cfg["captions"].get("smart_translation", True) and target["code"] != source["code"] and not dub:
         parts.append(
             "Captions show the original line and, under it, the translation. For each segment decide if "
             "the translation is really needed for a viewer who knows basic English: for very simple or "
@@ -258,6 +282,8 @@ def make_plan(src: dict, transcript: dict, cfg: dict, used: list, recent_hooks: 
         plan["clips"] = _validate(plan.get("clips", []), segs, c, used)
     if not plan["clips"]:
         raise BotError("Is video mein munasib clips nahi mile.")
+    for clip in plan["clips"]:
+        clip["dub"] = bool(dub)  # Video pehle hi Urdu mein ho to dubbing nahi
     return plan
 
 
@@ -307,11 +333,12 @@ def _series(clips: list, segs: list, c: dict, used: list) -> list:
 def _finish(clip: dict, a: int, b: int, segs: list) -> dict:
     """Clip ke segments, captions (translation na ho to asal text) aur waqt bharo."""
     tr = {int(t["index"]): t["text"].strip() for t in clip.get("translations", [])}
+    vo = {int(t["index"]): t.get("voice", "") for t in clip.get("translations", [])}
     clip["start_index"], clip["end_index"] = a, b
     clip["lines"] = [
         {"start": segs[i]["start"], "end": segs[i]["end"], "original": segs[i]["text"],
          # Khaali = AI ke mutabiq tarjume ki zaroorat nahi (sirf English dikhegi)
-         "translated": tr.get(i, segs[i]["text"])}
+         "translated": tr.get(i, segs[i]["text"]), "voice": vo.get(i, "")}
         for i in range(a, b + 1)
     ]
     clip["start"] = segs[a]["start"]

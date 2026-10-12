@@ -28,10 +28,11 @@ language:
 voice:
   engine: edge                  # edge = muft (Microsoft) | google = muft backup | elevenlabs = paid, zyada asli
   fallback_google: true         # Microsoft ki awaaz na mile to khud Google ki awaaz lagao
-  gender: female                # female = larki | male = larka | child = bachcha
-                                # (har zubaan mein teeno chalti hain)
+  gender: male                  # Intro (shuru) ki awaaz: male = bhaari mard (story/documentary andaaz)
+                                #   | female = larki | child = bachcha
+  outro_gender: male            # Aakhri (outro) awaaz
   edge_voice: ""                # Khaali chhorein to zubaan ke hisaab se khud chunega
-  rate: "+5%"                   # Bolne ki raftar (-20% dheema ... +20% tez)
+  rate: "+5%"                   # (Intro/outro/dub ki raftar aur pitch ab neeche dub.styles se aati hai)
   pitch: "+0Hz"
   child_rate: "+8%"             # Bachche ki awaaz ki raftar
   child_pitch: "+45Hz"          # Bachche ki awaaz kitni patli ho (+30Hz ... +60Hz)
@@ -89,6 +90,17 @@ transcript:
   #   groq  = sirf Groq internet service (tez, free plan mein limit)
   engine: auto
   whisper_model: small          # tiny | base | small | medium (bara = behtar magar dheema)
+
+dub:
+  enabled: true                 # true = asal (English) baat Urdu awaaz mein dub ho (subtitles phir bhi)
+  match_speaker: true           # true = jaisa banda video mein (buddha -> buddhi awaaz, jawan -> jawan,
+                                #   aurat -> aurat, kahani/documentary -> bhaari narrator awaaz)
+  gender: male                  # match_speaker false ho to sab lines isi awaaz mein
+  original_volume: 0.12         # Asal awaaz peeche kitni halki (0 = bilkul nahi, 0.3 = sunai de)
+  styles: {}                    # Kisi awaaz ko badalna ho, misal:
+  #   narrator: {pitch: "-14Hz", rate: "-8%"}   # aur bhaari
+  #   old_man:  {pitch: "-18Hz", rate: "-15%"}
+  # Andaaz: narrator, man, young_man, old_man, woman, girl, boy
 
 thumbnail:
   make: true                    # Har Short ke saath thumbnail (.jpg) bhi banao

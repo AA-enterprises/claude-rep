@@ -253,12 +253,17 @@ def render_short(src: dict, clip: dict, voices: dict, cfg: dict, work: Path, fin
     say("  Asal clip edit ho raha hai (captions ke saath)...")
     ass = work / "main.ass"
     caps.write(ass, caps.main_events(clip["lines"], start, top_y, dur))
+    extra_in, audio_in = [], "[0:a]"
+    if cfg.get("dub", {}).get("enabled") and clip.get("dub", True):  # Asal baat ki jagah Urdu dubbing
+        from .dub import make_track
+        extra_in, audio_in = ["-i", make_track(video, clip, cfg, work, start, dur)], "[1:a]"
     fc = (f"[0:v]{layout()},{_subs_filter(ass, cwd, cfg['_fonts'])}[v];"
-          f"[0:a]aresample=48000,loudnorm=I=-14:TP=-1.5:LRA=11,"
+          f"{audio_in}aresample=48000,loudnorm=I=-14:TP=-1.5:LRA=11,"
           f"afade=t=in:d=0.08,afade=t=out:st={dur - 0.25:.3f}:d=0.25[a]")
     main = work / "2_main.mp4"
     run(["ffmpeg", "-y", "-v", "error", "-ss", f"{start:.3f}", "-t", f"{dur:.3f}", "-i", video,
-         "-filter_complex", fc, "-map", "[v]", "-map", "[a]", *_video_args(cfg), *AUDIO, main], cwd=cwd)
+         *extra_in, "-filter_complex", fc, "-map", "[v]", "-map", "[a]", *_video_args(cfg), *AUDIO,
+         main], cwd=cwd)
     parts.append(main)
 
     if voices.get("outro"):

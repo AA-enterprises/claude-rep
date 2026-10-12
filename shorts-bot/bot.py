@@ -144,7 +144,7 @@ def process(source: str, cfg: dict, args, on_short=None, permission: str = None)
     shape = f"series{c['parts']}x{c['part_seconds']}" if c["mode"] == "series" else f"single{c['per_video']}"
     lang = cfg["language"]
     key = (f"{lang['target']}-{lang.get('voice')}-{lang.get('narration')}-{cfg['thumbnail'].get('language')}"
-           f"-{cfg['voice']['gender']}-{shape}-{c['focus']}")
+           f"-{cfg['voice']['gender']}-{shape}-{c['focus']}" + ("-dub2" if cfg["dub"]["enabled"] else ""))
     plan_path = src["dir"] / f"plan-{slug(key, 60)}.json"
     plan = read_json(plan_path)
     if plan and plan.get("clips"):
@@ -166,9 +166,11 @@ def process(source: str, cfg: dict, args, on_short=None, permission: str = None)
         cwork.mkdir(parents=True, exist_ok=True)
         voices = {}
         if cfg["clips"]["hook"] and clip["hook_voice"].strip():
-            voices["hook"] = voice.speak(clip["hook_voice"], cwork / "hook", cfg)
+            voices["hook"] = voice.speak(clip["hook_voice"], cwork / "hook",
+                                         voice.styled(cfg, cfg["voice"]["gender"]))
         if cfg["clips"]["outro"] and clip["outro_voice"].strip():
-            voices["outro"] = voice.speak(clip["outro_voice"], cwork / "outro", cfg)
+            og = cfg["voice"].get("outro_gender") or cfg["voice"]["gender"]
+            voices["outro"] = voice.speak(clip["outro_voice"], cwork / "outro", voice.styled(cfg, og))
 
         step(f"5/5  Short {k}/{len(plan['clips'])}: video edit ho rahi hai")
         media, offset = download.clip_media(src, clip, cfg)
@@ -368,6 +370,7 @@ def main():
     p.add_argument("--voice", choices=["female", "male", "child"], help="Awaaz: larki, larka ya bachcha")
     p.add_argument("--layout", choices=["blur", "face"], help="Video ka andaaz")
     p.add_argument("--focus", help='Topic, jaise "paisa aur business"')
+    p.add_argument("--no-dub", action="store_true", help="Asal awaaz rakho, Urdu dubbing mat karo")
     p.add_argument("--no-voice", action="store_true",
                    help="AI awaaz (hook/outro) ke baghair, sirf clip + captions (jaise Vyro briefs)")
     p.add_argument("--yes", action="store_true", help="Ijazat ka sawal mat poochho (ijazat pakki ho)")
@@ -409,12 +412,14 @@ def main():
         if args.narration:
             cfg["language"]["narration"] = args.narration
         if args.voice:
-            cfg["voice"]["gender"] = args.voice
+            cfg["voice"]["gender"] = cfg["voice"]["outro_gender"] = args.voice
             cfg["voice"]["edge_voice"] = ""
         if args.layout:
             cfg["video"]["layout"] = args.layout
         if args.focus:
             cfg["clips"]["focus"] = args.focus
+        if args.no_dub:
+            cfg["dub"]["enabled"] = False
         if args.no_voice:
             cfg["clips"]["hook"] = False
             cfg["clips"]["outro"] = False

@@ -3,6 +3,7 @@ title / description / thumbnail badalna.
 
 Sirf aap ki chat (TELEGRAM_CHAT_ID) ke messages mane jate hain."""
 
+import collections
 import copy
 import inspect
 import os
@@ -41,6 +42,11 @@ Ya seedha likhein, jaise: "title aur chatpata karo" ya "thumbnail par SHOCKING l
 "mars ki 1 video bana do 30 sec ki"
 "mars ki 2 minute ki video ke 3 clips, 1 minute se kam"
 "business podcast ka short chahiye"
+
+🗣️ Gap-shap bhi kar saktay hain: "kaise ho?", "views kaise barhayein?", "acha title batao"
+
+🎙️ Awaaz: poori video Urdu mein (intro, beech, outro). Video mein jaisa banda ho waisi
+awaaz (buddha/jawan/aurat); kahani ya documentary ho to bhaari narrator awaaz.
 
 /help  → ye list"""
 
@@ -97,6 +103,7 @@ class TelegramBot:
         self.state = State(cfg["paths"]["output"] / "telegram-state.json")
         self.jobs = queue.Queue()   # Shorts ek ek karke bante hain (line)
         self.current = None         # Abhi kya ban raha hai
+        self.chat_log = collections.deque(maxlen=12)  # Haal ki baatein (gap-shap ke liye)
         threading.Thread(target=self._worker, daemon=True).start()
 
     # ------------------------------------------------------------- line (queue)
@@ -335,10 +342,17 @@ class TelegramBot:
         self.reply("🤔 Samajh raha hoon...", to)
         is_reply = bool((msg.get("reply_to_message") or {}).get("message_id"))
         names = {k: v.get("name", k) for k, v in srcs.items()}
-        r = planner.route_message(self.cfg, text, names, bool(self.state.data.get("last")))
+        r = planner.route_message(self.cfg, text, names, bool(self.state.data.get("last")),
+                                  list(self.chat_log))
         act = r["action"]
-        if is_reply and act in ("unknown", "help"):
+        self.chat_log.append(f"User: {text[:300]}")
+        if r.get("reply"):
+            self.chat_log.append(f"Bot: {r['reply'][:300]}")
+        if is_reply and act in ("unknown", "help", "chat"):
             act = "edit"  # Short par reply = usi ko badalna
+        if act == "chat" and r.get("reply"):
+            self.reply(r["reply"], to)
+            return
         if act != "edit" and r.get("reply"):
             self.reply("🤖 " + r["reply"], to)
         shape = {"count": int(r.get("count") or 0) or None, "seconds": int(r.get("seconds") or 0) or None,

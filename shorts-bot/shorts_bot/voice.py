@@ -12,6 +12,33 @@ from . import languages
 from .util import BotError, run, say
 
 
+# Awaaz ke andaaz: (gender, rate, pitch, Google backup ke liye pitch factor).
+# Video mein jaisa banda bol raha hai (buddha, jawan, aurat...) waisi awaaz; kahani /
+# documentary ke liye "narrator" = bhaari, thehri hui mard ki awaaz.
+STYLES = {
+    "narrator": ("male", "-6%", "-10Hz", 0.74),
+    "man": ("male", "+0%", "-4Hz", 0.8),
+    "young_man": ("male", "+6%", "+4Hz", 0.86),
+    "old_man": ("male", "-12%", "-16Hz", 0.7),
+    "woman": ("female", "+0%", "+0Hz", 1.0),
+    "girl": ("female", "+6%", "+14Hz", 1.12),
+    "boy": ("child", "+8%", "+45Hz", 1.25),
+}
+GENDER_STYLE = {"male": "narrator", "female": "woman", "child": "boy"}
+
+
+def styled(cfg: dict, style: str) -> dict:
+    """Is andaaz (ya gender: male/female/child) ki awaaz wali cfg copy."""
+    style = GENDER_STYLE.get(style, style)
+    custom = (cfg.get("dub", {}).get("styles") or {}).get(style) or {}
+    gender, rate, pitch, shift = STYLES.get(style, STYLES["man"])
+    v = dict(cfg["voice"], gender=custom.get("gender", gender), rate=custom.get("rate", rate),
+             pitch=custom.get("pitch", pitch), google_shift=float(custom.get("google_shift", shift)),
+             child_rate=custom.get("rate", cfg["voice"].get("child_rate", "+8%")),
+             child_pitch=custom.get("pitch", cfg["voice"].get("child_pitch", "+45Hz")))
+    return dict(cfg, voice=v)
+
+
 def pick_voice(cfg: dict) -> str:
     v = cfg["voice"]
     if v.get("edge_voice"):
@@ -142,12 +169,15 @@ _edge_failed = False
 
 def _pitch_filter(cfg: dict) -> str:
     """Google ki ek hi (aurat) awaaz ko larke ya bachche jaisa banao."""
-    gender = cfg["voice"].get("gender", "female")
-    if gender == "male":
-        return "aresample=24000,asetrate=19200,aresample=24000,atempo=1.25,"
-    if gender == "child":
-        return "aresample=24000,asetrate=30000,aresample=24000,atempo=0.85,"
-    return "atempo=1.08,"
+    v = cfg["voice"]
+    gender = v.get("gender", "female")
+    default = {"male": 0.8, "child": 1.25}.get(gender, 1.0)
+    shift = float(v.get("google_shift") or default)
+    if abs(shift - 1.0) < 0.01:
+        return "atempo=1.08,"
+    # Pitch neeche/ooper, raftar wapas barabar (thori si tez)
+    return (f"aresample=24000,asetrate={int(24000 * shift)},aresample=24000,"
+            f"atempo={min(2.0, max(0.5, 1.05 / shift)):.3f},")
 
 
 def speak(text: str, out: Path, cfg: dict) -> Path:
