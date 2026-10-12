@@ -18,6 +18,7 @@ from types import SimpleNamespace
 
 from . import planner, render, sources, telegram
 from .download import BOT_CHECK
+from .util import STOPPED as util_STOPPED
 from .util import BotError, read_json, say, write_json
 
 HELP = """🤖 Bot commands
@@ -28,6 +29,7 @@ HELP = """🤖 Bot commands
 /cloudflare  → tasveeron ka muft backup lagana (card nahi chahiye)
 Ya likhein: "bachon ke liye lalchi kutte ki kahani bana do"
 Phir video/script par REPLY karke 🎤 apni awaaz record karke bhejein → bot shor kaat kar, halki music ke saath aap ki awaaz wali video bana dega
+/stop  → abhi ban rahi video roko
 /update  → bot ka naya version abhi lao (waise bhi khud har 30 minute check karta hai)
 
 📥 NASA / bahar ke clips se Short (sirf jab aap khud kahein):
@@ -207,6 +209,7 @@ class TelegramBot:
             desc, fn, to, kwargs = self.jobs.get()
             self.current = desc
             from . import util
+            util.CANCEL = False
             try:
                 self.progress = Progress(self, to, desc)
                 util.STEP_HOOK = self.progress.update
@@ -311,6 +314,8 @@ class TelegramBot:
     # ----------------------------------------------------------- commands
     def fail(self, text: str, to: int = None):
         """Ghalti sirf ek dafa batao. Wahi ghalti 15 minute ke andar dobara ho to chhota sa note."""
+        if text == util_STOPPED:
+            return self.reply(text, to)
         now = time.time()
         last_text, last_time = getattr(self, "_last_err", ("", 0))
         if text == last_text and now - last_time < 15 * 60:
@@ -339,6 +344,8 @@ class TelegramBot:
                     self._last_err = ("", 0)
                     return
             except BotError as e:
+                if str(e) == util_STOPPED:  # User ne /stop kaha
+                    raise
                 if str(e) == BOT_CHECK:  # YouTube ne roka: agli video bhi ruk jayegi
                     self.fail(str(e), to)
                     return
@@ -452,6 +459,8 @@ class TelegramBot:
             self.voice_test(rest, to)
         elif cmd == "/update":
             self.update_now(to)
+        elif cmd in ("/stop", "/ruko", "/cancel"):
+            self.stop_job(to)
         elif cmd in ("/check", "/jaanch"):
             self.diagnose(to)
         elif cmd in ("/cloudflare", "/cf"):
@@ -497,13 +506,31 @@ class TelegramBot:
     def busy(self) -> bool:
         return bool(self.current) or not self.jobs.empty()
 
+    def stop_job(self, to: int = None):
+        """Chalta kaam roko (agle qadam par) aur line mein lage kaam bhi hatao."""
+        from . import util
+        dropped = 0
+        while not self.jobs.empty():
+            try:
+                self.jobs.get_nowait()
+                self.jobs.task_done()
+                dropped += 1
+            except queue.Empty:
+                break
+        if not self.current:
+            return self.reply("Abhi koi video nahi ban rahi." + (f" Line ke {dropped} kaam hata diye." if dropped else ""), to)
+        util.CANCEL = True
+        self.reply(f"⏹️ Rok raha hoon: {self.current}" + (f" (aur line ke {dropped} kaam bhi hata diye)" if dropped else "")
+                   + ". Thori der mein ruk jayega.", to)
+
     def update_now(self, to: int = None, auto: bool = False):
         if not self.updater:
             return self.reply("Update yahan se nahi ho sakta.", to)
         if self.busy():
             self.update_wanted = to or 0
             if not auto:
-                self.reply("⏳ Abhi Short ban raha hai. Khatam hote hi update kar doonga.", to)
+                self.reply("⏳ Abhi video ban rahi hai. Khatam hote hi update kar doonga.\n"
+                           "Foran chahiye to pehle /stop bhejein (video ruk jayegi), phir update khud ho jayega.", to)
             return
         self.update_wanted = None
         if not auto:

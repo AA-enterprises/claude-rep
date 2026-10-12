@@ -19,9 +19,17 @@ def say(msg: str):
 
 
 STEP_HOOK = None  # Telegram ka "video ban rahi hai" message har qadam par badalne ke liye
+CANCEL = False    # Telegram /stop: chalta kaam agle qadam par ruk jaye
+STOPPED = "⏹️ Kaam rok diya (/stop)."
+
+
+def _check_cancel():
+    if CANCEL:
+        raise BotError(STOPPED)
 
 
 def step(msg: str):
+    _check_cancel()
     print(f"\n▶ {msg}", flush=True)
     if STEP_HOOK:
         try:
@@ -32,6 +40,7 @@ def step(msg: str):
 
 def run(cmd: list, cwd=None) -> str:
     """Command chalao; fail ho to aakhri error lines dikhao."""
+    _check_cancel()
     proc = subprocess.run(
         [str(c) for c in cmd], cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.PIPE
     )
