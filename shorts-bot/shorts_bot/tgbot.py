@@ -310,7 +310,10 @@ class TelegramBot:
         to = msg["message_id"]
         if not text:
             return
-        say(f"\n📩 Telegram: {text[:80]}")
+        if re.fullmatch(r"AIza[0-9A-Za-z_\-]{30,}", text):  # Sirf Gemini key paste ki
+            text = "/gemini " + text
+        shown = "/gemini ****" if text.lower().startswith("/gemini ") else text[:80]  # Key kabhi screen par nahi
+        say(f"\n📩 Telegram: {shown}")
         cmd, _, rest = text.partition(" ")
         cmd = cmd.lower().split("@")[0]
         rest = rest.strip()
@@ -410,7 +413,7 @@ class TelegramBot:
                 "1. Phone/computer par kholein: https://aistudio.google.com/apikey\n"
                 "2. Apne Gmail se login karein\n"
                 "3. 'Create API key' dabayein, key copy karein\n"
-                "4. Yahan bhejein: /gemini AAPKI-KEY\n\n"
+                "4. Yahin is chat mein paste karke bhej dein (bas key, aur kuch nahi)\n\n"
                 "Key wala message main khud mita doonga taake chat mein na rahe.", to)
         if not re.fullmatch(r"[A-Za-z0-9_\-]{20,}", key):
             return self.reply("Ye key sahi nahi lag rahi. Poori key copy karke bhejein: /gemini AAPKI-KEY", to)

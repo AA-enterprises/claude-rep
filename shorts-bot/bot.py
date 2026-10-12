@@ -421,6 +421,7 @@ def main():
     p.add_argument("--no-telegram", action="store_true", help="Is dafa Telegram par mat bhejo")
     p.add_argument("--update", action="store_true", help="GitHub se naya version lao")
     p.add_argument("--quiet", action="store_true", help=argparse.SUPPRESS)
+    p.add_argument("--gemini-key", metavar="KEY", help="Insaan jaisi awaaz (Gemini) ki key .env mein rakho")
     p.add_argument("--ask", action="store_true", help="Link poochho (start.bat ke liye)")
     p.add_argument("--version", action="store_true", help="Bot ka version dikhao")
     p.add_argument("--telegram", action="store_true",
@@ -469,6 +470,12 @@ def main():
             cfg["telegram"]["send"] = False
         if args.check:
             return check(cfg)
+        if args.gemini_key:
+            from shorts_bot import telegram as _tg
+            key = args.gemini_key.strip().strip('"').strip("'")
+            _tg._write_env(HERE / ".env", "GEMINI_API_KEY", key)
+            os.environ["GEMINI_API_KEY"] = key
+            return say("✅ Gemini key .env mein rakh di. Ab: python bot.py --telegram  (phir Telegram par /awaaz)")
         if args.telegram_setup:
             from shorts_bot import telegram
             return telegram.setup(HERE / ".env")
