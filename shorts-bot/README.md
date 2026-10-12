@@ -50,9 +50,34 @@ Sab ✅ hon to bot tayyar hai.
 
 ---
 
+## 🔄 Khud-ba-khud update (ek dafa setup)
+
+Is ke baad bot mein jo bhi tabdeeli ho, aap ko ZIP download nahi karni parti. `start.bat` har dafa chalne se pehle khud naya version le aata hai (ya `update.bat` par double-click karein).
+
+1. PowerShell mein Git install karein, phir PowerShell band karke dobara kholein:
+   ```
+   winget install Git.Git
+   ```
+2. Bot GitHub se download karein:
+   ```
+   cd $env:USERPROFILE
+   git clone -b claude/stoic-meitner-emwbfo https://github.com/AA-enterprises/claude-rep.git
+   ```
+   Browser mein GitHub login ka page khulega. Login karke "Authorize" karein.
+3. Bot ab yahan hai: `%USERPROFILE%\claude-rep\shorts-bot`. Purane folder se apni **`.env`** file copy karke is naye folder mein paste karein.
+4. Naye folder mein PowerShell kholein aur apni settings ki file banayein:
+   ```
+   copy config.local.example.yaml config.local.yaml
+   notepad config.local.yaml
+   ```
+   Is mein channel ka naam aur `D:/YT Backup` pehle se likha hai. Jo badalna ho badlein, phir Ctrl+S.
+5. `python bot.py --check` chalayein. Upar **Bot version** nazar aayega.
+
+**Apni settings hamesha `config.local.yaml` mein likhein**, `config.yaml` mein nahi. Update `config.local.yaml` aur `.env` ko kabhi nahi chhuta.
+
 ## ▶️ Roz ka istemal
 
-**Sab se aasaan tareeqa:** `start.bat` par double-click karein (Mac: `start.sh`), link paste karein aur Enter dabayein.
+**Sab se aasaan tareeqa:** `start.bat` par double-click karein (Mac: `start.sh`). Bot pehle khud update hoga, phir link poochega. Link paste karein aur Enter dabayein.
 
 **Ya terminal se:**
 ```

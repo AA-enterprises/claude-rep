@@ -45,6 +45,14 @@ def load(path: Path) -> dict:
     except yaml.YAMLError as e:
         raise BotError(f"config.yaml mein likhne ki galti hai:\n{e}") from e
     cfg = _merge(DEFAULTS, user)
+    # Aap ki apni settings (update se kabhi nahi badalti): config.local.yaml
+    local_path = Path(path).with_name("config.local.yaml")
+    if local_path.exists():
+        try:
+            with open(local_path, encoding="utf-8-sig") as f:
+                cfg = _merge(cfg, yaml.safe_load(f) or {})
+        except yaml.YAMLError as e:
+            raise BotError(f"config.local.yaml mein likhne ki galti hai:\n{e}") from e
     base = Path(path).resolve().parent
     cfg["_base"] = base
     for key in ("output", "work"):

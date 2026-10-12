@@ -14,6 +14,7 @@ Istemal:
 import argparse
 import os
 import shutil
+import subprocess
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -168,9 +169,51 @@ def process(source: str, cfg: dict, args) -> list:
     return outputs
 
 
+def git(*args) -> subprocess.CompletedProcess:
+    return subprocess.run(["git", *args], cwd=HERE, capture_output=True, text=True,
+                          encoding="utf-8", errors="replace")
+
+
+def version_text() -> str:
+    if not shutil.which("git"):
+        return "version maloom nahi (Git install nahi)"
+    r = git("log", "-1", "--format=%h (%cd)", "--date=format:%d-%m-%Y %H:%M")
+    return r.stdout.strip() if r.returncode == 0 else "version maloom nahi (Git se download nahi hua)"
+
+
+def self_update(quiet: bool = False):
+    """GitHub se naya code lao (git pull) aur naye packages install karo."""
+    if not shutil.which("git"):
+        if not quiet:
+            say("❌ Git install nahi hai. README ka 'Khud-ba-khud update' hissa dekhein.")
+        return
+    if git("rev-parse", "--is-inside-work-tree").returncode != 0:
+        if not quiet:
+            say("❌ Ye folder Git se download nahi hua. README ka 'Khud-ba-khud update' hissa dekhein.")
+        return
+    before = git("rev-parse", "HEAD").stdout.strip()
+    say("🔄 Naya version check ho raha hai...")
+    r = git("pull", "--ff-only", "-q")
+    if r.returncode != 0:
+        say("⚠️  Update nahi hua (internet?). Purane version se chal raha hai.")
+        if not quiet:
+            say(r.stderr.strip()[-500:])
+        return
+    after = git("rev-parse", "HEAD").stdout.strip()
+    if before == after:
+        say(f"✅ Bot pehle se naya hai: {version_text()}")
+        return
+    say("📦 Naye packages check ho rahe hain...")
+    subprocess.run([sys.executable, "-m", "pip", "install", "-q", "-r", str(HERE / "requirements.txt")])
+    say(f"✅ Update ho gaya! Naya version: {version_text()}")
+    log = git("log", "--format=  • %s", f"{before}..{after}")
+    if log.stdout.strip():
+        say("Kya naya hai:\n" + log.stdout.rstrip())
+
+
 def check(cfg: dict):
     ok = True
-    say(f"Python {sys.version.split()[0]}")
+    say(f"Python {sys.version.split()[0]}  |  Bot version: {version_text()}")
     for tool in ("ffmpeg", "ffprobe"):
         found = shutil.which(tool)
         say(f"{'✅' if found else '❌'} {tool}: {found or 'NAHI MILA (README Step 2)'}")
@@ -286,7 +329,21 @@ def main():
     p.add_argument("--test-voice", metavar="TEXT", help="Sirf awaaz test karo")
     p.add_argument("--telegram-setup", action="store_true", help="Telegram jorro (README dekhein)")
     p.add_argument("--no-telegram", action="store_true", help="Is dafa Telegram par mat bhejo")
+    p.add_argument("--update", action="store_true", help="GitHub se naya version lao")
+    p.add_argument("--quiet", action="store_true", help=argparse.SUPPRESS)
+    p.add_argument("--ask", action="store_true", help="Link poochho (start.bat ke liye)")
+    p.add_argument("--version", action="store_true", help="Bot ka version dikhao")
     args = p.parse_args()
+    if args.update:
+        return self_update(args.quiet)
+    if args.version:
+        return say(f"Bot version: {version_text()}")
+    if args.ask and not args.sources:
+        say("=" * 46 + "\n           SHORTS BOT\n" + "=" * 46)
+        link = input("YouTube link paste karein (ya links.txt) aur Enter dabayein: ").strip().strip('"')
+        if not link:
+            return
+        args.sources = [link]
 
     try:
         cfg = config_mod.load(Path(args.config))

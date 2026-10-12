@@ -4,3 +4,4 @@ fonts/
 music/*
 !music/README.txt
 .env
+config.local.yaml
