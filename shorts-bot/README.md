@@ -226,6 +226,7 @@ Channels `sources.yaml` mein hain. Apne channels `sources.local.yaml` mein add k
 | Masla | Hal |
 |---|---|
 | `Awaaz nahi bani (edge-tts) ... 403` | Microsoft ki muft awaaz kabhi kabhi ruk jati hai. Bot khud Google ki backup awaaz laga deta hai. Microsoft wali hi chahiye to: `python -m pip install -U edge-tts`, aur computer ka waqt/date sahi karein (Settings → Time → Sync now) |
+| `Sign in to confirm you're not a bot` / "YouTube ne rok diya" | Neeche "YouTube ne rok diya" dekhein |
 | `ffmpeg nahi mila` | Step 2 dobara karein, phir terminal band karke kholein |
 | `ANTHROPIC_API_KEY ... set nahi` | `.env` file ka naam check karein (`.env.txt` nahi hona chahiye) |
 | `credit khatam` | console.anthropic.com → Billing |
@@ -245,6 +246,15 @@ Channels `sources.yaml` mein hain. Apne channels `sources.local.yaml` mein add k
    - Free plan mein ghante ki limit hai. Lambi video par bot khud ruk ruk kar poora kar leta hai.
 
 `config.yaml` mein `transcript.engine` se chun sakte hain: `auto` (default), `local` ya `groq`.
+
+### YouTube ne rok diya ("not a bot")
+YouTube bohot si requests dekh kar kabhi kabhi computer ko "bot" samajh leta hai. Bot ko apni YouTube cookies dein:
+1. Chrome ya Edge mein extension **"Get cookies.txt LOCALLY"** install karein.
+2. **youtube.com** kholein (apne Google account se login hon), extension ka icon dabayein → **Export** (Netscape format).
+3. Download hui file ka naam **`cookies.txt`** rakh kar bot ke folder (`shorts-bot`) mein daal dein.
+4. 10-15 minute baad dobara chalayein.
+
+⚠️ `cookies.txt` aap ke YouTube login ki chaabi hai: kisi ko na dein. (Ye GitHub par kabhi nahi jati.) Agar ek dafa kaam kar ke phir rukne lage, to nayi cookies.txt nikal lein.
 
 ## 🧩 Bot ke hisse (badalne ke liye)
 

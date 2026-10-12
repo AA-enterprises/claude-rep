@@ -130,6 +130,9 @@ class TelegramBot:
                 made += len(out)
                 break
             except BotError as e:
+                if "bot\" samajh" in str(e):  # YouTube ne roka: agli video bhi ruk jayegi
+                    self.reply("❌ " + str(e), to)
+                    return
                 self.reply(f"⚠️ Ye video nahi chali: {str(e)[:300]}\nAgli try kar raha hoon...", to)
         if not made:
             self.reply("😕 Short nahi ban saka. Computer ki screen par tafseel dekhein.", to)

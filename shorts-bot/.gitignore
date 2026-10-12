@@ -6,3 +6,4 @@ music/*
 .env
 config.local.yaml
 sources.local.yaml
+cookies.txt

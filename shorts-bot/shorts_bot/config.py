@@ -14,7 +14,7 @@ DEFAULTS = {
     "ai": {"model": "claude-opus-5-5", "effort": "high"},
     "clips": {"mode": "series", "parts": 3, "part_seconds": 50, "per_video": 3,
               "min_seconds": 20, "max_seconds": 50, "hook": True, "outro": True, "focus": ""},
-    "video": {"layout": "blur", "download": "parts", "max_download_height": 1080, "fps": 30, "quality": 20},
+    "video": {"layout": "blur", "download": "parts", "cookies_from_browser": "", "max_download_height": 1080, "fps": 30, "quality": 20},
     "captions": {"show_translation": True, "show_original": True, "translation_size": 84,
                  "original_size": 50, "hook_size": 96, "highlight_color": "#FFD60A",
                  "smart_translation": True},

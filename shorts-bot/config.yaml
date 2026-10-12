@@ -62,6 +62,7 @@ video:
   layout: blur                  # blur = poori video beech mein, peeche blur (2-3 log hon to best)
                                 # face = chehre par zoom karke poori screen (1 banda bolta ho to best)
   download: parts               # parts = sirf clip wale hisse (tez, kam MB) | full = poori video
+  cookies_from_browser: ""      # YouTube "not a bot" kahe to: firefox (behtar) ya chrome/edge. Ya bot folder mein cookies.txt rakhein
   max_download_height: 1080
   fps: 30
   quality: 20                   # 18 = best quality (badi file), 23 = choti file

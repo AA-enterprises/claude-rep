@@ -23,15 +23,19 @@ def load(base: Path) -> dict:
     return out
 
 
-def _listing(url: str, limit: int) -> list:
+def _listing(url: str, limit: int, cfg: dict) -> list:
     import yt_dlp
 
+    from .download import BOT_CHECK, base_opts, is_bot_check
+
     opts = {"quiet": True, "no_warnings": True, "extract_flat": "in_playlist",
-            "playlistend": limit, "socket_timeout": 60, "retries": 5}
+            "playlistend": limit, "socket_timeout": 60, "retries": 5, **base_opts(cfg)}
     with yt_dlp.YoutubeDL(opts) as ydl:
         try:
             info = ydl.extract_info(url, download=False)
         except Exception as e:
+            if is_bot_check(e):
+                raise BotError(BOT_CHECK) from e
             raise BotError(f"Channel/search ki list nahi mili:\n{e}") from e
     return [e for e in (info.get("entries") or []) if e and e.get("id")]
 
@@ -55,7 +59,7 @@ def candidates(cfg: dict, key: str = None, topic: str = None, limit: int = 40) -
         url, kind, note = s["url"], s.get("type", "cc"), s.get("note", "")
     used = used_ids(cfg)
     out = []
-    for e in _listing(url, limit):
+    for e in _listing(url, limit, cfg):
         dur = e.get("duration") or 0
         if dur and not (MIN_SEC <= dur <= MAX_SEC):
             continue

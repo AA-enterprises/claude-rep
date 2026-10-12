@@ -38,6 +38,33 @@ def _pick_captions(info: dict, source_lang: str):
     return None, None
 
 
+BOT_CHECK = (
+    "YouTube ne aap ke computer ko \"bot\" samajh kar rok diya hai (Sign in to confirm you're not a bot).\n"
+    "Hal: bot ko YouTube ki cookies dein (README: 'YouTube ne rok diya'):\n"
+    "  1. Chrome/Edge mein extension \"Get cookies.txt LOCALLY\" install karein.\n"
+    "  2. youtube.com kholein (login hon), extension se cookies.txt download karein.\n"
+    "  3. Woh file bot ke folder mein \"cookies.txt\" naam se rakh dein.\n"
+    "Phir 10-15 minute baad dobara try karein. Baar baar koshish se rukawat lambi hoti hai."
+)
+
+
+def is_bot_check(err) -> bool:
+    t = str(err).lower()
+    return "confirm you" in t and "bot" in t or "sign in to confirm" in t
+
+
+def base_opts(cfg: dict) -> dict:
+    """Har yt-dlp call ke liye: cookies (agar hon) taake YouTube \"bot\" na samjhe."""
+    opts = {}
+    cookies = cfg["_base"] / "cookies.txt"
+    browser = (cfg["video"].get("cookies_from_browser") or "").strip().lower()
+    if cookies.exists():
+        opts["cookiefile"] = str(cookies)
+    elif browser:
+        opts["cookiesfrombrowser"] = (browser,)
+    return opts
+
+
 def _opts(cfg: dict, **extra) -> dict:
     """yt-dlp settings: kamzor internet par bhi chalne ke liye retries aur resume."""
     height = int(cfg["video"]["max_download_height"])
@@ -54,6 +81,7 @@ def _opts(cfg: dict, **extra) -> dict:
         "http_chunk_size": 10 * 1024 * 1024,
         "continuedl": True,
     }
+    opts.update(base_opts(cfg))
     opts.update(extra)
     return opts
 
@@ -70,6 +98,8 @@ def _download(url: str, opts: dict, what: str):
             return
         except Exception as e:  # Internet ka masla: thora ruk kar dobara
             last = e
+            if is_bot_check(e):  # Dobara koshish se rukawat aur lambi hoti hai
+                raise BotError(BOT_CHECK) from e
             if attempt < 4:
                 say(f"  Internet ka masla ({what}), {attempt * 10} second baad dobara koshish...")
                 time.sleep(attempt * 10)
@@ -101,6 +131,8 @@ def fetch(source: str, cfg: dict) -> dict:
                 info = ydl.extract_info(source, download=False)
                 break
             except Exception as e:
+                if is_bot_check(e):
+                    raise BotError(BOT_CHECK) from e
                 if attempt == 3 or "unsupported url" in str(e).lower() or "private" in str(e).lower():
                     raise BotError(f"Video ki maloomat nahi mili. Link sahi hai?\n{e}") from e
                 time.sleep(5)
