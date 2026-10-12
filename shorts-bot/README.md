@@ -75,7 +75,15 @@ python bot.py LINK --focus "paisa aur business"
 python bot.py --test-voice "Assalam o Alaikum, aaj ki baat suniye"
 ```
 
-Tayyar Shorts **`output`** folder mein milenge: har `.mp4` ke saath us ki `.txt` upload sheet hogi.
+**Poori video download nahi hoti.** Bot pehle sirf subtitles (ya zaroorat ho to sirf audio) laata hai, AI viral moments chunta hai, phir sirf un clips ke chhote hisse download hote hain. 1 ghante ki video ho ya 3 ghante ki, download chand MB hi hota hai.
+
+**D drive (ya kisi bhi folder) mein save karna:** `config.yaml` mein sab se neeche `paths:` ke andar likhein:
+```
+  output: D:/Shorts
+```
+(Folder na ho to bot khud bana dega.)
+
+Tayyar Shorts **`output`** folder mein (ya jo folder aap ne chuna) milenge: har `.mp4` ke saath us ki `.txt` upload sheet hogi.
 
 > Ek hi video dobara chalayein to bot **naye moments** chunega. Pehle wale clips `output/history.json` mein yaad rehte hain.
 

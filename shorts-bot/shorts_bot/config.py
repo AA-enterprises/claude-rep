@@ -51,6 +51,11 @@ def load(path: Path) -> dict:
         cfg["paths"][key] = (base / cfg["paths"][key]).resolve()
     cfg["music"]["folder"] = (base / cfg["music"]["folder"]).resolve()
     cfg["_fonts"] = base / "fonts"
+    try:  # Jaise "D:/Shorts": folder na ho to bana do
+        cfg["paths"]["output"].mkdir(parents=True, exist_ok=True)
+    except OSError as e:
+        raise BotError(f"Shorts save karne ka folder nahi ban saka: {cfg['paths']['output']}\n"
+                       f"config.yaml mein paths.output check karein (drive mojood hai?). {e}") from e
     c = cfg["clips"]
     if c["min_seconds"] >= c["max_seconds"]:
         raise BotError("config.yaml: clips.min_seconds, max_seconds se chhota hona chahiye.")

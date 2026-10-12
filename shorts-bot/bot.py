@@ -210,6 +210,7 @@ def check(cfg: dict):
         say("⚠️  Telegram token hai, lekin chat nahi jurri. Chalayein: python bot.py --telegram-setup")
     else:
         say("ℹ️  Telegram nahi jura (zaroori nahi). README ka Telegram wala hissa dekhein.")
+    say(f"ℹ️  Shorts yahan save honge: {cfg['paths']['output']}")
     lang = languages.get(cfg["language"]["target"])
     say(f"ℹ️  Zubaan: {lang['key']}  |  Awaaz: {cfg['voice']['gender']}  |  Layout: {cfg['video']['layout']}")
     say("\nSab theek hai! ✅" if ok else "\nUpar ❌ wali cheezein theek karein.")

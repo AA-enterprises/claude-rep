@@ -88,5 +88,7 @@ safety:
   ask_permission: true          # Creative Commons na ho to har video par ijazat confirm karwaye
 
 paths:
+  # Tayyar Shorts kahan save hon. Jaise D drive ke folder ke liye:  output: D:/Shorts
+  # (folder na ho to bot khud bana dega)
   output: output
-  work: work
+  work: work                    # Bot ka kachcha kaam (chhote clip hisse, audio)
