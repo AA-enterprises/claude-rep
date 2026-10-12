@@ -21,7 +21,7 @@ DEFAULTS = {
     "music": {"enabled": True, "folder": "music", "volume": 0.10},
     "transcript": {"prefer_youtube_captions": True, "engine": "auto", "whisper_model": "small"},
     "safety": {"ask_permission": True},
-    "telegram": {"send": True},
+    "telegram": {"send": True, "owner_name": "Hamza"},
     "dub": {"enabled": True, "mode": "auto", "gender": "male", "match_speaker": True, "original_volume": 0.05, "styles": {}},
     "thumbnail": {"make": True, "language": "roman"},
     "chirp": {"monthly_free_chars": 950000},

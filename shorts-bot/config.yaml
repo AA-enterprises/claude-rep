@@ -117,6 +117,7 @@ thumbnail:
 
 telegram:
   send: true                    # true = har tayyar Short Telegram par bhejo (agar jura ho)
+  owner_name: Hamza             # Bot aap ko is naam se bulata hai ("OK Hamza, abhi karta hoon 🙂")
 
 safety:
   ask_permission: true          # Creative Commons na ho to har video par ijazat confirm karwaye

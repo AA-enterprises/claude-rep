@@ -166,12 +166,13 @@ def edit_metadata(cfg: dict, current: dict, request: str) -> dict:
 
 
 ROUTER_SYSTEM = """You are the command router of a Telegram bot that makes YouTube Shorts. The user writes casually, often in Roman Urdu or Urdu, sometimes starting with "/". Decide what they want and return exactly one action:
-- "source": make Shorts from one of the listed safe channels. Put the channel key in "source". Pick the channel whose topic best fits (e.g. Mars, robots, rovers -> jpl; Earth, Sun, galaxies -> goddard; general space -> nasa).
+IMPORTANT: The channel now makes its OWN original cartoon story videos. Any request for a video, short, cartoon or story ("video bana do", "ek short bana do", "mars ki video bana do", "nayi video") is "story", with the subject in "topic". Choose "source", "cc" or "link" ONLY when the user explicitly asks for clips from NASA / JPL / Goddard / White House / an existing YouTube video / Creative Commons, or sends a link.
+- "source": make Shorts from one of the listed safe channels (only when they explicitly name the channel or ask for real NASA/space clips). Put the channel key in "source". Pick the channel whose topic best fits (e.g. Mars, robots, rovers -> jpl; Earth, Sun, galaxies -> goddard; general space -> nasa).
 - "cc": make Shorts from a Creative Commons YouTube search. Put a short English search phrase in "topic" (e.g. "business podcast").
 - "link": they gave a YouTube link. Put it in "url". Set "permission" true only if they clearly say they have permission.
 - "edit": they want to change the title, description or thumbnail of a Short they already got.
 - "help": they ask for the list of commands or what the bot can do.
-- "story": they want an original kids' cartoon story video (bachon ki kahani / cartoon / moral story), e.g. "lalchi kawwe ki kahani bana do", "bachon ke liye sach bolne wali kahani". Put the story idea in "topic" (empty if they leave it to you). Set "length" to "long" if they ask for a long video (lambi, 3-5 minute), else "short".
+- "story": the default for any video request: an original cartoon story video (bachon ki kahani / cartoon / moral story / any video), e.g. "lalchi kawwe ki kahani bana do", "video bana do", "mars par jane wale bachay ki video". Put the subject in "topic" (empty if they leave it to you). Set "length" to "long" if they ask for a long video (lambi, 3-5 minute), else "short".
 - "voice_save": they want to save the current / recent voice (or the voice sample they replied to) under a name, e.g. "is awaaz ko ASAD ke naam se save karo". Put the name in "topic".
 - "voice_sample": they only want to HEAR a saved voice, e.g. "awaaz ASAD", "آواز اسد", "asad ki awaaz sunao". Put the voice name in "topic".
 - "voice_apply": they want a saved voice put on ONE specific video they already got, e.g. "ASAD awaaz is video pe laga do", "اسد آواز اس ویڈیو پہ لگا دو", "moon wali video mein asad ki awaaz". Put the voice name in "topic". If they replied to a video, leave "video" empty. Otherwise, if they named or described the video, put the exact title of the matching video from the list of their videos in "video". Never guess the most recent video if they did not say which.
@@ -210,6 +211,8 @@ def route_message(cfg: dict, text: str, source_names: dict, has_short: bool, his
               + ("\n\nRecent conversation:\n" + "\n".join(history[-8:]) if history else "")
               + ("\n\nThe user's videos (titles):\n" + "\n".join(f"- {v}" for v in videos) if videos else "")
               + (f"\n\nThis message is a REPLY to their video: {replied_video}" if replied_video else "")
+              + f"\n\nThe person writing is the channel owner, {(cfg.get('telegram') or {}).get('owner_name') or 'the owner'}; "
+                "in chat replies call him by his name now and then, warmly."
               + f"\n\nMessage:\n{text}")
     return ask_claude(cfg, ROUTER_SYSTEM, prompt, schema, effort="low")
 

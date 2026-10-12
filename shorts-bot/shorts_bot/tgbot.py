@@ -20,9 +20,17 @@ from . import planner, render, sources, telegram
 from .download import BOT_CHECK
 from .util import BotError, read_json, say, write_json
 
-HELP = """🤖 Shorts Bot commands
+HELP = """🤖 Bot commands
 
-📥 Short mangwana:
+🧸 Apni videos — bachon ki kahani (apna cartoon, copyright ka darr nahi):
+/kahani pyasa kawwa  → nayi kahani + cartoon tasveerein + namoone ki awaaz
+/kahani lambi sach bolne wala bacha  → 3-4 minute ki lambi kahani
+/cloudflare  → tasveeron ka muft backup lagana (card nahi chahiye)
+Ya likhein: "bachon ke liye lalchi kutte ki kahani bana do"
+Phir video/script par REPLY karke 🎤 apni awaaz record karke bhejein → bot shor kaat kar, halki music ke saath aap ki awaaz wali video bana dega
+/update  → bot ka naya version abhi lao (waise bhi khud har 30 minute check karta hai)
+
+📥 NASA / bahar ke clips se Short (sirf jab aap khud kahein):
 /nasa  → NASA ki nayi video se series (Part 1, 2, 3)
 /nasa 4  → 4 parts ki series
 /jpl  /goddard  /whitehouse  → doosre mehfooz channels
@@ -41,14 +49,6 @@ Video par REPLY karke "awaaz ASAD"  → sirf WOHI video ASAD ki awaaz mein dobar
 /chirp  → Chirp 3 HD (insaan jaisi awaaz, roz ~50-80 videos muft) lagane ka tareeqa
 /gemini  → insaan jaisi awaaz (Gemini) lagane ka tareeqa
 /check  → awaaz ya bot mein masla ho to jaanch (Microsoft, Gemini, computer ka time)
-
-🧸 Bachon ki kahani (apna cartoon, copyright ka darr nahi):
-/kahani pyasa kawwa  → nayi kahani + cartoon tasveerein + namoone ki awaaz
-/kahani lambi sach bolne wala bacha  → 3-4 minute ki lambi kahani
-/cloudflare  → tasveeron ka muft backup lagana (card nahi chahiye)
-Ya likhein: "bachon ke liye lalchi kutte ki kahani bana do"
-Phir video/script par REPLY karke 🎤 apni awaaz record karke bhejein → bot shor kaat kar, halki music ke saath aap ki awaaz wali video bana dega
-/update  → bot ka naya version abhi lao (waise bhi khud har 30 minute check karta hai)
 
 ✏️ Short badalna (Short ke kisi message par REPLY karein; reply na karein to aakhri Short badlega):
 /title naya title
@@ -219,12 +219,17 @@ class TelegramBot:
                 self.current = None
                 self.jobs.task_done()
 
-    def queue_job(self, desc: str, fn, to: int = None, **kwargs):
+    def queue_job(self, desc: str, fn, to: int = None, detail: str = "", **kwargs):
         ahead = self.jobs.qsize() + (1 if self.current else 0)
         self.jobs.put((desc, fn, to, kwargs))
+        name = (self.cfg.get("telegram") or {}).get("owner_name") or ""
+        hi = f"OK {name}".strip()
+        extra = f"\n{detail}" if detail else ""
         if ahead:
-            self.reply(f"✅ Line mein laga diya: {desc}\nAap se pehle {ahead} kaam hai, bari aate hi shuru "
-                       "hoga. Is dauran title/thumbnail badalna aur /status chalta rahega.", to)
+            self.reply(f"{hi}, line mein laga diya 🙂 ({desc}){extra}\nAap se pehle {ahead} kaam hai, bari aate "
+                       "hi shuru hoga. Is dauran title/thumbnail badalna aur /status chalta rahega.", to)
+        else:
+            self.reply(f"{hi}, abhi karta hoon 🙂{extra}", to)
 
     def _safe(self, fn, to, *args, **kwargs):
         """Kaam chalao; ghalti ho to bot band na ho, Telegram par ek dafa batao."""
@@ -1035,18 +1040,19 @@ class TelegramBot:
         if act == "chat" and r.get("reply"):
             self.reply(r["reply"], to)
             return
-        if act != "edit" and r.get("reply"):
+        if act not in ("edit", "source", "cc", "link") and r.get("reply"):
             self.reply("🤖 " + r["reply"], to)
+        detail = r.get("reply") or ""
         shape = {"count": int(r.get("count") or 0) or None, "seconds": int(r.get("seconds") or 0) or None,
                  "mode": r.get("mode") if r.get("mode") in ("single", "series") else None}
         if act == "source" and r.get("source") in srcs:
-            self.queue_job(srcs[r["source"]].get("name", r["source"]), self.make_from_source, to,
+            self.queue_job(srcs[r["source"]].get("name", r["source"]), self.make_from_source, to, detail=detail,
                            key=r["source"], **shape)
         elif act == "cc" and r.get("topic"):
-            self.queue_job(f"'{r['topic']}' (Creative Commons)", self.make_from_source, to,
+            self.queue_job(f"'{r['topic']}' (Creative Commons)", self.make_from_source, to, detail=detail,
                            topic=r["topic"], **shape)
         elif act == "link" and r.get("url", "").startswith("http"):
-            self.queue_job("aap ka link", self.make_from_link, to, url=r["url"],
+            self.queue_job("aap ka link", self.make_from_link, to, detail=detail, url=r["url"],
                            allowed=bool(r.get("permission")), **shape)
         elif act == "edit":
             self.edit(msg, request=text, quiet=True)
