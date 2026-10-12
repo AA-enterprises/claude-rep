@@ -115,7 +115,8 @@ class TelegramBot:
         self.jobs = queue.Queue()   # Shorts ek ek karke bante hain (line)
         self.current = None         # Abhi kya ban raha hai
         self.chat_log = collections.deque(maxlen=12)  # Haal ki baatein (gap-shap ke liye)
-        self.voice_msgs = {}  # Bheje gaye awaaz ke namoone: message id -> awaaz ki settings
+        # Bheje gaye awaaz ke namoone: message id -> awaaz ki settings (restart ke baad bhi yaad)
+        self.voice_msgs = {int(k): v for k, v in (self.state.data.get("voices") or {}).items()}
         self.last_voice = None  # Sab se aakhri namoone ki settings
         threading.Thread(target=self._worker, daemon=True).start()
 
@@ -317,6 +318,11 @@ class TelegramBot:
             return
         if re.fullmatch(r"AIza[0-9A-Za-z_\-]{30,}", text):  # Sirf Gemini key paste ki
             text = "/gemini " + text
+        target = (msg.get("reply_to_message") or {}).get("message_id")
+        if (target in self.voice_msgs or self._old_voice(msg.get("reply_to_message"))) \
+                and not text.startswith("/") and re.fullmatch(r"[\w\- ]{1,30}", text) \
+                and len(text.split()) <= 3:  # Awaaz par reply mein sirf naam = us naam se save
+            text = "/save " + text
         shown = "/gemini ****" if text.lower().startswith("/gemini ") else text[:80]  # Key kabhi screen par nahi
         say(f"\n📩 Telegram: {shown}")
         cmd, _, rest = text.partition(" ")
@@ -457,7 +463,7 @@ class TelegramBot:
             mp3 = wav.with_suffix(".mp3")
             run(["ffmpeg", "-y", "-v", "error", "-i", wav, "-b:a", "128k", mp3])
             self._send_voice(mp3, f"Raftar {new}x  (aur tez: /awaaz tez, dheemi: /awaaz dheemi)\n"
-                                  "Save karna ho: /save NAAM", self._narrator())
+                                  "Save karna ho: is par reply karke naam likh dein (jaise ASAD)", self._narrator())
             return
         presets = self.cfg.get("voice_presets") or {}
         if word and word.upper() in presets:
@@ -500,16 +506,45 @@ class TelegramBot:
             return self.fail("Koi awaaz nahi bani. Internet check karein.", to)
         saved = ", ".join(sorted(presets)) if presets else ""
         self.reply(voice.report() + "\n\nPasand ki awaaz ka number bhejein, jaise: /awaaz 2\n"
-                   "Kisi namoone ko naam se save karna ho: us par REPLY karke likhein /save NAAM"
+                   "Kisi namoone ko naam se save karna ho: us par REPLY karke bas naam likh dein (jaise ASAD)"
                    + (f"\nSave ki hui awaazein: {saved}  (lagane ke liye: /awaaz NAAM)" if saved else ""), to)
 
     # ----------------------------------------------------- naam wali awaazein
     def _narrator(self) -> dict:
         return dict((self.cfg["dub"].get("styles") or {}).get("narrator") or {})
 
+    def _old_voice(self, replied: dict):
+        """Purane version ka bheja hua awaaz ka message (jis ka record nahi): file ke naam aur
+        caption se pehchano. Wapas: settings ya None."""
+        from . import voice
+        if not replied:
+            return None
+        doc = replied.get("document") or replied.get("audio") or {}
+        fname = (doc.get("file_name") or "").lower()
+        if not fname.startswith("awaaz"):
+            return None
+        if "raftar" in fname:  # Raftar wala namoona = us waqt ki channel awaaz
+            return self._narrator()
+        m = re.match(r"\s*(\d+)\.", replied.get("caption") or "")
+        items = voice.samples(self.cfg)
+        if m and 1 <= int(m.group(1)) <= len(items):
+            _, st, over = items[int(m.group(1)) - 1]
+            if over is None:
+                return {"base_style": st}
+            out = dict(over)
+            sp = self._narrator().get("speed")
+            if sp and "speed" not in out:
+                out["speed"] = sp
+            return out
+        return self._narrator()
+
     def _send_voice(self, mp3, caption: str, settings: dict):
         mid = telegram.send_document(mp3, caption, mime="audio/mpeg")
         self.voice_msgs[mid] = dict(settings)
+        with self.state.lock:
+            keep = dict(list(self.voice_msgs.items())[-60:])
+            self.state.data["voices"] = {str(k): v for k, v in keep.items()}
+            self.state.save()
         self.last_voice = dict(settings)
 
     def _set_narrator(self, settings: dict):
@@ -526,16 +561,20 @@ class TelegramBot:
         name = re.sub(r"[^\w\- ]", "", name or "").strip().upper()[:30]
         if not name:
             return self.reply("Naam bhi likhein, jaise: /save ASAD", to)
-        target = (msg.get("reply_to_message") or {}).get("message_id")
+        replied = msg.get("reply_to_message")
+        target = (replied or {}).get("message_id")
+        old = self._old_voice(replied)
         if target in self.voice_msgs:
             settings, which = self.voice_msgs[target], "Ye awaaz"
+        elif old is not None:
+            settings, which = old, "Ye awaaz"
         else:
             settings, which = self._narrator(), "Abhi wali awaaz"
         presets = dict(self.cfg.get("voice_presets") or {})
         presets[name] = dict(settings)
         self.cfg["voice_presets"] = presets
         config_mod.set_local(self.cfg["_base"], ["voice_presets", name], dict(settings))
-        if target in self.voice_msgs:  # Reply wala namoona channel ki awaaz bhi bana do
+        if target in self.voice_msgs or old is not None:  # Reply wala namoona channel ki awaaz bhi bana do
             self._set_narrator(settings)
         self.reply(f"✅ {which} '{name}' naam se save ho gayi aur ab yahi channel ki awaaz hai.\n"
                    f"Baad mein wapas lagani ho: /awaaz {name}", to)
