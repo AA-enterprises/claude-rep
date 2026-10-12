@@ -33,7 +33,9 @@ HELP = """🤖 Shorts Bot commands
 Ya seedha likhein, jaise: "title aur chatpata karo" ya "thumbnail par SHOCKING likho"
 
 💬 Commands yaad na hon to apni zubaan mein likh dein, jaise:
-"mars wali video ka short bana do", "space ke 2 short bhejo", "business podcast ka short chahiye"
+"mars ki 1 video bana do 30 sec ki"
+"mars ki 2 minute ki video ke 3 clips, 1 minute se kam"
+"business podcast ka short chahiye"
 
 /help  → ye list"""
 
@@ -104,18 +106,37 @@ class TelegramBot:
     def _args(self, strict: bool):
         return SimpleNamespace(yes=False, strict=strict)
 
-    def _cfg(self, count: int = None):
-        """count = series ke parts (series mode) ya alag Shorts (single mode)."""
+    def _cfg(self, count: int = None, mode: str = None, seconds: int = None):
+        """Is dafa ke liye: kitne (count), kis tarah (single/series), har ek kitne second."""
         cfg = copy.deepcopy(self.cfg)
+        c = cfg["clips"]
+        if mode in ("single", "series"):
+            c["mode"] = mode
+        elif count == 1:  # "1 video" = ek alag Short, "Part 1" wali series nahi
+            c["mode"] = "single"
         if count:
-            key = "parts" if cfg["clips"]["mode"] == "series" else "per_video"
-            cfg["clips"][key] = count
+            c["parts" if c["mode"] == "series" else "per_video"] = max(1, min(int(count), 5))
+        if seconds:
+            sec = max(15, min(int(seconds), 60))
+            if c["mode"] == "series":
+                c["part_seconds"] = sec
+            else:
+                c["min_seconds"], c["max_seconds"] = max(10, sec - 8), sec + 5
         return cfg
 
+    @staticmethod
+    def _shape(cfg: dict) -> str:
+        c = cfg["clips"]
+        if c["mode"] == "series":
+            return f"{c['parts']} parts ki series, har part ~{c['part_seconds']} second"
+        return f"{c['per_video']} Short(s), har ek {c['min_seconds']}-{c['max_seconds']} second"
+
     # ----------------------------------------------------------- commands
-    def make_from_source(self, key: str = None, topic: str = None, count: int = None, to: int = None):
+    def make_from_source(self, key: str = None, topic: str = None, count: int = None, to: int = None,
+                         mode: str = None, seconds: int = None):
         what = f"'{topic}' (Creative Commons)" if topic else key
-        self.reply(f"⏳ {what}: nayi video dhoond raha hoon...", to)
+        cfg = self._cfg(count, mode, seconds)
+        self.reply(f"⏳ {what}: nayi video dhoond raha hoon... ({self._shape(cfg)})", to)
         vids, kind, note = sources.candidates(self.cfg, key=key, topic=topic)
         if not vids:
             self.reply("😕 Koi nayi munasib video nahi mili. Doosra channel/topic try karein.", to)
@@ -125,7 +146,7 @@ class TelegramBot:
             self.reply(f"🎬 Video: {title[:80]}\n{url}\n⏳ Short ban raha hai (5-15 minute)...", to)
             try:
                 permission = f"Public domain: {note}" if kind == "public_domain" else None
-                out = self.process(url, self._cfg(count), self._args(strict=True),
+                out = self.process(url, cfg, self._args(strict=True),
                                    on_short=self.on_short, permission=permission)
                 made += len(out)
                 break
@@ -137,11 +158,13 @@ class TelegramBot:
         if not made:
             self.reply("😕 Short nahi ban saka. Computer ki screen par tafseel dekhein.", to)
 
-    def make_from_link(self, url: str, allowed: bool, to: int = None):
-        self.reply("⏳ Short ban raha hai (5-15 minute)...", to)
+    def make_from_link(self, url: str, allowed: bool, to: int = None, count: int = None,
+                       mode: str = None, seconds: int = None):
+        cfg = self._cfg(count, mode, seconds)
+        self.reply(f"⏳ Short ban raha hai (5-15 minute)... ({self._shape(cfg)})", to)
         permission = "User ne Telegram par ijazat confirm ki" if allowed else None
         try:
-            out = self.process(url, self._cfg(),
+            out = self.process(url, cfg,
                                self._args(strict=not allowed),
                                on_short=self.on_short, permission=permission)
             if not out:
@@ -234,13 +257,14 @@ class TelegramBot:
             act = "edit"  # Short par reply = usi ko badalna
         if act != "edit" and r.get("reply"):
             self.reply("🤖 " + r["reply"], to)
+        shape = {"count": int(r.get("count") or 0) or None, "seconds": int(r.get("seconds") or 0) or None,
+                 "mode": r.get("mode") if r.get("mode") in ("single", "series") else None}
         if act == "source" and r.get("source") in srcs:
-            n = int(r.get("count") or 0)
-            self.make_from_source(key=r["source"], count=max(1, min(n, 5)) if n else None, to=to)
+            self.make_from_source(key=r["source"], to=to, **shape)
         elif act == "cc" and r.get("topic"):
-            self.make_from_source(topic=r["topic"], to=to)
+            self.make_from_source(topic=r["topic"], to=to, **shape)
         elif act == "link" and r.get("url", "").startswith("http"):
-            self.make_from_link(r["url"], bool(r.get("permission")), to)
+            self.make_from_link(r["url"], bool(r.get("permission")), to, **shape)
         elif act == "edit":
             self.edit(msg, request=text)
         elif act == "help":

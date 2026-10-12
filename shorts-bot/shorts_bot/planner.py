@@ -161,13 +161,17 @@ def edit_metadata(cfg: dict, current: dict, request: str) -> dict:
 
 
 ROUTER_SYSTEM = """You are the command router of a Telegram bot that makes YouTube Shorts. The user writes casually, often in Roman Urdu or Urdu, sometimes starting with "/". Decide what they want and return exactly one action:
-- "source": make Shorts from one of the listed safe channels. Put the channel key in "source" and, only if the user says a number of parts or Shorts, put it in "count" (else 0; max 5). Pick the channel whose topic best fits (e.g. Mars, robots, rovers -> jpl; Earth, Sun, galaxies -> goddard; general space -> nasa).
+- "source": make Shorts from one of the listed safe channels. Put the channel key in "source". Pick the channel whose topic best fits (e.g. Mars, robots, rovers -> jpl; Earth, Sun, galaxies -> goddard; general space -> nasa).
 - "cc": make Shorts from a Creative Commons YouTube search. Put a short English search phrase in "topic" (e.g. "business podcast").
 - "link": they gave a YouTube link. Put it in "url". Set "permission" true only if they clearly say they have permission.
 - "edit": they want to change the title, description or thumbnail of a Short they already got.
 - "help": they ask what the bot can do, or say hello.
 - "unknown": anything else.
-In "reply", write one short friendly Roman Urdu sentence telling them what you will do."""
+For "source", "cc" and "link" also fill in the shape of what they want (use 0 / "default" when they don't say):
+- "mode": "single" if they want separate stand-alone Shorts (e.g. "ek video bana do", "1 short 30 sec ka"); "series" if they want one longer scene split into consecutive parts (e.g. "2 minute ki video ke 3-4 clips", "part 1 part 2"); else "default".
+- "count": how many Shorts or parts (max 5). "3 ya 4" -> pick the one that fits the length best.
+- "seconds": length of each Short or part in seconds, at most 60. If they give a total scene length and a number of parts, divide it (e.g. 2 minutes in 3 parts -> 40). "1 minute se andar" -> 55.
+In "reply", write one short friendly Roman Urdu sentence telling them exactly what you will make (how many, how long)."""
 
 
 def route_message(cfg: dict, text: str, source_names: dict, has_short: bool) -> dict:
@@ -177,9 +181,11 @@ def route_message(cfg: dict, text: str, source_names: dict, has_short: bool) -> 
         "properties": {
             "action": {"type": "string", "enum": ["source", "cc", "link", "edit", "help", "unknown"]},
             "source": {"type": "string"}, "count": {"type": "integer"}, "topic": {"type": "string"},
+            "mode": {"type": "string", "enum": ["single", "series", "default"]},
+            "seconds": {"type": "integer"},
             "url": {"type": "string"}, "permission": {"type": "boolean"}, "reply": {"type": "string"},
         },
-        "required": ["action", "source", "count", "topic", "url", "permission", "reply"],
+        "required": ["action", "source", "count", "topic", "url", "permission", "mode", "seconds", "reply"],
         "additionalProperties": False,
     }
     channels = "\n".join(f"- {k}: {v}" for k, v in source_names.items())
