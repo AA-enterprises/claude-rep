@@ -22,7 +22,7 @@ DEFAULTS = {
     "transcript": {"prefer_youtube_captions": True, "engine": "auto", "whisper_model": "small"},
     "safety": {"ask_permission": True},
     "telegram": {"send": True},
-    "dub": {"enabled": True, "gender": "male", "match_speaker": True, "original_volume": 0.12, "styles": {}},
+    "dub": {"enabled": True, "gender": "male", "match_speaker": True, "original_volume": 0.05, "styles": {}},
     "thumbnail": {"make": True, "language": "roman"},
     "paths": {"output": "output", "work": "work"},
 }

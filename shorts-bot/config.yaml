@@ -96,7 +96,7 @@ dub:
   match_speaker: true           # true = jaisa banda video mein (buddha -> buddhi awaaz, jawan -> jawan,
                                 #   aurat -> aurat, kahani/documentary -> bhaari narrator awaaz)
   gender: male                  # match_speaker false ho to sab lines isi awaaz mein
-  original_volume: 0.12         # Asal awaaz peeche kitni halki (0 = bilkul nahi, 0.3 = sunai de)
+  original_volume: 0.05         # Asal awaaz peeche kitni halki (0 = bilkul nahi, 0.3 = sunai de)
   styles: {}                    # Kisi awaaz ko badalna ho, misal:
   #   narrator: {pitch: "-14Hz", rate: "-8%"}   # aur bhaari
   #   old_man:  {pitch: "-18Hz", rate: "-15%"}

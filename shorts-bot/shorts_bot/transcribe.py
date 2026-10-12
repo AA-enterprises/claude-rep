@@ -26,7 +26,7 @@ def _words_from_json3(path) -> list:
         nxt = events[i + 1].get("tStartMs", 0) / 1000 if i + 1 < len(events) else end
         segs = ev["segs"]
         for j, seg in enumerate(segs):
-            text = (seg.get("utf8") or "").replace("\n", " ").strip()
+            text = re.sub(r"</?[a-zA-Z][^>]*>", "", seg.get("utf8") or "").replace("\n", " ").strip()
             if not text or text.startswith("[") and text.endswith("]"):
                 continue
             s = start + seg.get("tOffsetMs", 0) / 1000

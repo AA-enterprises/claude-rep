@@ -5,6 +5,8 @@ import base64
 import json
 import os
 import re
+import subprocess
+import time
 import urllib.parse
 from pathlib import Path
 
@@ -16,10 +18,10 @@ from .util import BotError, run, say
 # Video mein jaisa banda bol raha hai (buddha, jawan, aurat...) waisi awaaz; kahani /
 # documentary ke liye "narrator" = bhaari, thehri hui mard ki awaaz.
 STYLES = {
-    "narrator": ("male", "-6%", "-10Hz", 0.74),
-    "man": ("male", "+0%", "-4Hz", 0.8),
-    "young_man": ("male", "+6%", "+4Hz", 0.86),
-    "old_man": ("male", "-12%", "-16Hz", 0.7),
+    "narrator": ("male", "+0%", "-8Hz", 0.86),
+    "man": ("male", "+2%", "-3Hz", 0.88),
+    "young_man": ("male", "+6%", "+4Hz", 0.92),
+    "old_man": ("male", "-6%", "-14Hz", 0.84),
     "woman": ("female", "+0%", "+0Hz", 1.0),
     "girl": ("female", "+6%", "+14Hz", 1.12),
     "boy": ("child", "+8%", "+45Hz", 1.25),
@@ -163,8 +165,23 @@ def _google(text: str, out: Path, cfg: dict):
     out.write_bytes(audio)
 
 
-# Ek dafa Microsoft fail ho jaye to baaqi run mein seedha backup (waqt bachta hai)
-_edge_failed = False
+# Microsoft baar baar fail ho to thori der seedha backup (waqt bachta hai)
+_edge_skip_until = 0.0
+_edge_fails = 0
+_rubberband = None
+
+
+def _has_rubberband() -> bool:
+    """FFmpeg mein 'rubberband' ho to awaaz bhaari karte waqt bhi saaf rehti hai."""
+    global _rubberband
+    if _rubberband is None:
+        try:
+            out = subprocess.run(["ffmpeg", "-hide_banner", "-filters"], capture_output=True,
+                                 text=True, timeout=20).stdout
+            _rubberband = " rubberband " in out
+        except Exception:
+            _rubberband = False
+    return _rubberband
 
 
 def _pitch_filter(cfg: dict) -> str:
@@ -175,14 +192,17 @@ def _pitch_filter(cfg: dict) -> str:
     shift = float(v.get("google_shift") or default)
     if abs(shift - 1.0) < 0.01:
         return "atempo=1.08,"
-    # Pitch neeche/ooper, raftar wapas barabar (thori si tez)
+    if _has_rubberband():  # Pitch badlo lekin awaaz ki "shakal" (formant) wahi: saaf rehti hai
+        return f"rubberband=pitch={shift:.3f}:formant=preserved:tempo=1.05,"
+    # Purana tareeqa: zyada badlo to awaaz bigarti hai, is liye halka sa
+    shift = min(max(shift, 0.9), 1.25)
     return (f"aresample=24000,asetrate={int(24000 * shift)},aresample=24000,"
             f"atempo={min(2.0, max(0.5, 1.05 / shift)):.3f},")
 
 
 def speak(text: str, out: Path, cfg: dict) -> Path:
     """Text ko awaaz mein badal kar WAV file banao (48kHz stereo)."""
-    global _edge_failed
+    global _edge_skip_until, _edge_fails
     mp3 = out.with_suffix(".mp3")
     extra = ""
     engine = cfg["voice"]["engine"]
@@ -192,17 +212,27 @@ def speak(text: str, out: Path, cfg: dict) -> Path:
         _google(text, mp3, cfg)
         extra = _pitch_filter(cfg)
     else:
-        try:
-            if _edge_failed:
-                raise BotError("pehle fail ho chuka")
-            _edge(text, mp3, cfg)
-        except BotError as e:
+        err = None
+        if time.time() >= _edge_skip_until:
+            for attempt in range(3):  # Microsoft kabhi kabhi ek dafa ruk jata hai: dobara try
+                try:
+                    _edge(text, mp3, cfg)
+                    err, _edge_fails = None, 0
+                    break
+                except BotError as e:
+                    err = e
+                    time.sleep(1.5 * (attempt + 1))
+        else:
+            err = BotError("Microsoft abhi band")
+        if err:
             if not cfg["voice"].get("fallback_google", True):
-                raise
-            if not _edge_failed:
-                first = str(e).splitlines()[-1][:120]
+                raise err
+            _edge_fails += 1
+            if _edge_fails >= 2:  # Lagataar fail: 5 minute backup, phir Microsoft dobara
+                _edge_skip_until = time.time() + 300
+            if _edge_fails == 1:
+                first = str(err).splitlines()[-1][:120]
                 say(f"  ⚠️  Microsoft awaaz nahi mili ({first}). Google ki backup awaaz laga raha hoon.")
-                _edge_failed = True
             _google(text, mp3, cfg)
             extra = _pitch_filter(cfg)
     wav = out.with_suffix(".wav")
@@ -213,3 +243,16 @@ def speak(text: str, out: Path, cfg: dict) -> Path:
          "loudnorm=I=-14:TP=-1.5:LRA=11",
          "-ar", "48000", "-ac", "2", wav])
     return wav
+
+
+def fit(wav: Path, max_sec: float) -> Path:
+    """Awaaz max_sec se lambi ho to thora tez karo (zyada se zyada 1.2x, taake saaf rahe)."""
+    from .util import duration
+    d = duration(wav)
+    if d <= max_sec + 0.2:
+        return wav
+    tempo = min(d / max_sec, 1.2)
+    out = wav.with_name(wav.stem + "_fit.wav")
+    run(["ffmpeg", "-y", "-v", "error", "-i", wav, "-af", f"atempo={tempo:.3f}",
+         "-ar", "48000", "-ac", "2", out])
+    return out

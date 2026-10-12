@@ -215,18 +215,65 @@ def _frame(video, t, layout_f, out_png, cwd):
          "-filter_complex", f"[0:v]{layout_f}[v]", "-map", "[v]", "-frames:v", "1", out_png], cwd=cwd)
 
 
-def _card(png, wav, text, out, caps, cfg, cwd, highlight):
-    dur = duration(wav) + 0.35
+def _action_times(video, start, end, need):
+    """Video ke sab se "zinda" hisse dhoondo (harkat + rang: planet, rocket, launch...).
+    Wapas: [(t, score), ...] sab se achha pehle; har window `need` second ki."""
+    try:
+        import cv2
+        import numpy as np
+    except Exception:
+        return [(start, 0.0), (max(start, end - need), 0.0)]
+    cap = cv2.VideoCapture(str(video))
+    step = 0.4
+    samples, prev, t = [], None, start
+    while t < end:
+        cap.set(cv2.CAP_PROP_POS_MSEC, t * 1000)
+        ok, frame = cap.read()
+        if not ok:
+            break
+        small = cv2.resize(frame, (160, 90))
+        gray = cv2.cvtColor(small, cv2.COLOR_BGR2GRAY).astype("float32")
+        motion = float(np.mean(np.abs(gray - prev))) if prev is not None else 0.0
+        hsv = cv2.cvtColor(small, cv2.COLOR_BGR2HSV)
+        color = float(np.mean(hsv[..., 1])) / 255 * 10  # Rangeen frame thora behtar
+        bright = float(np.mean(gray))
+        dark = 0 if bright > 25 else -20  # Andhera / khaali frame nahi
+        samples.append((t, motion + color + dark))
+        prev, t = gray, t + step
+    cap.release()
+    if not samples:
+        return [(start, 0.0), (max(start, end - need), 0.0)]
+    n = max(1, int(need / step))
+    wins = []
+    for i in range(0, max(1, len(samples) - n + 1)):
+        chunk = samples[i:i + n]
+        wins.append((chunk[0][0], sum(x for _, x in chunk) / len(chunk)))
+    wins.sort(key=lambda w: -w[1])
+    picked = []
+    for t0, sc in wins:  # Doosri window pehli se door ho (alag manzar)
+        if all(abs(t0 - p) >= need for p, _ in picked):
+            picked.append((t0, sc))
+        if len(picked) == 2:
+            break
+    while len(picked) < 2:
+        picked.append(picked[0])
+    return picked
+
+
+def _action_card(video, t0, layout_f, wav, text, out, caps, cfg, cwd, highlight):
+    """Intro/outro: video ka chalta hua tez manzar (awaaz band), dheere zoom, rang tez,
+    upar bara text, aur AI awaaz. Scroll karne wala ruk jaye."""
+    dur = duration(wav) + 0.3
     ass = out.with_suffix(".ass")
     caps.write(ass, caps.card_events(text, dur, highlight))
     fps = cfg["video"]["fps"]
-    frames = int(dur * fps) + 1
-    vf = (f"[0:v]scale={W * 2}:{H * 2},zoompan=z='min(zoom+0.0009,1.10)':"
-          f"x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d={frames}:s={W}x{H}:fps={fps},"
-          f"eq=brightness=-0.10,{_subs_filter(ass, cwd, cfg['_fonts'])}[v];"
+    vf = (f"[0:v]{layout_f},tpad=stop_mode=clone:stop_duration={dur:.2f},"
+          f"zoompan=z='min(1+on*0.0022,1.15)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1:"
+          f"s={W}x{H}:fps={fps},eq=saturation=1.3:contrast=1.08:brightness=-0.06,"
+          f"{_subs_filter(ass, cwd, cfg['_fonts'])}[v];"
           f"[1:a]apad,atrim=0:{dur:.3f}[a]")
-    run(["ffmpeg", "-y", "-v", "error", "-i", png, "-i", wav, "-filter_complex", vf,
-         "-map", "[v]", "-map", "[a]", "-frames:v", str(frames), "-t", f"{dur:.3f}",
+    run(["ffmpeg", "-y", "-v", "error", "-ss", f"{max(t0, 0):.3f}", "-t", f"{dur:.3f}", "-i", video,
+         "-i", wav, "-filter_complex", vf, "-map", "[v]", "-map", "[a]", "-t", f"{dur:.3f}",
          *_video_args(cfg), *AUDIO, out], cwd=cwd)
     return out
 
@@ -243,12 +290,13 @@ def render_short(src: dict, clip: dict, voices: dict, cfg: dict, work: Path, fin
     layout, top_y = build_layout(video, cfg, start, end)
     parts = []
 
+    need = max([duration(v) + 0.3 for v in voices.values() if v] + [1.0])
+    action = _action_times(video, start, end, need) if voices else []
     if voices.get("hook"):
-        say("  Hook bana raha hoon...")
-        png = work / "first.png"
-        _frame(video, start, layout(getattr(layout, "first_x", None)), png, cwd)
-        parts.append(_card(png, voices["hook"], clip["hook_on_screen"], work / "1_hook.mp4",
-                           caps, cfg, cwd, highlight=True))
+        say("  Hook bana raha hoon (video ke sab se tez manzar par)...")
+        parts.append(_action_card(video, action[0][0], layout(getattr(layout, "first_x", None)),
+                                  voices["hook"], clip["hook_on_screen"], work / "1_hook.mp4",
+                                  caps, cfg, cwd, highlight=True))
 
     say("  Asal clip edit ho raha hai (captions ke saath)...")
     ass = work / "main.ass"
@@ -268,10 +316,9 @@ def render_short(src: dict, clip: dict, voices: dict, cfg: dict, work: Path, fin
 
     if voices.get("outro"):
         say("  Outro bana raha hoon...")
-        png = work / "last.png"
-        _frame(video, end - 0.1, layout(getattr(layout, "last_x", None)), png, cwd)
-        parts.append(_card(png, voices["outro"], clip["outro_on_screen"], work / "3_outro.mp4",
-                           caps, cfg, cwd, highlight=False))
+        parts.append(_action_card(video, action[1][0], layout(getattr(layout, "last_x", None)),
+                                  voices["outro"], clip["outro_on_screen"], work / "3_outro.mp4",
+                                  caps, cfg, cwd, highlight=False))
 
     lst = work / "parts.txt"
     lst.write_text("".join(f"file '{p.name}'\n" for p in parts), encoding="utf-8")

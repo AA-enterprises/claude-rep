@@ -9,7 +9,7 @@ from pathlib import Path
 from . import voice
 from .util import duration, run, say
 
-MAX_SPEEDUP = 1.45  # Is se zyada tez awaaz samajh nahi aati
+MAX_SPEEDUP = 1.25  # Is se zyada tez awaaz samajh nahi aati
 
 
 def _dub_cfg(cfg: dict) -> dict:
@@ -32,17 +32,19 @@ def make_track(video: Path, clip: dict, cfg: dict, work: Path, start: float, dur
     dcfg = _dub_cfg(cfg)
     lines = clip["lines"]
     items = []
+    free_at = 0.0  # Pichhli line kab khatam hui: lines kabhi ek doosre par na charhein
     for i, ln in enumerate(lines):
         text = (ln.get("translated") or "").strip() or ln["original"]
-        rel = max(0.0, ln["start"] - start)
+        rel = max(0.0, ln["start"] - start, free_at)
         nxt = (lines[i + 1]["start"] - start) if i + 1 < len(lines) else dur
         window = max(0.6, nxt - rel - 0.05)
         wav = voice.speak(text, work / f"dub_{i:02d}", voice.styled(dcfg, _style(ln, cfg)))
         tempo = min(max(duration(wav) / window, 1.0), MAX_SPEEDUP)
         items.append((wav, rel, tempo))
+        free_at = rel + duration(wav) / tempo + 0.08
 
     orig = work / "dub_orig.wav"
-    vol = float(cfg["dub"].get("original_volume", 0.12))
+    vol = float(cfg["dub"].get("original_volume", 0.05))
     run(["ffmpeg", "-y", "-v", "error", "-ss", f"{start:.3f}", "-t", f"{dur:.3f}", "-i", video,
          "-vn", "-af", f"aresample=48000,volume={vol}", "-ac", "2", orig])
 

@@ -2,6 +2,7 @@
 
 import json
 import os
+import re
 
 import anthropic
 
@@ -17,8 +18,8 @@ Your job for each podcast:
 1. Find the moments most likely to get millions of views as standalone Shorts: a surprising claim, a strong opinion, a personal story with a twist, a money or success lesson, a funny exchange, an emotional confession, a hot take, or a clear useful tip. The clip must make sense on its own, without the rest of the episode. Start on a line that grabs attention immediately (never on a filler word or mid-thought) and end on a payoff line, not mid-sentence.
 2. Translate the spoken lines in the clip into the caption language, naturally and briefly, the way a native speaker would say it, so it reads well as an on-screen caption. Keep names and brand names as they are.
 3. Write a narrator hook and outro in the spoken narrator language. The narrator is {narrator} talking straight to the viewer, like a friend sharing something they just heard. In languages with grammatical gender (Urdu, Hindi, Arabic, French, ...), use the verb and adjective forms that match a {gender} narrator.
-   - Hook (spoken before the clip): two or three short sentences, about 5-8 seconds when spoken, like the opening of a gripping story video. Open with a striking question or a bold, specific fact from the clip, build suspense about what is coming, and end on a tease that makes the viewer stay (e.g. the equivalent of "and what happened next, nobody expected"). Never give the punchline away. Do not lie or exaggerate beyond what the clip delivers.
-   - Outro (spoken after the clip): two or three short sentences, about 6-10 seconds when spoken. Add real value of your own: the lesson, why it matters, or a sharp opinion, then end with a question that makes viewers comment. This commentary is what makes the channel original, so it must be specific to this clip, never generic.
+   - Hook (spoken before the clip over fast action footage): ONE punchy sentence of 6 to 12 words, at most 3 seconds when spoken. A striking question or a bold, specific fact from the clip that stops a scrolling viewer, ending on a tease. Never give the punchline away. Do not lie or exaggerate beyond what the clip delivers.
+   - Outro (spoken after the clip): one or two very short sentences, at most 4 seconds when spoken: a sharp takeaway specific to this clip and a question that makes viewers comment. Never generic.
    - Every hook and outro must use a different opening and structure. Avoid formula phrases you have used before (a list of previous hooks may be given).
 4. Write thumbnail_text: 2 to 5 punchy words in the thumbnail language that make people tap (a number, a shocking claim or a strong emotion from the clip, e.g. the equivalent of "HE LOST EVERYTHING"). Honest, no fake claims.
 5. Write YouTube metadata: a title under 70 characters that is curiosity-driven but honest, a 2-3 line description, and 5-8 relevant hashtags.
@@ -224,9 +225,11 @@ def make_plan(src: dict, transcript: dict, cfg: dict, used: list, recent_hooks: 
     series = c.get("mode") == "series"
     if series:
         n, sec = int(c.get("parts", 3)), int(c.get("part_seconds", 50))
-        lo, hi = max(15, sec - 10), sec + 8
+        # part_seconds = poora part (intro + clip + outro); clip ko ~7 second kam
+        sec_clip = max(10, sec - 7)
+        lo, hi = max(8, sec_clip - 7), sec_clip + 2
         parts += [
-            SERIES_RULES.format(n=n, sec=sec, lo=lo, hi=hi, total=n * sec),
+            SERIES_RULES.format(n=n, sec=sec_clip, lo=lo, hi=hi, total=n * sec_clip),
             "Give a translation for every segment index from start_index to end_index, inclusive.",
         ]
     else:
@@ -290,8 +293,8 @@ def make_plan(src: dict, transcript: dict, cfg: dict, used: list, recent_hooks: 
 SERIES_RULES = """SERIES MODE: Instead of separate moments, choose ONE continuous, gripping scene or story from the video (about {total} seconds in total) and split it into exactly {n} consecutive parts, returned in order in "clips" as Part 1 to Part {n}.
 - Part k+1 must start at the segment right after Part k ends: no gaps, no overlap, so viewers see the whole scene across the parts.
 - Each part must last between {lo} and {hi} seconds (aim for {sec}). Cut each part on a line that leaves the viewer wanting more (a question, a reveal about to happen, a tense pause), never mid-word.
-- hook_voice: Part 1 builds suspense about what is coming without spoiling it. Later parts start with a very short recap like "In the last part..." and then raise the tension again. Speak in the spoken narrator language.
-- outro_voice: every part except the last ends on a cliffhanger and tells viewers to watch the next part (e.g. the equivalent of "What happened next? Watch Part 2."). The last part gives the payoff or lesson and asks viewers a question.
+- hook_voice: one short sentence (at most 3 seconds). Part 1 builds suspense about what is coming without spoiling it. Later parts give a few-word recap and raise the tension again. Speak in the spoken narrator language.
+- outro_voice: at most 4 seconds. Every part except the last ends on a cliffhanger and tells viewers to watch the next part (e.g. the equivalent of "What happened next? Watch Part 2."). The last part gives the payoff and asks viewers a question.
 - title: the same series name for all parts plus "| Part k", e.g. "Mars par aakhri 7 minute | Part 1".
 - thumbnail_text: 2-5 words and must include "PART k".
 - hook_on_screen and outro_on_screen follow the same idea, short."""
@@ -330,13 +333,18 @@ def _series(clips: list, segs: list, c: dict, used: list) -> list:
     return good
 
 
+def _plain(text: str) -> str:
+    """YouTube captions ke <b>, <i>, <font> jaise tags hatao."""
+    return re.sub(r"</?[a-zA-Z][^>]*>", "", text or "").strip()
+
+
 def _finish(clip: dict, a: int, b: int, segs: list) -> dict:
     """Clip ke segments, captions (translation na ho to asal text) aur waqt bharo."""
     tr = {int(t["index"]): t["text"].strip() for t in clip.get("translations", [])}
     vo = {int(t["index"]): t.get("voice", "") for t in clip.get("translations", [])}
     clip["start_index"], clip["end_index"] = a, b
     clip["lines"] = [
-        {"start": segs[i]["start"], "end": segs[i]["end"], "original": segs[i]["text"],
+        {"start": segs[i]["start"], "end": segs[i]["end"], "original": _plain(segs[i]["text"]),
          # Khaali = AI ke mutabiq tarjume ki zaroorat nahi (sirf English dikhegi)
          "translated": tr.get(i, segs[i]["text"]), "voice": vo.get(i, "")}
         for i in range(a, b + 1)

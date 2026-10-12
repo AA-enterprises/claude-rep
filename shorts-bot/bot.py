@@ -22,7 +22,7 @@ from pathlib import Path
 
 from shorts_bot import config as config_mod
 from shorts_bot import languages
-from shorts_bot.util import BotError, console_utf8, read_json, say, slug, step, write_json
+from shorts_bot.util import BotError, console_utf8, duration, read_json, say, slug, step, write_json
 
 HERE = Path(__file__).resolve().parent
 
@@ -78,6 +78,24 @@ Upload se pehle check:
 """
     path.write_text(text, encoding="utf-8")
     return clip["title"].strip(), desc
+
+
+def fit_length(clip: dict, cfg: dict, voices: dict) -> dict:
+    """User ne "30 sec" kaha to poori video (intro + clip + outro) ~30 second ki ho:
+    clip zyada lamba ho to aakhri lines kaato."""
+    c = cfg["clips"]
+    total = c.get("total_seconds") or (c["part_seconds"] if c["mode"] == "series" else 0)
+    if not total:
+        return clip
+    extra = sum(duration(v) + 0.35 for v in voices.values() if v)
+    budget = total + 1.5 - extra
+    lines = list(clip["lines"])
+    while len(lines) > 2 and lines[-1]["end"] + 0.35 - clip["start"] > budget:
+        lines.pop()
+    if len(lines) == len(clip["lines"]):
+        return clip
+    say(f"  Lambai {total} second ke andar rakhne ke liye clip chhota kiya.")
+    return dict(clip, lines=lines, end=lines[-1]["end"])
 
 
 def shift_clip(clip: dict, offset: float) -> dict:
@@ -141,7 +159,8 @@ def process(source: str, cfg: dict, args, on_short=None, permission: str = None)
     # Pichhli dafa AI ne plan bana diya tha lekin baad mein kuch fail hua: wahi plan
     # dobara use karo (AI ke paise dobara nahi lagte). Mukammal hone par mit jata hai.
     c = cfg["clips"]
-    shape = f"series{c['parts']}x{c['part_seconds']}" if c["mode"] == "series" else f"single{c['per_video']}"
+    shape = (f"series{c['parts']}x{c['part_seconds']}" if c["mode"] == "series"
+             else f"single{c['per_video']}x{c['min_seconds']}-{c['max_seconds']}")
     lang = cfg["language"]
     key = (f"{lang['target']}-{lang.get('voice')}-{lang.get('narration')}-{cfg['thumbnail'].get('language')}"
            f"-{cfg['voice']['gender']}-{shape}-{c['focus']}" + ("-dub2" if cfg["dub"]["enabled"] else ""))
@@ -171,6 +190,10 @@ def process(source: str, cfg: dict, args, on_short=None, permission: str = None)
         if cfg["clips"]["outro"] and clip["outro_voice"].strip():
             og = cfg["voice"].get("outro_gender") or cfg["voice"]["gender"]
             voices["outro"] = voice.speak(clip["outro_voice"], cwork / "outro", voice.styled(cfg, og))
+        for key, cap in (("hook", 3.5), ("outro", 4.5)):  # Intro/outro lambe na hon
+            if voices.get(key):
+                voices[key] = voice.fit(voices[key], cap)
+        clip = fit_length(clip, cfg, voices)
 
         step(f"5/5  Short {k}/{len(plan['clips'])}: video edit ho rahi hai")
         media, offset = download.clip_media(src, clip, cfg)
@@ -228,7 +251,7 @@ def self_update(quiet: bool = False):
     before = git("rev-parse", "HEAD").stdout.strip()
     say("🔄 Naya version check ho raha hai...")
     # YouTube har hafte badalta hai: yt-dlp hamesha sab se naya rakho
-    subprocess.run([sys.executable, "-m", "pip", "install", "-q", "-U", "yt-dlp[default]"],
+    subprocess.run([sys.executable, "-m", "pip", "install", "-q", "-U", "yt-dlp[default]", "edge-tts"],
                    capture_output=True)
     r = git("pull", "--ff-only", "-q")
     if r.returncode != 0:
@@ -406,7 +429,7 @@ def main():
             cfg["clips"]["parts"] = args.series
             cfg["clips"]["mode"] = "series"
         if args.seconds:
-            cfg["clips"]["part_seconds"] = args.seconds
+            cfg["clips"]["part_seconds"] = cfg["clips"]["total_seconds"] = args.seconds
         if args.lang:
             cfg["language"]["target"] = args.lang
         if args.narration:

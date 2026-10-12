@@ -4,7 +4,9 @@ Ye bot ek lambi podcast video ko kai viral **YouTube Shorts** mein badal deta ha
 
 **Default style (series):** English video ka ek poora scene **Part 1, Part 2, Part 3** (har part ~50 second) mein. **Poori video Urdu awaaz mein**: suspense wala Urdu intro (bhaari, story-channel jaisi mard ki awaaz), beech mein asal English baat ki jagah Urdu dubbing (video mein jaisa banda ho waisi awaaz: buddha, jawan, aurat; kahani/documentary ho to bhaari narrator), Urdu outro, saath **Urdu + English subtitles**, aakhir mein cliffhanger "Watch Part 2", English title, aur **Urdu thumbnail** "PART 1" ke saath. Alag alag moments chahiye to `config.yaml` mein `clips.mode: single`.
 
-1. **Hook:** shuru mein AI awaaz 5-8 second mein kahani ki tarah suspense banati hai. Default: bhaari mard ki awaaz (`voice.gender: female` / `child` bhi chalti hai).
+> **Lambai:** "30 sec ki video" = poori video (intro + clip + outro) ~30 second. Bot clip ko khud chhota karta hai.
+
+1. **Hook:** shuru ke 2-3 second: video ka sab se tez/rangeen manzar (planet, rocket, launch) chalta hai, upar bara text, aur ek jumle ka suspense, taake scroll karne wala ruk jaye. Default: bhaari mard ki awaaz (`voice.gender: female` / `child` bhi chalti hai).
 2. **Asal clip:** sab se viral hissa 9:16 vertical mein, **Urdu mein dub** (asal awaaz peeche halki), Urdu + English **captions** ke saath. Dubbing band: `--no-dub` ya `dub.enabled: false`.
 3. **Outro:** AI awaaz apni raye/sabaq deti hai aur aakhir mein viewers se sawal poochti hai (comments ke liye).
 4. Halka **background music** (agar aap `music` folder mein daalein).
@@ -199,7 +201,7 @@ Channels `sources.yaml` mein hain. Apne channels `sources.local.yaml` mein add k
 | Dubbing on/off | `dub.enabled: true` / `false` |
 | Bolne wale jaisi awaaz (buddha/jawan/aurat) | `dub.match_speaker: true` |
 | Awaaz aur bhaari / dheemi | `dub.styles: {narrator: {pitch: "-14Hz", rate: "-8%"}}` |
-| Asal awaaz peeche kitni | `dub.original_volume: 0.12` |
+| Asal awaaz peeche kitni | `dub.original_volume: 0.05` |
 | Har video se kitne Shorts | `clips.per_video: 3` |
 | Clip ki lambai | `clips.min_seconds` / `clips.max_seconds` |
 | Video ka andaaz | `video.layout: blur` (2-3 log) / `face` (1 banda) |

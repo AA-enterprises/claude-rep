@@ -183,10 +183,11 @@ class TelegramBot:
             c["parts" if c["mode"] == "series" else "per_video"] = max(1, min(int(count), 5))
         if seconds:
             sec = max(15, min(int(seconds), 60))
+            c["total_seconds"] = sec  # Poori video (intro + clip + outro) itne second ki
             if c["mode"] == "series":
                 c["part_seconds"] = sec
-            else:
-                c["min_seconds"], c["max_seconds"] = max(10, sec - 8), sec + 5
+            else:  # Intro/outro ke ~7 second nikaal kar clip ki lambai
+                c["min_seconds"], c["max_seconds"] = max(8, sec - 13), max(12, sec - 6)
         return cfg
 
     @staticmethod
