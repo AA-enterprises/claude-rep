@@ -57,6 +57,43 @@ def _call(method: str, data=None, files=None, token=None, timeout=60):
     return res["result"]
 
 
+RELAY_FILE_HELP = (
+    "Aap ki awaaz Telegram se download nahi hui: aap ka Cloudflare relay abhi sirf messages aage "
+    "bhejta hai, files nahi. Ek dafa ye karein:\n"
+    "1. dash.cloudflare.com > Workers & Pages > apna relay worker > 'Edit code'\n"
+    "2. Ye line dhoondein:  if (!url.pathname.startsWith(\"/bot\")) {\n"
+    "3. Use is se badal dein:  if (!url.pathname.startsWith(\"/bot\") && !url.pathname.startsWith(\"/file/bot\")) {\n"
+    "4. 'Deploy' dabayein. Phir apni awaaz dobara bhejein.")
+
+
+def download_file(file_id: str, dest: Path) -> Path:
+    """User ki bheji file (voice note) computer par lao. Relay ho to us ke zariye, warna seedha."""
+    import requests
+
+    token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
+    info = _call("getFile", data={"file_id": file_id})
+    path = info.get("file_path")
+    if not path:
+        raise BotError("Telegram ne file nahi di (shayad 20 MB se bari hai).")
+    proxy = os.environ.get("TELEGRAM_PROXY", "").strip()
+    proxies = {"http": proxy, "https": proxy} if proxy else None
+    bases = [_base()] + ([DEFAULT_BASE] if _base() != DEFAULT_BASE else [])
+    relay_old = False
+    for base in bases:
+        try:
+            r = requests.get(f"{base}/file/bot{token}/{path}", timeout=120, proxies=proxies)
+        except requests.RequestException:
+            continue
+        if r.status_code == 200 and not r.content.startswith(b"Shorts Bot relay"):
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            dest.write_bytes(r.content)
+            return dest
+        relay_old = relay_old or r.content.startswith(b"Shorts Bot relay")
+    if relay_old:
+        raise BotError(RELAY_FILE_HELP)
+    raise BotError("Telegram se file download nahi hui. Internet check karke dobara bhejein.")
+
+
 def enabled() -> bool:
     return bool(os.environ.get("TELEGRAM_BOT_TOKEN") and os.environ.get("TELEGRAM_CHAT_ID"))
 

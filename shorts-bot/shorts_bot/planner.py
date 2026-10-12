@@ -171,6 +171,7 @@ ROUTER_SYSTEM = """You are the command router of a Telegram bot that makes YouTu
 - "link": they gave a YouTube link. Put it in "url". Set "permission" true only if they clearly say they have permission.
 - "edit": they want to change the title, description or thumbnail of a Short they already got.
 - "help": they ask for the list of commands or what the bot can do.
+- "story": they want an original kids' cartoon story video (bachon ki kahani / cartoon / moral story), e.g. "lalchi kawwe ki kahani bana do", "bachon ke liye sach bolne wali kahani". Put the story idea in "topic" (empty if they leave it to you). Set "length" to "long" if they ask for a long video (lambi, 3-5 minute), else "short".
 - "voice_save": they want to save the current / recent voice (or the voice sample they replied to) under a name, e.g. "is awaaz ko ASAD ke naam se save karo". Put the name in "topic".
 - "voice_sample": they only want to HEAR a saved voice, e.g. "awaaz ASAD", "آواز اسد", "asad ki awaaz sunao". Put the voice name in "topic".
 - "voice_apply": they want a saved voice put on ONE specific video they already got, e.g. "ASAD awaaz is video pe laga do", "اسد آواز اس ویڈیو پہ لگا دو", "moon wali video mein asad ki awaaz". Put the voice name in "topic". If they replied to a video, leave "video" empty. Otherwise, if they named or described the video, put the exact title of the matching video from the list of their videos in "video". Never guess the most recent video if they did not say which.
@@ -191,16 +192,17 @@ def route_message(cfg: dict, text: str, source_names: dict, has_short: bool, his
     schema = {
         "type": "object",
         "properties": {
-            "action": {"type": "string", "enum": ["source", "cc", "link", "edit", "help", "chat", "voice_save", "voice_sample",
+            "action": {"type": "string", "enum": ["source", "cc", "link", "edit", "help", "chat", "story", "voice_save", "voice_sample",
                                                   "voice_apply", "voice_use", "unknown"]},
             "video": {"type": "string"},
+            "length": {"type": "string", "enum": ["short", "long"]},
             "source": {"type": "string"}, "count": {"type": "integer"}, "topic": {"type": "string"},
             "mode": {"type": "string", "enum": ["single", "series", "default"]},
             "seconds": {"type": "integer"},
             "url": {"type": "string"}, "permission": {"type": "boolean"}, "reply": {"type": "string"},
         },
         "required": ["action", "source", "count", "topic", "url", "permission", "mode", "seconds", "reply",
-                     "video"],
+                     "video", "length"],
         "additionalProperties": False,
     }
     channels = "\n".join(f"- {k}: {v}" for k, v in source_names.items())
@@ -388,3 +390,62 @@ def _validate(clips: list, segs: list, c: dict, used: list) -> list:
         taken.append((a, b))
         good.append(_finish(clip, a, b, segs))
     return good
+
+
+STORY_SYSTEM = """You write ORIGINAL short moral stories for young children (ages 3-8) for a Pakistani YouTube kids channel. Every story is new: original characters and plot, never characters, names or plots from existing cartoons, films or books (no Doraemon, Peppa, Disney, Marvel, etc.). Stories are warm, gentle and positive: no violence, no scary or sad endings, no brands. Each story teaches one clear good habit or value (honesty, sharing, kindness, patience, cleanliness, respecting parents...).
+
+Write the narration in the given narration language, in very simple everyday spoken words a small child understands, short sentences, the way a loving grandparent tells a story aloud. Numbers as words. No emojis or symbols in narration.
+
+Split the story into scenes. Each scene has 1 or 2 short narration sentences and one picture.
+- image_prompt (English): describe only what is visible in that scene: which characters (by name), what they are doing, their expressions, the place, time of day. Never ask for text, letters, captions or speech bubbles in the image.
+- characters: give every character a fixed, detailed visual description (species, colours, clothes, size) that never changes, so all pictures look consistent.
+- style: one art style for the whole story (cute colourful 3D cartoon or soft children's picture-book illustration), never naming any company or artist.
+The first scene must hook a child immediately; the last scene states the lesson simply and kindly."""
+
+
+def write_story(cfg: dict, topic: str, length: str = "short") -> dict:
+    """Bachon ki nayi kahani: scenes (narration + tasveer ki hidayat), title, thumbnail, description."""
+    narr = languages.get(cfg["language"]["target"])
+    char = {"type": "object", "properties": {"name": {"type": "string"}, "look": {"type": "string"}},
+            "required": ["name", "look"], "additionalProperties": False}
+    scene = {"type": "object", "properties": {"narration": {"type": "string"}, "english": {"type": "string"},
+                                               "image_prompt": {"type": "string"}},
+             "required": ["narration", "english", "image_prompt"], "additionalProperties": False}
+    schema = {
+        "type": "object",
+        "properties": {
+            "title": {"type": "string"}, "title_roman": {"type": "string"}, "title_english": {"type": "string"},
+            "moral": {"type": "string"},
+            "style": {"type": "string"}, "characters": {"type": "array", "items": char},
+            "scenes": {"type": "array", "items": scene}, "thumbnail_text": {"type": "string"},
+            "yt_title": {"type": "string"}, "description": {"type": "string"},
+            "hashtags": {"type": "array", "items": {"type": "string"}},
+        },
+        "required": ["title", "title_roman", "title_english", "moral", "style", "characters", "scenes",
+                     "thumbnail_text",
+                     "yt_title", "description", "hashtags"],
+        "additionalProperties": False,
+    }
+    size = ("6 to 8 scenes, about 70 to 100 words of narration in total (about 50 seconds when read aloud)"
+            if length != "long" else
+            "18 to 24 scenes, about 350 to 450 words of narration in total (about 3 to 4 minutes read aloud)")
+    prompt = "\n".join([
+        f"Story idea from the channel owner: {topic or 'any new story you like'}",
+        f"Narration language: {narr['name']}",
+        f"Length: {size}.",
+        f"title: the story title in {narr['name']}. title_roman: the same title in Roman Urdu (Latin letters). "
+        "title_english: the title in simple English.",
+        "english: for every scene, a simple, natural English translation of its narration (shown as the "
+        "only on-screen subtitle), short enough to read in the time it is spoken.",
+        "thumbnail_text: 2 to 4 catchy Roman Urdu words for the thumbnail.",
+        "yt_title: YouTube title, under 70 characters, Roman Urdu with a few English words, e.g. "
+        "'Lalchi Kawwa | Urdu Kahani | Moral Story for Kids'.",
+        f"description: 3 to 5 lines in Roman Urdu and English: what happens and the lesson. Channel: "
+        f"{cfg['channel'].get('name', '')}.",
+        "hashtags: 5 to 8 without spaces, e.g. urdukahani, moralstories, kidsstories.",
+    ])
+    story = ask_claude(cfg, STORY_SYSTEM, prompt, schema, effort="medium")
+    story["scenes"] = [s for s in story.get("scenes", []) if s.get("narration", "").strip()]
+    if len(story["scenes"]) < 2:
+        raise BotError("Kahani theek nahi bani. Dobara koshish karein.")
+    return story

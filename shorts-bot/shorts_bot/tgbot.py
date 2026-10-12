@@ -41,6 +41,12 @@ Video par REPLY karke "awaaz ASAD"  → sirf WOHI video ASAD ki awaaz mein dobar
 /chirp  → Chirp 3 HD (insaan jaisi awaaz, roz ~50-80 videos muft) lagane ka tareeqa
 /gemini  → insaan jaisi awaaz (Gemini) lagane ka tareeqa
 /check  → awaaz ya bot mein masla ho to jaanch (Microsoft, Gemini, computer ka time)
+
+🧸 Bachon ki kahani (apna cartoon, copyright ka darr nahi):
+/kahani pyasa kawwa  → nayi kahani + cartoon tasveerein + namoone ki awaaz
+/kahani lambi sach bolne wala bacha  → 3-4 minute ki lambi kahani
+Ya likhein: "bachon ke liye lalchi kutte ki kahani bana do"
+Phir video/script par REPLY karke 🎤 apni awaaz record karke bhejein → bot shor kaat kar, halki music ke saath aap ki awaaz wali video bana dega
 /update  → bot ka naya version abhi lao (waise bhi khud har 30 minute check karta hai)
 
 ✏️ Short badalna (Short ke kisi message par REPLY karein; reply na karein to aakhri Short badlega):
@@ -397,6 +403,9 @@ class TelegramBot:
     def handle(self, msg: dict):
         text = (msg.get("text") or "").strip()
         to = msg["message_id"]
+        doc = msg.get("document") or {}
+        if msg.get("voice") or msg.get("audio") or (doc.get("mime_type") or "").startswith("audio"):
+            return self.on_voice(msg)
         if not text:
             return
         if re.fullmatch(r"AIza[0-9A-Za-z_\-]{30,}", text):  # Sirf Google key paste ki (Gemini/Chirp)
@@ -439,6 +448,10 @@ class TelegramBot:
             self.update_now(to)
         elif cmd in ("/check", "/jaanch"):
             self.diagnose(to)
+        elif cmd in ("/kahani", "/story", "/cartoon"):
+            length = "long" if rest.lower().startswith(("lambi", "long")) else "short"
+            topic = re.sub(r"^(lambi|long)\s*", "", rest, flags=re.I).strip()
+            self.queue_job("bachon ki kahani", self.make_story, to, topic=topic, length=length)
         elif cmd == "/gemini":
             self.set_gemini(rest, msg)
         elif cmd in ("/chirp", "/key"):
@@ -516,6 +529,68 @@ class TelegramBot:
                         self.update_now(auto=True)
             except Exception as e:  # Update ki ghalti se bot band na ho
                 say(f"⚠️  Khud update check nahi hua: {str(e)[:150]}")
+
+    # ----------------------------------------------------------- kahaniyan
+    def _story_link(self, ids: list, sid: str):
+        with self.state.lock:
+            m = self.state.data.setdefault("story_msg", {})
+            for i in ids:
+                m[str(i)] = sid
+            self.state.save()
+
+    def make_story(self, topic: str = "", length: str = "short", to: int = None):
+        """Nayi kahani: script + cartoon tasveerein + Microsoft awaaz (namoona). Phir user apni awaaz bheje."""
+        from . import story
+        info = story.make_story(self.cfg, topic, length)
+        if self.progress:
+            self.progress.hide()
+        ids = telegram.send_short(Path(info["video"]), info["title"], info["description"], Path(info["thumb"]))
+        st = info["story"]
+        note = []
+        if st.get("images_ok", 0) < len(st["scenes"]):
+            note.append(f"⚠️ {len(st['scenes']) - st.get('images_ok', 0)} tasveerein nahi banin (AI service "
+                        "dheemi thi), un ki jagah rangeen background laga. Dobara banwa saktay hain.")
+        if st.get("voice_note"):
+            note.append(st["voice_note"])
+        note.append("👆 Ye Microsoft ki awaaz ka NAMOONA hai, taake aap ko pata chale kaise parhna hai.\n"
+                    "YouTube par: 'Yes, it's made for kids' zaroor chunein.")
+        ids += self.reply("\n\n".join(note))
+        script = story.recording_script(st)
+        ids += telegram.send_message(script)
+        self._story_link(ids, info["id"])
+
+    def on_voice(self, msg: dict):
+        """User ne apni awaaz bheji: jis kahani par reply kiya, us mein laga kar video do."""
+        to = msg["message_id"]
+        target = (msg.get("reply_to_message") or {}).get("message_id")
+        sid = (self.state.data.get("story_msg") or {}).get(str(target)) if target else None
+        say(f"\n📩 Telegram: 🎤 awaaz ({'kahani ' + sid if sid else 'bina reply'})")
+        if not sid:
+            return self.reply("🎤 Awaaz mil gayi, lekin ye kis kahani ki hai? Kahani wali VIDEO ya "
+                              "script wale message par REPLY karke awaaz bhejein.", to)
+        self.queue_job("kahani mein aap ki awaaz", self.apply_voice, to, msg=msg, sid=sid)
+
+    def apply_voice(self, msg: dict, sid: str, to: int = None):
+        from . import story
+        f = msg.get("voice") or msg.get("audio") or msg.get("document") or {}
+        sdir = Path(self.cfg["paths"]["work"]) / "stories" / sid
+        if not sdir.exists():
+            return self.reply("Is kahani ki files computer par nahi milin. Nayi kahani banwa lein: /kahani", to)
+        if self.progress:
+            self.progress.update("Aap ki awaaz download kar raha hoon")
+        rec = telegram.download_file(f["file_id"], sdir / ("recording" + (Path(f.get("file_name") or "").suffix
+                                                                          or ".ogg")))
+        res = story.apply_recording(self.cfg, sdir, rec)
+        if self.progress:
+            self.progress.hide()
+        ids = self.reply(f"✅ Aap ki awaaz wali video tayyar ({res['seconds']} second). Shor kaat diya, "
+                         "awaaz saaf ki, halki music lagayi:")
+        thumb = Path(self.cfg["paths"]["output"]) / f"kahani_{sid}.jpg"
+        ids += telegram.send_short(Path(res["video"]), res["title"], res["description"],
+                                   thumb if thumb.exists() else None)
+        ids += self.reply("Pasand na aaye to dobara record karke isi par reply kar dein. "
+                          "YouTube par: 'Yes, it's made for kids' zaroor chunein.")
+        self._story_link(ids, sid)
 
     def diagnose(self, to: int = None):
         """/check: awaaz kyun nahi chal rahi? Sab cheezein jaanch kar seedha batao."""
@@ -903,6 +978,9 @@ class TelegramBot:
             self.chat_log.append(f"Bot: {r['reply'][:300]}")
         if act == "voice_save" and r.get("topic"):
             return self.save_voice(r["topic"], msg)
+        if act == "story":
+            return self.queue_job("bachon ki kahani", self.make_story, to, topic=r.get("topic", ""),
+                                  length=r.get("length") or "short")
         if act == "voice_sample" and r.get("topic"):
             return self.voice_sample(r["topic"], to)
         if act == "voice_use" and r.get("topic"):
