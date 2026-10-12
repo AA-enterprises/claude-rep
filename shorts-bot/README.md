@@ -142,6 +142,10 @@ Har Short tayyar hote hi aap ke Telegram par video aur alag message mein title/d
 - Ya agar aap ke paas proxy hai: `.env` mein `TELEGRAM_PROXY=socks5h://127.0.0.1:1080` (apne proxy ka pata) likhein.
 - Check: browser mein https://api.telegram.org kholein. Page khul jaye to bot bhi chal jayega.
 
+**Awaaz chunna:** Telegram par `/awaaz` bhejein: har awaaz ka namoona aa jayega. Pasand wali ka number bhejein, jaise `/awaaz 2`. Har Short ke baad bot batata hai Microsoft ki awaaz lagi ya Google ki backup.
+
+**Khud-ba-khud update:** `--telegram` chal raha ho to bot har 30 minute GitHub dekhta hai. Naya version ho aur koi Short na ban raha ho to khud update ho kar restart ho jata hai. Foran chahiye to Telegram par `/update`.
+
 Kisi dafa Telegram par na bhejna ho: `python bot.py LINK --no-telegram`. Hamesha band karna ho: `config.yaml` mein `telegram.send: false`.
 
 ### Telegram relay (apna muft Cloudflare Worker)
