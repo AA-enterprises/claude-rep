@@ -1,6 +1,7 @@
 """Video editing: 9:16 banana, captions, hook/outro, music, aakhri Short."""
 
 import random
+import shutil
 from pathlib import Path
 
 from . import languages
@@ -271,7 +272,7 @@ def render_short(src: dict, clip: dict, voices: dict, cfg: dict, work: Path, fin
              "-map", "0:v", "-map", "[a]", "-c:v", "copy", *AUDIO, "-t", f"{total:.3f}",
              "-movflags", "+faststart", final])
     else:
-        joined.replace(final)
+        shutil.move(str(joined), str(final))  # replace() alag drive (C: -> D:) par nahi chalta
     return final
 
 

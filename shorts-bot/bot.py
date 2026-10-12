@@ -341,6 +341,15 @@ def main():
         except BotError as e:
             say(f"\n❌ {e}")
             failed.append(s)
+        except Exception as e:  # Ghair-mutawaqqa ghalti: poori tafseel file mein, agli video jaari
+            import traceback
+            log = cfg["paths"]["work"] / "error-log.txt"
+            log.parent.mkdir(parents=True, exist_ok=True)
+            with open(log, "a", encoding="utf-8") as f:
+                f.write(f"\n===== {datetime.now():%Y-%m-%d %H:%M} {s}\n{traceback.format_exc()}")
+            say(f"\n❌ Bot mein ghalti: {type(e).__name__}: {str(e)[:300]}")
+            say(f"   Poori tafseel: {log}  (ye file developer ko bhejein)")
+            failed.append(s)
         except KeyboardInterrupt:
             say("\nRok diya gaya.")
             break
