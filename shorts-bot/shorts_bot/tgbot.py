@@ -35,7 +35,8 @@ HELP = """🤖 Shorts Bot commands
 /awaaz 2  → 2 number wali awaaz channel ki awaaz bana do
 /awaaz tez  ya  /awaaz dheemi  → kahani wali awaaz ki raftar
 /save ASAD  → abhi wali awaaz "ASAD" naam se save (kisi namoone par reply karke bhejein to wohi)
-/awaaz ASAD  → save ki hui awaaz wapas lagao
+/awaaz ASAD  → save ki hui awaaz lagao (aur namoona sunao)
+Video par REPLY karke "awaaz ASAD"  → wahi video ASAD ki awaaz mein dobara
 /gemini  → insaan jaisi awaaz (Gemini) lagane ka tareeqa
 /update  → bot ka naya version abhi lao (waise bhi khud har 30 minute check karta hai)
 
@@ -402,6 +403,11 @@ class TelegramBot:
                 and not text.startswith("/") and re.fullmatch(r"[\w\- ]{1,30}", text) \
                 and len(text.split()) <= 3:  # Awaaz par reply mein sirf naam = us naam se save
             text = "/save " + text
+        rv = re.fullmatch(r"/?(?:awaaz|awaz|aawaz|voice|آواز)\s+(.+)", text, re.I)
+        if rv and target and self.state.data["msg"].get(str(target)) \
+                and rv.group(1).strip().lower() not in ("tez", "fast", "dheemi", "dheema", "slow", "normal"):
+            say(f"\n📩 Telegram: {text[:80]}  (video nayi awaaz mein)")
+            return self.queue_job("video nayi awaaz mein", self.revoice, to, msg=msg, name=rv.group(1))
         shown = "/gemini ****" if text.lower().startswith("/gemini ") else text[:80]  # Key kabhi screen par nahi
         say(f"\n📩 Telegram: {shown}")
         cmd, _, rest = text.partition(" ")
@@ -545,8 +551,8 @@ class TelegramBot:
                                   "Save karna ho: is par reply karke naam likh dein (jaise ASAD)", self._narrator())
             return
         presets = self.cfg.get("voice_presets") or {}
-        if word and word.upper() in presets:
-            return self.use_voice(word, to)
+        if word and not word.isdigit() and len(word.split()) <= 3 and (presets or len(word) < 25):
+            return self.use_voice(text, to)  # /awaaz ASAD (ya اسد)
         if text.strip().isdigit():
             n = int(text.strip())
             if not 1 <= n <= voice.NARRATOR_CHOICES:
@@ -658,14 +664,102 @@ class TelegramBot:
         self.reply(f"✅ {which} '{name}' naam se save ho gayi aur ab yahi channel ki awaaz hai.\n"
                    f"Baad mein wapas lagani ho: /awaaz {name}", to)
 
-    def use_voice(self, name: str, to: int = None):
-        name = (name or "").strip().upper()
+    def _find_voice(self, name: str):
+        """Naam (ya namoone ka number) se awaaz ki settings. Urdu likhawat (اسد) bhi chalti hai.
+        Wapas: (NAAM, settings) ya (None, None)."""
+        from . import voice
+        raw = (name or "").strip()
         presets = self.cfg.get("voice_presets") or {}
-        if name not in presets:
-            names = ", ".join(sorted(presets)) or "abhi koi nahi"
+        if raw.upper() in presets:
+            return raw.upper(), presets[raw.upper()]
+        if raw.isdigit() and 1 <= int(raw) <= voice.NARRATOR_CHOICES:
+            over = voice.samples(self.cfg)[int(raw) - 1][2]
+            return f"awaaz {raw}", dict(over)
+        if presets and raw:  # "اسد" / "asad wali" -> ASAD: AI se poochho
+            schema = {"type": "object", "properties": {"name": {"type": "string"}},
+                      "required": ["name"], "additionalProperties": False}
+            try:
+                r = planner.ask_claude(
+                    self.cfg, "Match the user's words to one of the saved voice names. They may write it "
+                    "in Urdu script, Roman Urdu or with extra words. Return the exact saved name, or an "
+                    "empty string if none fits.",
+                    f"Saved names: {', '.join(presets)}\nUser wrote: {raw}", schema, effort="low")
+                key = (r.get("name") or "").strip().upper()
+                if key in presets:
+                    return key, presets[key]
+            except BotError:
+                pass
+        return None, None
+
+    def _voice_sample(self, settings: dict, caption: str):
+        from . import voice
+        from .util import run
+        c = dict(self.cfg, dub=dict(self.cfg["dub"], styles=dict(self.cfg["dub"].get("styles") or {},
+                                                                  narrator=dict(settings))))
+        wav = voice.speak("یہ کہانی انیس سو انہتر کی ہے، جب انسان نے پہلی بار چاند پر قدم رکھا۔",
+                          self.cfg["paths"]["output"] / "awaaz-namoona", voice.styled(c, "narrator"))
+        mp3 = wav.with_suffix(".mp3")
+        run(["ffmpeg", "-y", "-v", "error", "-i", wav, "-b:a", "128k", mp3])
+        self._send_voice(mp3, caption, settings)
+
+    def use_voice(self, name: str, to: int = None):
+        key, settings = self._find_voice(name)
+        if not key:
+            names = ", ".join(sorted(self.cfg.get("voice_presets") or {})) or "abhi koi nahi"
             return self.reply(f"'{name}' naam ki awaaz save nahi. Save ki hui: {names}", to)
-        self._set_narrator(presets[name])
-        self.reply(f"✅ Ab se intro, outro aur kahani wali awaaz: {name}", to)
+        self._set_narrator(settings)
+        self.reply(f"✅ Ab se intro, outro aur kahani wali awaaz: {key}. Namoona aa raha hai...", to)
+        try:
+            self._voice_sample(settings, f"🎙️ {key} ka namoona\n"
+                                         "Kisi video ko is awaaz mein dobara banana ho: us video par "
+                                         f"reply karke likhein: awaaz {key}")
+        except BotError as e:
+            self.reply(f"⚠️ Namoona nahi bana: {str(e)[:200]}", to)
+
+    def revoice(self, msg: dict, name: str, to: int = None):
+        """Bani hui video ko nayi awaaz mein dobara banao (video wahi, sirf awaaz nayi)."""
+        from . import voice
+        reply_to = (msg.get("reply_to_message") or {}).get("message_id")
+        skey, info = self.state.target(reply_to)
+        if not info:
+            return self.reply("Kaunsi video? Video par reply karke likhein: awaaz ASAD", to)
+        vkey, settings = self._find_voice(name)
+        if not vkey:
+            names = ", ".join(sorted(self.cfg.get("voice_presets") or {})) or "abhi koi nahi"
+            return self.reply(f"'{name}' naam ki awaaz save nahi. Save ki hui: {names}", to)
+        media, cwork = Path(info["media"]), Path(info["cwork"])
+        if not media.exists():
+            return self.reply("Is video ki purani files computer par nahi milin, dobara nahi ban sakti.", to)
+        cfg = copy.deepcopy(self.cfg)
+        cfg["dub"]["styles"] = dict(cfg["dub"].get("styles") or {}, narrator=dict(settings))
+        if self.progress:
+            self.progress.update(f"Nayi awaaz ({vkey}) laga raha hoon")
+        clip = info["clip"]
+        work = cwork / f"awaaz-{re.sub(r'[^A-Za-z0-9]+', '-', vkey).strip('-').lower() or 'nayi'}"
+        work.mkdir(parents=True, exist_ok=True)
+        voice.USED.clear()
+        voices = {}
+        if clip.get("hook_voice", "").strip() and cfg["clips"]["hook"]:
+            voices["hook"] = voice.fit(voice.speak(clip["hook_voice"], work / "hook",
+                                                   voice.styled(cfg, cfg["voice"]["gender"])), 3.5)
+        if clip.get("outro_voice", "").strip() and cfg["clips"]["outro"]:
+            og = cfg["voice"].get("outro_gender") or cfg["voice"]["gender"]
+            voices["outro"] = voice.fit(voice.speak(clip["outro_voice"], work / "outro",
+                                                    voice.styled(cfg, og)), 4.5)
+        old = Path(info["video"])
+        final = old.with_name(f"{old.stem}_{work.name}.mp4")
+        render.render_short({"video": media}, clip, voices, cfg, work, final, info["lang"])
+        if self.progress:
+            self.progress.hide()
+        ids = self.reply(f"🎙️ Ye rahi wahi video, {vkey} ki awaaz mein:")
+        ids += telegram.send_short(final, info["title"], info["description"], None)
+        note = voice.report()
+        if note:
+            ids += self.reply(note)
+        with self.state.lock:
+            for m in ids:
+                self.state.data["msg"][str(m)] = skey
+            self.state.save()
 
     def understand(self, msg: dict, text: str, srcs: dict):
         to = msg["message_id"]
@@ -681,6 +775,9 @@ class TelegramBot:
         if act == "voice_save" and r.get("topic"):
             return self.save_voice(r["topic"], msg)
         if act == "voice_use" and r.get("topic"):
+            target = (msg.get("reply_to_message") or {}).get("message_id")
+            if target and self.state.data["msg"].get(str(target)):  # Video par reply: wahi video nayi awaaz mein
+                return self.queue_job("video nayi awaaz mein", self.revoice, to, msg=msg, name=r["topic"])
             return self.use_voice(r["topic"], to)
         if is_reply and act in ("unknown", "help", "chat"):
             act = "edit"  # Short par reply = usi ko badalna
