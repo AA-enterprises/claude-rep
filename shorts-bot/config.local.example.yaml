@@ -1,0 +1,19 @@
+# =====================================================================
+#  AAP KI APNI SETTINGS
+#  Is file ka naam "config.local.yaml" kar dein. Jo setting yahan likhein,
+#  woh config.yaml wali ki jagah chalegi. update.bat is file ko kabhi
+#  nahi chhuta, is liye aap ki settings hamesha mehfooz rahengi.
+#  Sirf wohi likhein jo badalni ho (baaqi config.yaml se aayengi).
+# =====================================================================
+
+channel:
+  name: "Lakhon Ki Baat"
+
+paths:
+  output: "D:/YT Backup"
+
+# Misaal (zaroorat ho to # hata dein):
+# voice:
+#   gender: male
+# clips:
+#   per_video: 3

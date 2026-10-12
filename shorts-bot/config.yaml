@@ -1,0 +1,129 @@
+# =====================================================================
+#  SHORTS BOT - SETTINGS
+#  Yahan se bot ka har kaam badal sakte hain. Sirf ":" ke baad wali
+#  value badlein. "#" ke baad likhi baatein sirf samjhane ke liye hain.
+# =====================================================================
+
+channel:
+  name: "Lakhon Ki Baat"        # Aap ke channel ka naam (video ke upar chhota sa dikhega)
+  show_name_on_video: true
+
+language:
+  # Shorts kis zubaan mein banein (voice + captions + title):
+  # urdu, roman (Roman Urdu), english, hindi, arabic, french, german, spanish, turkish,
+  # portuguese, italian, indonesian, bengali, russian, japanese, korean, chinese
+  target: urdu                  # Subtitles (captions) ki zubaan
+  voice: urdu                   # AI awaaz (intro/hook aur outro) kis zubaan mein bole
+  # Screen par likha text, title aur description kis zubaan mein:
+  #   english = English  |  same = wahi jo target (Urdu)
+  narration: english
+  # Podcast kis zubaan mein hai? "auto" = bot khud pehchan lega
+  source: auto
+  # Title/description kis tarah likhe jayein:
+  #   target  = target zubaan ke apne script mein (jaise اردو)
+  #   roman   = Roman mein (jaise "Ye baat sun kar hairan reh jaoge")
+  #   english = English mein
+  title_style: english
+
+voice:
+  engine: auto                  # auto = Gemini key ho to Gemini (insaan jaisi, muft had ke saath), warna Microsoft
+                                # gemini | edge = muft Microsoft (machine jaisi) | google = backup | elevenlabs = paid
+  fallback_google: true         # Microsoft ki awaaz na mile to khud Google ki awaaz lagao
+  gender: male                  # Intro (shuru) ki awaaz: male = bhaari mard (story/documentary andaaz)
+                                #   | female = larki | child = bachcha
+  outro_gender: male            # Aakhri (outro) awaaz
+  studio_fx: true               # true = TV/story channel jaisi bhaari, studio wali awaaz (bass + halki goonj)
+  edge_voice: ""                # Khaali chhorein to zubaan ke hisaab se khud chunega
+  rate: "+5%"                   # (Intro/outro/dub ki raftar aur pitch ab neeche dub.styles se aati hai)
+  pitch: "+0Hz"
+  child_rate: "+8%"             # Bachche ki awaaz ki raftar
+  child_pitch: "+45Hz"          # Bachche ki awaaz kitni patli ho (+30Hz ... +60Hz)
+  elevenlabs_voices:            # ElevenLabs website se har awaaz ka Voice ID
+    female: ""
+    male: ""
+    child: ""
+  elevenlabs_model: eleven_v3
+
+ai:
+  model: claude-opus-5-5        # Script likhne wala AI
+  effort: high                  # low | medium | high  (high = behtar, thora mehnga)
+
+clips:
+  # series = ek poora scene Part 1, Part 2, Part 3 mein (har part ~50 second, suspense ke saath)
+  # single = video ke alag alag behtareen moments, har ek alag Short
+  mode: series
+  parts: 3                      # series mein kitne parts
+  part_seconds: 50              # har part kitne second ka (asal clip; hook/outro alag)
+  per_video: 3                  # (single mode) ek video se kitne Shorts banein
+  min_seconds: 20               # Asal clip kam se kam kitne second ka ho
+  max_seconds: 50               # Asal clip zyada se zyada kitne second ka ho
+  hook: true                    # Shuru mein AI voice ka hook (2-4 second)
+  outro: true                   # Aakhir mein AI voice ki commentary (5-10 second)
+  focus: ""                     # Khaas topic chahiye? jaise "paisa aur business". Khaali = jo sab se viral ho
+
+video:
+  layout: blur                  # blur = poori video beech mein, peeche blur (2-3 log hon to best)
+                                # face = chehre par zoom karke poori screen (1 banda bolta ho to best)
+  download: parts               # parts = sirf clip wale hisse (tez, kam MB) | full = poori video
+  cookies_from_browser: ""      # YouTube "not a bot" kahe to: firefox (behtar) ya chrome/edge. Ya bot folder mein cookies.txt rakhein
+  max_download_height: 1080
+  fps: 30
+  quality: 20                   # 18 = best quality (badi file), 23 = choti file
+
+captions:
+  show_translation: true        # Target zubaan ke captions
+  show_original: true           # Asal (English) baat chhoti peeli line mein
+  smart_translation: true       # AI har line par dekhe: aasaan English line par sirf English, baaqi par Urdu bhi
+  translation_size: 84
+  original_size: 50
+  hook_size: 96
+  highlight_color: "#FFD60A"    # Original line / hook ka rang
+
+music:
+  enabled: true
+  folder: music                 # Is folder mein .mp3 daal dein (sirf YouTube Audio Library jaisa copyright-free)
+  volume: 0.10                  # 0.05 halka ... 0.2 tez
+
+transcript:
+  prefer_youtube_captions: true # true = YouTube ke subtitles ho to wohi (sab se tez)
+  # Subtitles na hon to bot khud sun kar banata hai:
+  #   auto  = pehle computer par Whisper, na chale to Groq (agar .env mein GROQ_API_KEY ho)
+  #   local = sirf computer par Whisper (muft, dheema)
+  #   groq  = sirf Groq internet service (tez, free plan mein limit)
+  engine: auto
+  whisper_model: small          # tiny | base | small | medium (bara = behtar magar dheema)
+
+dub:
+  enabled: true                 # true = asal (English) baat Urdu awaaz mein dub ho (subtitles phir bhi)
+  mode: auto                    # auto = Gemini ho to ek bande ki lagataar baat ek saath (voice-over jaisi,
+                                #   qudrati), warna har line alag | voiceover | lines
+  match_speaker: true           # true = jaisa banda video mein (buddha -> buddhi awaaz, jawan -> jawan,
+                                #   aurat -> aurat, kahani/documentary -> bhaari narrator awaaz)
+  gender: male                  # match_speaker false ho to sab lines isi awaaz mein
+  original_volume: 0.05         # Asal awaaz peeche kitni halki (0 = bilkul nahi, 0.3 = sunai de)
+  styles: {}                    # Kisi awaaz ko badalna ho, misal:
+  #   narrator: {pitch: "-14Hz", rate: "-8%"}   # aur bhaari
+  #   old_man:  {pitch: "-18Hz", rate: "-15%"}
+  #   narrator: {voice: ur-IN-SalmanNeural}      # doosri muft Urdu mard awaaz aazmani ho
+  #   narrator: {fx: none}                       # studio asar band
+  # Andaaz: narrator, man, young_man, old_man, woman, girl, boy
+
+chirp:
+  monthly_free_chars: 950000    # Chirp 3 HD: is se zyada akhar is mahine nahi (muft had ke andar, card par paisa nahi)
+
+thumbnail:
+  make: true                    # Har Short ke saath thumbnail (.jpg) bhi banao
+  language: roman               # Thumbnail ka text: roman (Roman Urdu) | urdu | english | same
+
+telegram:
+  send: true                    # true = har tayyar Short Telegram par bhejo (agar jura ho)
+  owner_name: Hamza             # Bot aap ko is naam se bulata hai ("OK Hamza, abhi karta hoon 🙂")
+
+safety:
+  ask_permission: true          # Creative Commons na ho to har video par ijazat confirm karwaye
+
+paths:
+  # Tayyar Shorts kahan save hon. Jaise D drive ke folder ke liye:  output: D:/Shorts
+  # (folder na ho to bot khud bana dega)
+  output: output
+  work: work                    # Bot ka kachcha kaam (chhote clip hisse, audio)
