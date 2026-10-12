@@ -77,19 +77,40 @@ def _image(prompt: str, out: Path, size: tuple, seed: int) -> bool:
     return cloudflare_ready() and _cloudflare_image(prompt, out, seed)
 
 
+_POLL_BLOCKED_UNTIL = 0.0  # 402/403: Pollinations ne mana kiya -> kuch der use mat karo
+LAST_IMAGE_NOTE = ""
+
+
 def _pollinations(prompt: str, out: Path, size: tuple, seed: int, tries: int = 4) -> bool:
-    """Muft AI tasveer (Pollinations). Kabhi kabhi dheemi hoti hai: dobara koshish."""
+    """Muft AI tasveer (Pollinations). Kabhi kabhi dheemi hoti hai: dobara koshish.
+    402 (paise maange) / 401 / 403 par foran ruk jao, baar baar koshish waqt zaya karti hai."""
+    import os
     import requests
+    global _POLL_BLOCKED_UNTIL, LAST_IMAGE_NOTE
+    if time.time() < _POLL_BLOCKED_UNTIL:
+        return False
     w, h = size
-    url = ("https://image.pollinations.ai/prompt/" + urllib.parse.quote(prompt[:1500])
-           + f"?width={w}&height={h}&seed={seed}&nologo=true&model=flux")
+    base = "https://image.pollinations.ai/prompt/" + urllib.parse.quote(prompt[:1500])
+    token = os.environ.get("POLLINATIONS_TOKEN", "").strip()
+    models = ["flux", ""]  # flux mana kare to unka aam (default) model
+    m = 0
     for attempt in range(tries):
+        url = f"{base}?width={w}&height={h}&seed={seed}&nologo=true" + (f"&model={models[m]}" if models[m] else "")
         try:
-            r = requests.get(url, timeout=240)
+            r = requests.get(url, timeout=240, headers={"Authorization": f"Bearer {token}"} if token else None)
             if r.status_code == 200 and r.headers.get("content-type", "").startswith("image") \
                     and len(r.content) > 5000:
                 out.write_bytes(r.content)
                 return True
+            if r.status_code in (401, 402, 403):
+                if m + 1 < len(models):
+                    m += 1
+                    continue
+                _POLL_BLOCKED_UNTIL = time.time() + 1800
+                LAST_IMAGE_NOTE = ("Pollinations (muft tasveerein) ne mana kar diya (402: ab paid). "
+                                   "Telegram par /cloudflare se muft backup lagayein.")
+                say(f"  ⚠️  {LAST_IMAGE_NOTE}")
+                return False
             say(f"  ⚠️  Tasveer nahi bani ({r.status_code}), dobara...")
         except requests.RequestException as e:
             say(f"  ⚠️  Tasveer ki service se rabta nahi ({str(e)[:80]}), dobara...")
@@ -344,11 +365,11 @@ def recording_script(story: dict) -> str:
     return "\n".join(lines)
 
 
-def make_story(cfg: dict, topic: str, length: str = "short") -> dict:
+def make_story(cfg: dict, topic: str, length: str = "short", seconds: int = 0) -> dict:
     """Nayi kahani: script -> tasveerein -> Microsoft ki awaaz (namoona) -> video. Wapas: info."""
     length = "long" if length == "long" else "short"
     step("1/5  Kahani likh raha hoon (AI)")
-    story = planner.write_story(cfg, topic, length)
+    story = planner.write_story(cfg, topic, length, seconds)
     story["length"] = length
     story["seed"] = random.randint(1, 10 ** 6)
     sid = datetime.now().strftime("%Y%m%d-%H%M%S") + "_" + slug(story.get("title_roman") or "kahani", 30)

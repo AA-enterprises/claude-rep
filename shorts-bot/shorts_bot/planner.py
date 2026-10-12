@@ -172,7 +172,7 @@ IMPORTANT: The channel now makes its OWN original cartoon story videos. Any requ
 - "link": they gave a YouTube link. Put it in "url". Set "permission" true only if they clearly say they have permission.
 - "edit": they want to change the title, description or thumbnail of a Short they already got.
 - "help": they ask for the list of commands or what the bot can do.
-- "story": the default for any video request: an original cartoon story video (bachon ki kahani / cartoon / moral story / any video), e.g. "lalchi kawwe ki kahani bana do", "video bana do", "mars par jane wale bachay ki video". Put the subject in "topic" (empty if they leave it to you). Set "length" to "long" if they ask for a long video (lambi, 3-5 minute), else "short".
+- "story": the default for any video request: an original cartoon story video (bachon ki kahani / cartoon / moral story / any video), e.g. "lalchi kawwe ki kahani bana do", "video bana do", "mars par jane wale bachay ki video". Put the subject in "topic" (empty if they leave it to you). Set "length" to "long" if they ask for a long video (lambi, 3-5 minute), else "short". If they say how long the video should be ("30 second ki", "2 minute ki"), put that total in "seconds" (e.g. 30, 120), else 0.
 - "voice_save": they want to save the current / recent voice (or the voice sample they replied to) under a name, e.g. "is awaaz ko ASAD ke naam se save karo". Put the name in "topic".
 - "voice_sample": they only want to HEAR a saved voice, e.g. "awaaz ASAD", "آواز اسد", "asad ki awaaz sunao". Put the voice name in "topic".
 - "voice_apply": they want a saved voice put on ONE specific video they already got, e.g. "ASAD awaaz is video pe laga do", "اسد آواز اس ویڈیو پہ لگا دو", "moon wali video mein asad ki awaaz". Put the voice name in "topic". If they replied to a video, leave "video" empty. Otherwise, if they named or described the video, put the exact title of the matching video from the list of their videos in "video". Never guess the most recent video if they did not say which.
@@ -406,7 +406,7 @@ Split the story into scenes. Each scene has 1 or 2 short narration sentences and
 The first scene must hook a child immediately; the last scene states the lesson simply and kindly."""
 
 
-def write_story(cfg: dict, topic: str, length: str = "short") -> dict:
+def write_story(cfg: dict, topic: str, length: str = "short", seconds: int = 0) -> dict:
     """Bachon ki nayi kahani: scenes (narration + tasveer ki hidayat), title, thumbnail, description."""
     narr = languages.get(cfg["language"]["target"])
     char = {"type": "object", "properties": {"name": {"type": "string"}, "look": {"type": "string"}},
@@ -432,6 +432,10 @@ def write_story(cfg: dict, topic: str, length: str = "short") -> dict:
     size = ("6 to 8 scenes, about 70 to 100 words of narration in total (about 50 seconds when read aloud)"
             if length != "long" else
             "18 to 24 scenes, about 350 to 450 words of narration in total (about 3 to 4 minutes read aloud)")
+    if seconds:  # User ne waqt bataya ("30 second ki"): ~2 alfaaz fi second
+        secs = max(15, min(int(seconds), 600))
+        size = (f"{max(3, round(secs / 7))} scenes, about {int(secs * 1.9)} words of narration in total "
+                f"(about {secs} seconds when read aloud; do not go over)")
     prompt = "\n".join([
         f"Story idea from the channel owner: {topic or 'any new story you like'}",
         f"Narration language: {narr['name']}",

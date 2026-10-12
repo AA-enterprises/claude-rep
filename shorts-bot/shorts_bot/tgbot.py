@@ -573,18 +573,20 @@ class TelegramBot:
                 m[str(i)] = sid
             self.state.save()
 
-    def make_story(self, topic: str = "", length: str = "short", to: int = None):
+    def make_story(self, topic: str = "", length: str = "short", seconds: int = 0, to: int = None):
         """Nayi kahani: script + cartoon tasveerein + Microsoft awaaz (namoona). Phir user apni awaaz bheje."""
         from . import story
-        info = story.make_story(self.cfg, topic, length)
+        info = story.make_story(self.cfg, topic, length, seconds or 0)
         if self.progress:
             self.progress.hide()
         ids = telegram.send_short(Path(info["video"]), info["title"], info["description"], Path(info["thumb"]))
         st = info["story"]
         note = []
         if st.get("images_ok", 0) < len(st["scenes"]):
-            note.append(f"⚠️ {len(st['scenes']) - st.get('images_ok', 0)} tasveerein nahi banin (AI service "
-                        "dheemi thi), un ki jagah rangeen background laga. Dobara banwa saktay hain.")
+            why = story.LAST_IMAGE_NOTE or "AI service dheemi thi"
+            fix = "" if story.cloudflare_ready() else "\n👉 Muft backup lagayein: /cloudflare (card nahi chahiye)"
+            note.append(f"⚠️ {len(st['scenes']) - st.get('images_ok', 0)} tasveerein nahi banin ({why}). "
+                        f"Un ki jagah rangeen background laga.{fix}")
         if st.get("voice_note"):
             note.append(st["voice_note"])
         note.append("👆 Ye Microsoft ki awaaz ka NAMOONA hai, taake aap ko pata chale kaise parhna hai.\n"
@@ -1044,7 +1046,7 @@ class TelegramBot:
             return self.save_voice(r["topic"], msg)
         if act == "story":
             return self.queue_job("bachon ki kahani", self.make_story, to, topic=r.get("topic", ""),
-                                  length=r.get("length") or "short")
+                                  length=r.get("length") or "short", seconds=int(r.get("seconds") or 0))
         if act == "voice_sample" and r.get("topic"):
             return self.voice_sample(r["topic"], to)
         if act == "voice_use" and r.get("topic"):
