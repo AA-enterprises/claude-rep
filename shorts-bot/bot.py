@@ -87,6 +87,22 @@ def shift_clip(clip: dict, offset: float) -> dict:
     return out
 
 
+def log_short(cfg: dict, video: Path, title: str, src: dict, permission: str):
+    """Har Short ka record: kis creator ki kis video se bana. Kabhi kisi creator ki
+    shikayat aaye to unhi ke saare Shorts foran dhoond kar hata sakein."""
+    import csv
+
+    path = cfg["paths"]["output"] / "shorts-log.csv"
+    new = not path.exists()
+    with open(path, "a", newline="", encoding="utf-8-sig") as f:
+        w = csv.writer(f)
+        if new:
+            w.writerow(["Date", "Short file", "Title", "Source channel", "Source video",
+                        "Source link", "Ijazat"])
+        w.writerow([f"{datetime.now():%Y-%m-%d %H:%M}", video.name, title,
+                    src.get("channel", ""), src.get("title", ""), src.get("url", ""), permission])
+
+
 def send_to_telegram(video: Path, title: str, desc: str, thumb, cfg: dict):
     from shorts_bot import telegram
 
@@ -160,6 +176,7 @@ def process(source: str, cfg: dict, args) -> list:
                                           tr["language"])
         say(f"  ✅ Tayyar: {final}")
         outputs.append(final)
+        log_short(cfg, final, title, src, permission)
         send_to_telegram(final, title, desc, thumb, cfg)
 
         history["videos"].setdefault(src["id"], []).append([clip["start_index"], clip["end_index"]])

@@ -151,6 +151,12 @@ Ye aap ka apna chhota sa server hai jo bot ke messages Telegram tak pahunchata h
    ```
    Ctrl+S karein, phir `python bot.py --telegram-setup` chalayein.
 
+## 🛡️ Copyright strike se bachao
+
+- Bot har Short ka record **`shorts-log.csv`** (output folder mein, Excel mein khulta hai) mein rakhta hai: kis channel ki kis video se bana. Agar kisi creator ki shikayat aaye, to unhi ke saare Shorts foran dhoond kar YouTube se hata sakte hain.
+- YouTube kabhi kabhi **"scheduled takedown"** bhejta hai, jis mein **7 din** milte hain. In 7 din mein video delete kar dein to **strike nahi lagti**. Is liye YouTube ki email aur YouTube Studio → **Copyright** wala hissa roz dekhein.
+- Phone par YouTube Studio app install karke notifications on rakhein.
+
 ## 🛠️ Settings badalna (`config.yaml`)
 
 `config.yaml` ko Notepad se kholein. Har setting ke saath Urdu mein samjhaya gaya hai. Aam settings:
