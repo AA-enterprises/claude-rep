@@ -45,6 +45,7 @@ Video par REPLY karke "awaaz ASAD"  → sirf WOHI video ASAD ki awaaz mein dobar
 🧸 Bachon ki kahani (apna cartoon, copyright ka darr nahi):
 /kahani pyasa kawwa  → nayi kahani + cartoon tasveerein + namoone ki awaaz
 /kahani lambi sach bolne wala bacha  → 3-4 minute ki lambi kahani
+/cloudflare  → tasveeron ka muft backup lagana (card nahi chahiye)
 Ya likhein: "bachon ke liye lalchi kutte ki kahani bana do"
 Phir video/script par REPLY karke 🎤 apni awaaz record karke bhejein → bot shor kaat kar, halki music ke saath aap ki awaaz wali video bana dega
 /update  → bot ka naya version abhi lao (waise bhi khud har 30 minute check karta hai)
@@ -426,7 +427,7 @@ class TelegramBot:
                 return self.reply("Ye message meri banayi kisi video ka nahi (ya purana hai). Jis video par "
                                   "awaaz lagani hai usi VIDEO par reply karke likhein: awaaz ASAD", to)
             return self.queue_job("video nayi awaaz mein", self.revoice, to, msg=msg, name=rv.group(1), key=skey)
-        shown = "/key ****" if re.match(r"/(gemini|chirp|key) \S{15,}", text.lower()) else text[:80]  # Key screen par nahi
+        shown = "/key ****" if re.match(r"/(gemini|chirp|key|cloudflare|cf) \S{6,}", text.lower()) else text[:80]  # Key screen par nahi
         say(f"\n📩 Telegram: {shown}")
         cmd, _, rest = text.partition(" ")
         cmd = cmd.lower().split("@")[0]
@@ -448,6 +449,8 @@ class TelegramBot:
             self.update_now(to)
         elif cmd in ("/check", "/jaanch"):
             self.diagnose(to)
+        elif cmd in ("/cloudflare", "/cf"):
+            self.set_cloudflare(rest, msg)
         elif cmd in ("/kahani", "/story", "/cartoon"):
             length = "long" if rest.lower().startswith(("lambi", "long")) else "short"
             topic = re.sub(r"^(lambi|long)\s*", "", rest, flags=re.I).strip()
@@ -558,6 +561,35 @@ class TelegramBot:
         script = story.recording_script(st)
         ids += telegram.send_message(script)
         self._story_link(ids, info["id"])
+
+    def set_cloudflare(self, rest: str, msg: dict):
+        """Kahani ki tasveeron ka muft backup (Cloudflare Workers AI). Card nahi chahiye."""
+        from . import story
+        to = msg["message_id"]
+        parts = rest.split()
+        if len(parts) != 2:
+            ok = "✅ Cloudflare laga hua hai.\n\n" if story.cloudflare_ready() else ""
+            return self.reply(ok + "🖼️ Kahani ki tasveeron ka muft backup (Cloudflare, card nahi chahiye):\n"
+                              "1. dash.cloudflare.com kholein (wohi account jis mein Telegram relay hai)\n"
+                              "2. Left menu: AI > Workers AI > 'Use REST API'\n"
+                              "3. Wahan 'Account ID' copy karein\n"
+                              "4. Usi page par 'Create a Workers AI API Token' > 'Create API Token' > token copy\n"
+                              "5. Yahan bhejein (beech mein space):  /cloudflare ACCOUNT_ID TOKEN\n"
+                              "Message main khud mita doonga.", to)
+        acc, tok = parts
+        try:
+            telegram._call("deleteMessage", data={"chat_id": self.chat, "message_id": to})
+        except BotError:
+            pass
+        err = story.check_cloudflare(acc, tok)
+        if err:
+            return self.reply(f"❌ Cloudflare nahi chala: {err}. Dobara check karke bhejein: /cloudflare")
+        env = self.cfg["_base"] / ".env"
+        telegram._write_env(env, "CF_ACCOUNT_ID", acc)
+        telegram._write_env(env, "CF_API_TOKEN", tok)
+        os.environ["CF_ACCOUNT_ID"], os.environ["CF_API_TOKEN"] = acc, tok
+        self.reply("✅ Cloudflare lag gaya (message mita diya). Ab tasveer ki pehli service na chale to "
+                   "Cloudflare se banegi.")
 
     def on_voice(self, msg: dict):
         """User ne apni awaaz bheji: jis kahani par reply kiya, us mein laga kar video do."""

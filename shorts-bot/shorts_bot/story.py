@@ -26,13 +26,64 @@ GAP = 0.45  # Har scene ki awaaz ke baad saans
 
 
 # ------------------------------------------------------------------ tasveerein
+def cloudflare_ready() -> bool:
+    import os
+    return bool(os.environ.get("CF_ACCOUNT_ID", "").strip() and os.environ.get("CF_API_TOKEN", "").strip())
+
+
+def _cloudflare_image(prompt: str, out: Path, seed: int) -> bool:
+    """Backup: Cloudflare Workers AI (muft roz ki had, card nahi chahiye). Tasveer 1024x1024."""
+    import base64
+    import os
+    import requests
+    acc, tok = os.environ.get("CF_ACCOUNT_ID", "").strip(), os.environ.get("CF_API_TOKEN", "").strip()
+    try:
+        r = requests.post(f"https://api.cloudflare.com/client/v4/accounts/{acc}/ai/run/"
+                          "@cf/black-forest-labs/flux-1-schnell",
+                          headers={"Authorization": f"Bearer {tok}"},
+                          json={"prompt": prompt[:2000], "steps": 6, "seed": seed}, timeout=180)
+        img = base64.b64decode(r.json()["result"]["image"]) if r.status_code == 200 else b""
+    except Exception as e:
+        say(f"  ⚠️  Cloudflare tasveer nahi bani: {str(e)[:100]}")
+        return False
+    if len(img) < 5000:
+        say(f"  ⚠️  Cloudflare tasveer nahi bani ({r.status_code}): {r.text[:120]}")
+        return False
+    out.write_bytes(img)
+    return True
+
+
+def check_cloudflare(acc: str, tok: str) -> str:
+    """Muft check (sirf models ki list): '' = theek, warna ghalti."""
+    import requests
+    try:
+        r = requests.get(f"https://api.cloudflare.com/client/v4/accounts/{acc}/ai/models/search",
+                         params={"per_page": 1}, headers={"Authorization": f"Bearer {tok}"}, timeout=30)
+    except requests.RequestException as e:
+        return f"rabta nahi hua: {e}"
+    if r.status_code == 200:
+        return ""
+    if r.status_code in (401, 403):
+        return "token ghalat hai ya us mein 'Workers AI' ki ijazat nahi"
+    if r.status_code == 404:
+        return "Account ID ghalat hai"
+    return f"({r.status_code}) {r.text[:150]}"
+
+
 def _image(prompt: str, out: Path, size: tuple, seed: int) -> bool:
+    """Muft AI tasveer: pehle Pollinations; na bane to Cloudflare (agar laga ho)."""
+    if _pollinations(prompt, out, size, seed, tries=2 if cloudflare_ready() else 4):
+        return True
+    return cloudflare_ready() and _cloudflare_image(prompt, out, seed)
+
+
+def _pollinations(prompt: str, out: Path, size: tuple, seed: int, tries: int = 4) -> bool:
     """Muft AI tasveer (Pollinations). Kabhi kabhi dheemi hoti hai: dobara koshish."""
     import requests
     w, h = size
     url = ("https://image.pollinations.ai/prompt/" + urllib.parse.quote(prompt[:1500])
            + f"?width={w}&height={h}&seed={seed}&nologo=true&model=flux")
-    for attempt in range(4):
+    for attempt in range(tries):
         try:
             r = requests.get(url, timeout=240)
             if r.status_code == 200 and r.headers.get("content-type", "").startswith("image") \

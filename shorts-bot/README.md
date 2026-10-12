@@ -146,6 +146,10 @@ Har Short tayyar hote hi aap ke Telegram par video aur alag message mein title/d
 
 **Insaan jaisi awaaz (Gemini, muft):** Microsoft ki muft Urdu awaaz machine jaisi lagti hai. Asli insaan jaisi awaaz ke liye Telegram par `/gemini` bhejein aur tareeqa follow karein (Gmail se https://aistudio.google.com/apikey par key banti hai, phir `/gemini KEY`). Muft had khatam ho to bot khud Microsoft ki awaaz laga deta hai aur batata hai.
 
+**🧸 Bachon ki kahaniyan (apna cartoon):** Telegram par `/kahani pyasa kawwa` (ya `/kahani lambi ...`). Bot nayi Urdu kahani likhta hai, har manzar ki AI cartoon tasveer banata hai, English subtitles aur bot ki apni banayi halki music lagata hai (sab apna, copyright ka darr nahi), aur Microsoft awaaz mein namoona bhejta hai. Phir video ya script par **reply karke apni awaaz record** karein: bot shor kaat kar awaaz saaf karta hai aur aap ki awaaz wali video bhej deta hai. Tasveerein na banein to `/cloudflare` se muft backup lagayein. YouTube par "Made for kids" zaroor chunein.
+
+> Purana Cloudflare relay ho to awaaz download ke liye worker mein ek line badalni hai (bot khud batata hai): `telegram-relay/worker.js` dekhein.
+
 **Awaaz chunna:** Telegram par `/awaaz` bhejein: har awaaz ka namoona aa jayega. Pasand wali ka number bhejein, jaise `/awaaz 2`. Har Short ke baad bot batata hai Microsoft ki awaaz lagi ya Google ki backup.
 
 **Khud-ba-khud update:** `--telegram` chal raha ho to bot har 30 minute GitHub dekhta hai. Naya version ho aur koi Short na ban raha ho to khud update ho kar restart ho jata hai. Foran chahiye to Telegram par `/update`.
