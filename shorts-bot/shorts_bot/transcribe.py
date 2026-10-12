@@ -38,8 +38,20 @@ def _words_from_json3(path) -> list:
     return words
 
 
+WHISPER_BLOCKED = (
+    "Is video ke YouTube subtitles nahi mile, aur AI se sunne wala hissa (Whisper) "
+    "aap ke computer par nahi chal raha:\n  {err}\n"
+    "Hal: koi aisi video lein jis ke subtitles hon (YouTube par CC wala nishaan), "
+    "ya README ka 'Whisper nahi chalta' wala hissa dekhein."
+)
+
+
 def _words_from_whisper(video, model_size: str, lang: str):
-    from faster_whisper import WhisperModel
+    try:
+        from faster_whisper import WhisperModel
+    except Exception as e:  # Windows Smart App Control DLL rok deta hai
+        first = (str(e).strip().splitlines() or [type(e).__name__])[0]
+        raise BotError(WHISPER_BLOCKED.format(err=first[:200])) from e
 
     say(f"  AI sun raha hai (Whisper '{model_size}'). Lambi video par kaafi waqt lagega...")
     model = WhisperModel(model_size, device="auto", compute_type="int8")

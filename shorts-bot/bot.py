@@ -129,7 +129,14 @@ def check(cfg: dict):
         found = shutil.which(tool)
         say(f"{'✅' if found else '❌'} {tool}: {found or 'NAHI MILA (README Step 2)'}")
         ok &= bool(found)
-    for mod in ("anthropic", "yt_dlp", "edge_tts", "cv2", "yaml", "faster_whisper"):
+    try:
+        __import__("faster_whisper")
+        say("✅ faster_whisper (subtitles na hon to AI khud sunega)")
+    except Exception as e:
+        first = (str(e).strip().splitlines() or [type(e).__name__])[0]
+        say(f"⚠️  faster_whisper nahi chal raha (zaroori nahi): {first[:150]}")
+        say("   Bot sirf un videos par chalega jin ke YouTube subtitles hon (zyada tar podcasts ke hote hain).")
+    for mod in ("anthropic", "yt_dlp", "edge_tts", "cv2", "yaml"):
         try:
             __import__(mod)
             say(f"✅ {mod}")

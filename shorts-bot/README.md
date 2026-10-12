@@ -126,9 +126,16 @@ Tayyar Shorts **`output`** folder mein milenge: har `.mp4` ke saath us ki `.txt`
 | `credit khatam` | console.anthropic.com → Billing |
 | Video download nahi hoti | `pip install -U yt-dlp` chalayein (YouTube aksar badalta rehta hai) |
 | Captions mein dabbe (□□□) dikhte hain | `fonts` folder delete karein, bot dobara download karega |
+| `--check` mein faster_whisper ⚠️ ("Application Control policy has blocked") | Windows ka **Smart App Control** Whisper ko rok raha hai. Bot phir bhi un videos par chalega jin ke YouTube subtitles hon. Neeche "Whisper nahi chalta" dekhein |
 | Bahut dheema hai | Video ke YouTube subtitles na hon to Whisper chalta hai. `transcript.whisper_model: base` kar dein |
 
 ---
+
+### Whisper nahi chalta (Smart App Control)
+Whisper sirf un videos ke liye chahiye jin ke YouTube par subtitles nahi hote. Zyada tar podcasts ke subtitles hote hain, is liye aksar is ki zaroorat nahi parti.
+
+Agar Whisper zaroor chahiye: **Windows Security → App & browser control → Smart App Control settings → Off**.
+⚠️ Dhyan rahe: Smart App Control ek dafa off ho jaye to Windows dobara install kiye baghair wapas on nahi hota. Antivirus (Windows Defender) phir bhi chalta rehta hai.
 
 ## 🧩 Bot ke hisse (badalne ke liye)
 
