@@ -104,6 +104,11 @@ Har Short tayyar hote hi aap ke Telegram par video aur alag message mein title/d
    ```
    Telegram par "✅ Shorts Bot jur gaya!" aa jaye to kaam ho gaya.
 
+**"Computer se Telegram tak rabta nahi hua" aaye to:** Pakistan mein kai internet companies computer par Telegram rok deti hain (phone ki app phir bhi chalti hai). Hal:
+- **Aasaan:** computer par muft **Cloudflare WARP** (https://one.one.one.one) install karke **Connect** karein, phir bot chalayein.
+- Ya agar aap ke paas proxy hai: `.env` mein `TELEGRAM_PROXY=socks5h://127.0.0.1:1080` (apne proxy ka pata) likhein.
+- Check: browser mein https://api.telegram.org kholein. Page khul jaye to bot bhi chal jayega.
+
 Kisi dafa Telegram par na bhejna ho: `python bot.py LINK --no-telegram`. Hamesha band karna ho: `config.yaml` mein `telegram.send: false`.
 
 ## 🛠️ Settings badalna (`config.yaml`)

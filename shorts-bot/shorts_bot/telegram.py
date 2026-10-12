@@ -1,6 +1,7 @@
 """Tayyar Shorts aap ke Telegram par bhejna."""
 
 import os
+import time
 from pathlib import Path
 
 from .util import BotError, duration, say
@@ -15,11 +16,29 @@ def _call(method: str, data=None, files=None, token=None, timeout=60):
     token = token or os.environ.get("TELEGRAM_BOT_TOKEN", "")
     if not token:
         raise BotError(".env mein TELEGRAM_BOT_TOKEN nahi. README ka Telegram wala hissa dekhein.")
-    try:
-        r = requests.post(API.format(token=token, method=method), data=data, files=files,
-                          timeout=timeout)
-    except requests.RequestException as e:
-        raise BotError(f"Telegram se rabta nahi hua (internet?): {e}") from e
+    proxy = os.environ.get("TELEGRAM_PROXY", "").strip()
+    proxies = {"http": proxy, "https": proxy} if proxy else None
+    last = None
+    for attempt in range(3):  # Connection kabhi kabhi kat jata hai: dobara koshish
+        if files:
+            for f in files.values():
+                f[1].seek(0)
+        try:
+            r = requests.post(API.format(token=token, method=method), data=data, files=files,
+                              timeout=timeout, proxies=proxies)
+            break
+        except requests.RequestException as e:
+            last = e
+            time.sleep(3 * (attempt + 1))
+    else:
+        # Error mein token kabhi na dikhe
+        msg = str(last).replace(token, "<TOKEN>")
+        raise BotError(
+            "Computer se Telegram tak rabta nahi hua. Aksar internet company Telegram ko rok "
+            "deti hai (phone app phir bhi chal jati hai).\n"
+            "Hal: computer par VPN chalayein (jaise Cloudflare WARP, muft), ya .env mein "
+            "TELEGRAM_PROXY=... likhein. README ka Telegram hissa dekhein.\n"
+            f"Asal error: {msg[:200]}") from last
     try:
         res = r.json()
     except ValueError:
@@ -27,7 +46,8 @@ def _call(method: str, data=None, files=None, token=None, timeout=60):
     if r.status_code == 401 or res.get("error_code") == 401:
         raise BotError("TELEGRAM_BOT_TOKEN ghalat hai. @BotFather se token dobara copy karein.")
     if not res.get("ok"):
-        raise BotError(f"Telegram error: {res.get('description') or r.text[:200]}")
+        desc = (res.get("description") or r.text[:200]).replace(token, "<TOKEN>")
+        raise BotError(f"Telegram error: {desc}")
     return res["result"]
 
 
