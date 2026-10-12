@@ -171,6 +171,8 @@ ROUTER_SYSTEM = """You are the command router of a Telegram bot that makes YouTu
 - "link": they gave a YouTube link. Put it in "url". Set "permission" true only if they clearly say they have permission.
 - "edit": they want to change the title, description or thumbnail of a Short they already got.
 - "help": they ask for the list of commands or what the bot can do.
+- "voice_save": they want to save the current / recent voice (or the voice sample they replied to) under a name, e.g. "is awaaz ko ASAD ke naam se save karo". Put the name in "topic".
+- "voice_use": they want to switch to a voice they saved earlier by name, e.g. "ASAD wali awaaz lagao". Put the name in "topic".
 - "chat": anything else: greetings, small talk, how are you, jokes, questions about YouTube, Shorts, views, titles, niches, the channel, or any general question. Answer it yourself in "reply".
 - "unknown": only if the message is empty or meaningless.
 For "source", "cc" and "link" also fill in the shape of what they want (use 0 / "default" when they don't say):
@@ -186,7 +188,7 @@ def route_message(cfg: dict, text: str, source_names: dict, has_short: bool, his
     schema = {
         "type": "object",
         "properties": {
-            "action": {"type": "string", "enum": ["source", "cc", "link", "edit", "help", "chat", "unknown"]},
+            "action": {"type": "string", "enum": ["source", "cc", "link", "edit", "help", "chat", "voice_save", "voice_use", "unknown"]},
             "source": {"type": "string"}, "count": {"type": "integer"}, "topic": {"type": "string"},
             "mode": {"type": "string", "enum": ["single", "series", "default"]},
             "seconds": {"type": "integer"},

@@ -47,6 +47,8 @@ def styled(cfg: dict, style: str) -> dict:
     """Is andaaz (ya gender: male/female/child) ki awaaz wali cfg copy."""
     style = GENDER_STYLE.get(style, style)
     custom = (cfg.get("dub", {}).get("styles") or {}).get(style) or {}
+    # Save ki hui awaaz kisi aur andaaz par bani ho (jaise "buddha" wali ko narrator banaya)
+    style = custom.get("base_style") or style
     gender, rate, pitch, shift = STYLES.get(style, STYLES["man"])
     v = dict(cfg["voice"], gender=custom.get("gender", gender), rate=custom.get("rate", rate),
              pitch=custom.get("pitch", pitch), google_shift=float(custom.get("google_shift", shift)),

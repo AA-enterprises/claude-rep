@@ -72,6 +72,26 @@ def load(path: Path) -> dict:
     return cfg
 
 
+def set_local(base: Path, keys: list, value):
+    """config.local.yaml mein ek jagah ki qeemat poori badlo (purani mila kar nahi)."""
+    path = Path(base) / "config.local.yaml"
+    data = {}
+    if path.exists():
+        try:
+            with open(path, encoding="utf-8-sig") as f:
+                data = yaml.safe_load(f) or {}
+        except yaml.YAMLError:
+            data = {}
+    node = data
+    for k in keys[:-1]:
+        if not isinstance(node.get(k), dict):
+            node[k] = {}
+        node = node[k]
+    node[keys[-1]] = value
+    with open(path, "w", encoding="utf-8") as f:
+        yaml.safe_dump(data, f, allow_unicode=True, sort_keys=False)
+
+
 def save_local(base: Path, changes: dict):
     """Telegram se badli hui setting config.local.yaml mein yaad rakho (update se nahi mitti)."""
     path = Path(base) / "config.local.yaml"
