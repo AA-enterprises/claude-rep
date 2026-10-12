@@ -133,12 +133,26 @@ def check(cfg: dict):
         try:
             __import__(mod)
             say(f"✅ {mod}")
-        except ImportError:
-            say(f"❌ {mod} (chalayein: pip install -r requirements.txt)")
+        except Exception as e:  # ImportError, ya Windows par DLL ka masla (OSError)
+            first = (str(e).strip().splitlines() or [type(e).__name__])[0]
+            say(f"❌ {mod}: {first[:200]}")
+            if "dll" in str(e).lower() or isinstance(e, OSError):
+                say("   Hal: winget install Microsoft.VCRedist.2015+.x64  (phir naya terminal kholein)")
+            else:
+                say("   Hal: python -m pip install -r requirements.txt")
             ok = False
-    key = os.environ.get("ANTHROPIC_API_KEY")
-    say(f"{'✅' if key else '❌'} ANTHROPIC_API_KEY {'set hai' if key else 'set NAHI (README Step 4)'}")
-    ok &= bool(key)
+    key = os.environ.get("ANTHROPIC_API_KEY", "")
+    env_file = HERE / ".env"
+    if key.startswith("sk-ant-") and "yahan" not in key:
+        say("✅ ANTHROPIC_API_KEY set hai")
+    else:
+        ok = False
+        if not env_file.exists():
+            say(f"❌ ANTHROPIC_API_KEY: .env file nahi mili ({env_file})")
+        elif not key:
+            say("❌ ANTHROPIC_API_KEY: .env mein key khaali hai. 'notepad .env' se key paste karke Ctrl+S karein")
+        else:
+            say("❌ ANTHROPIC_API_KEY: .env mein asli key nahi (sk-ant-... se shuru honi chahiye)")
     lang = languages.get(cfg["language"]["target"])
     say(f"ℹ️  Zubaan: {lang['key']}  |  Awaaz: {cfg['voice']['gender']}  |  Layout: {cfg['video']['layout']}")
     say("\nSab theek hai! ✅" if ok else "\nUpar ❌ wali cheezein theek karein.")
