@@ -7,7 +7,7 @@ from .util import BotError
 DEFAULTS = {
     "channel": {"name": "My Channel", "show_name_on_video": True},
     "language": {"target": "urdu", "voice": "urdu", "narration": "english", "source": "auto", "title_style": "english"},
-    "voice": {"engine": "edge", "fallback_google": True, "gender": "male", "outro_gender": "male", "edge_voice": "", "rate": "+5%",
+    "voice": {"engine": "edge", "fallback_google": True, "gender": "male", "outro_gender": "male", "studio_fx": True, "edge_voice": "", "rate": "+5%",
               "pitch": "+0Hz", "child_rate": "+8%", "child_pitch": "+45Hz",
               "elevenlabs_voices": {"female": "", "male": "", "child": ""},
               "elevenlabs_voice_id": "", "elevenlabs_model": "eleven_v3"},

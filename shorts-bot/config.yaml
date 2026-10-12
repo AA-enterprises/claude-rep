@@ -31,6 +31,7 @@ voice:
   gender: male                  # Intro (shuru) ki awaaz: male = bhaari mard (story/documentary andaaz)
                                 #   | female = larki | child = bachcha
   outro_gender: male            # Aakhri (outro) awaaz
+  studio_fx: true               # true = TV/story channel jaisi bhaari, studio wali awaaz (bass + halki goonj)
   edge_voice: ""                # Khaali chhorein to zubaan ke hisaab se khud chunega
   rate: "+5%"                   # (Intro/outro/dub ki raftar aur pitch ab neeche dub.styles se aati hai)
   pitch: "+0Hz"
@@ -100,6 +101,8 @@ dub:
   styles: {}                    # Kisi awaaz ko badalna ho, misal:
   #   narrator: {pitch: "-14Hz", rate: "-8%"}   # aur bhaari
   #   old_man:  {pitch: "-18Hz", rate: "-15%"}
+  #   narrator: {voice: ur-IN-SalmanNeural}      # doosri muft Urdu mard awaaz aazmani ho
+  #   narrator: {fx: none}                       # studio asar band
   # Andaaz: narrator, man, young_man, old_man, woman, girl, boy
 
 thumbnail:

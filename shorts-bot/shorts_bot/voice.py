@@ -18,7 +18,7 @@ from .util import BotError, run, say
 # Video mein jaisa banda bol raha hai (buddha, jawan, aurat...) waisi awaaz; kahani /
 # documentary ke liye "narrator" = bhaari, thehri hui mard ki awaaz.
 STYLES = {
-    "narrator": ("male", "+0%", "-8Hz", 0.86),
+    "narrator": ("male", "-4%", "-10Hz", 0.84),
     "man": ("male", "+2%", "-3Hz", 0.88),
     "young_man": ("male", "+6%", "+4Hz", 0.92),
     "old_man": ("male", "-6%", "-14Hz", 0.84),
@@ -27,6 +27,17 @@ STYLES = {
     "boy": ("child", "+8%", "+45Hz", 1.25),
 }
 GENDER_STYLE = {"male": "narrator", "female": "woman", "child": "boy"}
+
+# Studio jaisa asar (TV/story channels ki awaaz aise hi process hoti hai):
+# documentary = bhaari bass + saaf alfaaz + dabi hui (compressed) awaaz + halki goonj
+FX = {
+    "documentary": ("highpass=f=70,bass=g=5:f=120:w=0.8,equalizer=f=2800:t=q:w=1.2:g=2.5,"
+                    "acompressor=threshold=0.1:ratio=3:attack=10:release=120:makeup=2,"
+                    "aecho=0.85:0.5:35|70:0.10|0.06,"),
+    "warm": "bass=g=3:f=130:w=0.8,acompressor=threshold=0.1:ratio=2.5:attack=10:release=120,",
+    "none": "",
+}
+STYLE_FX = {"narrator": "documentary", "man": "warm", "old_man": "warm", "young_man": "warm"}
 
 
 def styled(cfg: dict, style: str) -> dict:
@@ -37,7 +48,10 @@ def styled(cfg: dict, style: str) -> dict:
     v = dict(cfg["voice"], gender=custom.get("gender", gender), rate=custom.get("rate", rate),
              pitch=custom.get("pitch", pitch), google_shift=float(custom.get("google_shift", shift)),
              child_rate=custom.get("rate", cfg["voice"].get("child_rate", "+8%")),
-             child_pitch=custom.get("pitch", cfg["voice"].get("child_pitch", "+45Hz")))
+             child_pitch=custom.get("pitch", cfg["voice"].get("child_pitch", "+45Hz")),
+             fx=custom.get("fx", STYLE_FX.get(style, "none") if cfg["voice"].get("studio_fx", True) else "none"))
+    if custom.get("voice"):  # Misal: narrator: {voice: ur-IN-SalmanNeural}
+        v["edge_voice"] = custom["voice"]
     return dict(cfg, voice=v)
 
 
@@ -240,6 +254,7 @@ def speak(text: str, out: Path, cfg: dict) -> Path:
     run(["ffmpeg", "-y", "-v", "error", "-i", mp3, "-af",
          extra + "silenceremove=start_periods=1:start_threshold=-45dB,areverse,"
          "silenceremove=start_periods=1:start_threshold=-45dB,areverse,"
+         + FX.get(cfg["voice"].get("fx") or "none", "") +
          "loudnorm=I=-14:TP=-1.5:LRA=11",
          "-ar", "48000", "-ac", "2", wav])
     return wav
