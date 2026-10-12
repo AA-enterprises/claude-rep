@@ -1,0 +1,143 @@
+# 🎬 Shorts Bot
+
+Ye bot ek lambi podcast video ko kai viral **YouTube Shorts** mein badal deta hai. Har Short mein:
+
+1. **Hook:** shuru mein AI awaaz 2-4 second mein curiosity paida karti hai. Awaaz **larki, larke ya bachche** ki ho sakti hai, har zubaan mein (default: larki).
+2. **Asal clip:** podcast ka sab se viral hissa 9:16 vertical mein, aap ki zubaan ke **captions** ke saath (neeche chhoti peeli line mein asal English bhi).
+3. **Outro:** AI awaaz apni raye/sabaq deti hai aur aakhir mein viewers se sawal poochti hai (comments ke liye).
+4. Halka **background music** (agar aap `music` folder mein daalein).
+5. Saath mein ek **.txt file** jis mein title, description (credit ke saath) aur hashtags tayyar hote hain.
+
+**Zubaanein:** urdu, english, hindi, arabic, french, german, spanish, turkish, portuguese, italian, indonesian, bengali, russian, japanese, korean, chinese. Podcast kisi bhi zubaan mein ho sakta hai: English se Urdu, Urdu se English, English se French, sab chalta hai.
+
+---
+
+## ⚙️ Pehli dafa setup (sirf ek baar, ~20 minute)
+
+### Step 1: Python install karein
+- https://www.python.org/downloads/ se Python 3.11 ya naya download karein.
+- Install karte waqt **"Add Python to PATH"** ka box ✅ zaroor tick karein.
+
+### Step 2: FFmpeg install karein (video editing ka engine)
+**Windows:** Start menu mein "PowerShell" kholein aur ye likhein:
+```
+winget install Gyan.FFmpeg
+```
+**Mac:** `brew install ffmpeg`
+
+Install ke baad PowerShell **band karke dobara kholein**.
+
+### Step 3: Bot download karein aur packages install karein
+1. GitHub par is repo ka **Code → Download ZIP** karein aur unzip karein.
+2. `shorts-bot` folder kholein. Upar address bar mein `powershell` likh kar Enter dabayein (wahin terminal khul jayega).
+3. Ye command chalayein:
+```
+pip install -r requirements.txt
+```
+
+### Step 4: AI ki key (script likhne wala AI)
+1. https://console.anthropic.com par account banayein.
+2. **Billing** mein $5-10 credit daalein (ek podcast ka kharcha taqreeban $0.30-0.60).
+3. **API Keys → Create Key**, aur key copy karein.
+4. `shorts-bot` folder mein `env.example` file ko Notepad se kholein, key paste karein, phir **"Save As"** karke naam `.env` rakhein.
+
+### Step 5: Check karein
+```
+python bot.py --check
+```
+Sab ✅ hon to bot tayyar hai.
+
+---
+
+## ▶️ Roz ka istemal
+
+**Sab se aasaan tareeqa:** `start.bat` par double-click karein (Mac: `start.sh`), link paste karein aur Enter dabayein.
+
+**Ya terminal se:**
+```
+python bot.py "https://www.youtube.com/watch?v=XXXXXXXXXXX"
+```
+
+**Kai videos ek saath:** `links.txt` mein har line par ek link likhein, phir:
+```
+python bot.py links.txt
+```
+
+**Ek dafa ke liye kuch badalna ho:**
+```
+python bot.py LINK --clips 5              (5 Shorts banao)
+python bot.py LINK --lang french          (French mein)
+python bot.py LINK --voice male           (larke ki awaaz)
+python bot.py LINK --voice child          (bachche ki awaaz)
+python bot.py LINK --layout face          (chehre par zoom)
+python bot.py LINK --focus "paisa aur business"
+python bot.py --test-voice "Assalam o Alaikum, aaj ki baat suniye"
+```
+
+Tayyar Shorts **`output`** folder mein milenge: har `.mp4` ke saath us ki `.txt` upload sheet hogi.
+
+> Ek hi video dobara chalayein to bot **naye moments** chunega. Pehle wale clips `output/history.json` mein yaad rehte hain.
+
+---
+
+## 🛠️ Settings badalna (`config.yaml`)
+
+`config.yaml` ko Notepad se kholein. Har setting ke saath Urdu mein samjhaya gaya hai. Aam settings:
+
+| Kya badalna hai | Setting |
+|---|---|
+| Channel ka naam | `channel.name` |
+| Zubaan | `language.target: urdu` → `english`, `french`, `german` ... |
+| Title kis tarah likha jaye | `language.title_style: roman` / `target` / `english` |
+| Larki / larka / bachche ki awaaz | `voice.gender: female` / `male` / `child` |
+| Bachche ki awaaz kitni patli ho | `voice.child_pitch: "+45Hz"` |
+| Awaaz ki raftar | `voice.rate: "+5%"` |
+| Har video se kitne Shorts | `clips.per_video: 3` |
+| Clip ki lambai | `clips.min_seconds` / `clips.max_seconds` |
+| Video ka andaaz | `video.layout: blur` (2-3 log) / `face` (1 banda) |
+| Captions ka size/rang | `captions.*` |
+| Music ki awaaz | `music.volume` |
+
+### Behtar awaaz (ElevenLabs, paid)
+1. https://elevenlabs.io par account banayein. Voice Library se larki, larke aur bachche ki pasand ki awaazon ke **Voice ID** copy karein.
+2. `.env` mein `ELEVENLABS_API_KEY=...` likhein.
+3. `config.yaml` mein `voice.engine: elevenlabs` likhein, aur `voice.elevenlabs_voices` ke neeche `female`, `male`, `child` ke saamne IDs paste karein.
+
+> **Bachche ki awaaz ke baare mein:** muft (Edge) engine mein asli bachche ki awaaz sirf English mein hai. Baaqi zubaanon mein bot larki ki awaaz ko patla aur thora tez karke bachche jaisi awaaz banata hai. Bilkul asli bachche ki awaaz chahiye to ElevenLabs mein child voice ka ID daal dein.
+
+---
+
+## ✅ Strike se bachao aur monetization: zaroori qawaid
+
+- Bot sirf **ijazat wali** videos ke liye hai. Creative Commons video ho to bot khud pehchan leta hai. Warna aap se poochta hai ke ijazat hai ya nahi. Ijazat ke saboot (Whop campaign, email, DM ka screenshot) sambhal kar rakhein.
+- `music` folder mein **sirf copyright-free** music daalein (YouTube Studio → Audio Library).
+- Upload se pehle **har Short khud dekhein**. AI kabhi kabhi translation mein galti kar sakta hai.
+- Roz **2-3 Shorts** kaafi hain. Bahut zyada ek jaisi videos "mass-produced" lag sakti hain.
+- Kabhi kabhi apni **asli awaaz** mein bhi hook/outro record karein. Is se channel zyada original lagta hai.
+
+---
+
+## ❓ Masle aur hal
+
+| Masla | Hal |
+|---|---|
+| `ffmpeg nahi mila` | Step 2 dobara karein, phir terminal band karke kholein |
+| `ANTHROPIC_API_KEY ... set nahi` | `.env` file ka naam check karein (`.env.txt` nahi hona chahiye) |
+| `credit khatam` | console.anthropic.com → Billing |
+| Video download nahi hoti | `pip install -U yt-dlp` chalayein (YouTube aksar badalta rehta hai) |
+| Captions mein dabbe (□□□) dikhte hain | `fonts` folder delete karein, bot dobara download karega |
+| Bahut dheema hai | Video ke YouTube subtitles na hon to Whisper chalta hai. `transcript.whisper_model: base` kar dein |
+
+---
+
+## 🧩 Bot ke hisse (badalne ke liye)
+
+| File | Kaam |
+|---|---|
+| `bot.py` | Shuru se aakhir tak sab chalata hai |
+| `shorts_bot/download.py` | Video, title, channel, license, YouTube subtitles |
+| `shorts_bot/transcribe.py` | Baat-cheet ko text mein badalna (YouTube subtitles ya Whisper) |
+| `shorts_bot/planner.py` | AI se viral moments chunwana, translation, hook/outro script, title |
+| `shorts_bot/voice.py` | AI awaaz (Edge muft / ElevenLabs) |
+| `shorts_bot/render.py` | Video editing: 9:16, captions, hook/outro, music |
+| `shorts_bot/languages.py` | Zubaanein, awaazein, fonts. Nayi zubaan yahan add hoti hai |

@@ -1,0 +1,6 @@
+work/
+output/
+fonts/
+music/*
+!music/README.txt
+.env
