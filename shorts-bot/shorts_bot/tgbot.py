@@ -38,6 +38,7 @@ HELP = """🤖 Shorts Bot commands
 /awaaz ASAD  → save ki hui awaaz lagao (aur namoona sunao)
 Video par REPLY karke "awaaz ASAD"  → wahi video ASAD ki awaaz mein dobara
 /gemini  → insaan jaisi awaaz (Gemini) lagane ka tareeqa
+/check  → awaaz ya bot mein masla ho to jaanch (Microsoft, Gemini, computer ka time)
 /update  → bot ka naya version abhi lao (waise bhi khud har 30 minute check karta hai)
 
 ✏️ Short badalna (Short ke kisi message par REPLY karein; reply na karein to aakhri Short badlega):
@@ -426,6 +427,8 @@ class TelegramBot:
             self.voice_test(rest, to)
         elif cmd == "/update":
             self.update_now(to)
+        elif cmd in ("/check", "/jaanch"):
+            self.diagnose(to)
         elif cmd == "/gemini":
             self.set_gemini(rest, msg)
         elif cmd == "/sources":
@@ -501,6 +504,42 @@ class TelegramBot:
                         self.update_now(auto=True)
             except Exception as e:  # Update ki ghalti se bot band na ho
                 say(f"⚠️  Khud update check nahi hua: {str(e)[:150]}")
+
+    def diagnose(self, to: int = None):
+        """/check: awaaz kyun nahi chal rahi? Sab cheezein jaanch kar seedha batao."""
+        from email.utils import parsedate_to_datetime
+        from importlib import metadata
+        from . import voice
+        import requests
+        self.reply("🔍 Jaanch raha hoon...", to)
+        lines = []
+        try:
+            lines.append(f"📦 edge-tts version: {metadata.version('edge-tts')}")
+        except Exception:
+            lines.append("📦 edge-tts install nahi")
+        try:  # Computer ki ghari: ghalat ho to Microsoft 403 deta hai
+            r = requests.head("https://www.google.com", timeout=15)
+            diff = time.time() - parsedate_to_datetime(r.headers["Date"]).timestamp()
+            ok = abs(diff) < 60
+            lines.append(f"{'✅' if ok else '❌'} Computer ka time: {'theek' if ok else f'{int(diff)} second ghalat'}"
+                         + ("" if ok else "  → Settings > Time > 'Sync now' dabayein"))
+        except Exception:
+            lines.append("⚠️ Computer ka time check nahi hua")
+        test = self.cfg["paths"]["output"] / "check-ms.mp3"
+        try:
+            voice._edge("سلام", test, voice.styled(self.cfg, "narrator"))
+            lines.append("✅ Microsoft awaaz: chal rahi hai")
+        except BotError as e:
+            lines.append("❌ Microsoft awaaz: " + str(e).splitlines()[-1][:150])
+        if voice.gemini_ready():
+            err = voice.LAST_GEMINI_ERROR
+            lines.append("🎙️ Gemini key: lagi hui" + (f"\n   Aakhri ghalti: {err}" if err else "  ✅"))
+            if "429" in err:
+                lines.append("   Muft had roz Pakistan time dopehar ~12-1 baje wapas aati hai. Zyada videos ke liye "
+                             "aistudio.google.com par billing (card) lagayein: ~3 rupay fi video.")
+        else:
+            lines.append("💡 Gemini key nahi lagi (insaan jaisi awaaz): /gemini")
+        self.reply("🔍 Jaanch ka nateeja:\n" + "\n".join(lines), to)
 
     def set_gemini(self, key: str, msg: dict):
         """/gemini KEY: insaan jaisi awaaz (Gemini) ki key .env mein rakho. File kholni nahi parti."""

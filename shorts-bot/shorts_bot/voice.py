@@ -57,6 +57,7 @@ def styled(cfg: dict, style: str) -> dict:
              fx=custom.get("fx", STYLE_FX.get(style, "none") if cfg["voice"].get("studio_fx", True) else "none"),
              speed=float(custom.get("speed", STYLE_SPEED.get(style, 1.0))))
     v["style"] = style
+    v["cache_dir"] = str(Path(cfg["paths"]["work"]) / "voice-cache") if cfg.get("paths") else ""
     if custom.get("voice"):  # Misal: narrator: {voice: ur-IN-SalmanNeural}
         v["edge_voice"] = custom["voice"]
     if custom.get("gemini_voice"):  # Misal: narrator: {gemini_voice: Algenib}
@@ -90,18 +91,55 @@ def _rate_pitch(cfg: dict, voice: str) -> tuple:
     return v["rate"], v["pitch"]
 
 
-def _edge(text: str, out: Path, cfg: dict):
-    import edge_tts
+_edge_use_cli = False   # edge-tts naya install hua: alag process mein chalao (naya code)
+_edge_healed = False
 
-    async def go():
-        voice = pick_voice(cfg)
-        rate, pitch = _rate_pitch(cfg, voice)
-        com = edge_tts.Communicate(text, voice, rate=rate, pitch=pitch)
-        await com.save(str(out))
+
+def _edge_heal() -> bool:
+    """403 = Microsoft ne purana edge-tts rok diya. Ek dafa naya edge-tts install karo."""
+    global _edge_healed, _edge_use_cli
+    if _edge_healed:
+        return False
+    _edge_healed = True
+    say("  🔧 Microsoft awaaz 403: edge-tts naya install kar raha hoon...")
+    import sys
+    r = subprocess.run([sys.executable, "-m", "pip", "install", "-q", "-U", "edge-tts"],
+                       capture_output=True, text=True, timeout=300)
+    _edge_use_cli = r.returncode == 0
+    return _edge_use_cli
+
+
+def _edge_cli(text: str, out: Path, voice: str, rate: str, pitch: str):
+    import sys
+    r = subprocess.run([sys.executable, "-m", "edge_tts", "--text", text, "--voice", voice,
+                        f"--rate={rate}", f"--pitch={pitch}", "--write-media", str(out)],
+                       capture_output=True, text=True, timeout=180)
+    if r.returncode != 0 or not out.exists() or out.stat().st_size == 0:
+        raise RuntimeError((r.stderr or r.stdout or "edge-tts fail").strip().splitlines()[-1][:300])
+
+
+def _edge(text: str, out: Path, cfg: dict):
+    voice = pick_voice(cfg)
+    rate, pitch = _rate_pitch(cfg, voice)
+
+    def once():
+        if _edge_use_cli:
+            return _edge_cli(text, out, voice, rate, pitch)
+        import edge_tts
+
+        async def go():
+            com = edge_tts.Communicate(text, voice, rate=rate, pitch=pitch)
+            await com.save(str(out))
+        asyncio.run(go())
 
     try:
-        asyncio.run(go())
+        once()
     except Exception as e:
+        if "403" in str(e) and _edge_heal():
+            try:
+                return once()
+            except Exception as e2:
+                e = e2
         raise BotError(f"Awaaz nahi bani (edge-tts). Internet check karein.\n{e}") from e
 
 
@@ -162,6 +200,13 @@ def _gemini(text: str, out: Path, cfg: dict):
     body = {"contents": [{"parts": [{"text": prompt}]}],
             "generationConfig": {"responseModalities": ["AUDIO"],
                                  "speechConfig": {"voiceConfig": {"prebuiltVoiceConfig": {"voiceName": name}}}}}
+    cache = None
+    if v.get("cache_dir"):  # Wahi text + wahi awaaz dobara = muft had kharch na ho
+        import hashlib
+        cache = Path(v["cache_dir"]) / (hashlib.sha1(f"{name}|{prompt}".encode("utf-8")).hexdigest()[:20] + ".wav")
+        if cache.exists() and cache.stat().st_size > 1000:
+            out.write_bytes(cache.read_bytes())
+            return
     models = [v["gemini_model"]] if v.get("gemini_model") else (
         [_gemini_model] if _gemini_model else GEMINI_MODELS)
     last = ""
@@ -196,6 +241,9 @@ def _gemini(text: str, out: Path, cfg: dict):
             w.setframerate(rate)
             w.writeframes(pcm)
         _gemini_model = model
+        if cache:
+            cache.parent.mkdir(parents=True, exist_ok=True)
+            cache.write_bytes(out.read_bytes())
         return
     raise BotError(f"Gemini awaaz ka koi model nahi chala ({last}).")
 
