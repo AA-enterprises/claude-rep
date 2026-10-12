@@ -1,6 +1,7 @@
 """Video editing: 9:16 banana, captions, hook/outro, music, aakhri Short."""
 
 import random
+import re
 import shutil
 from pathlib import Path
 
@@ -121,6 +122,8 @@ class Captions:
         tgt = languages.get(cfg["language"]["target"])
         src = languages.get(src_lang_code)
         self.tfont = ensure_font(fonts, tgt["font"])
+        self.nfont = ensure_font(fonts, languages.narration(cfg)["font"])
+        self.thfont = ensure_font(fonts, languages.thumbnail(cfg)["font"])
         self.ofont = ensure_font(fonts, src["font"])
         self.lfont = ensure_font(fonts, "latin")
         self.cfg = cfg
@@ -129,9 +132,11 @@ class Captions:
             # name, font, size, primary, outline colour, back, bold, borderstyle, outline, shadow, align, marginv
             ("Trans", self.tfont, cap["translation_size"], "&H00FFFFFF", "&H00000000", "&H96000000", -1, 1, 5, 2, 8, 0),
             ("Orig", self.ofont, cap["original_size"], hi, "&H00000000", "&H96000000", -1, 1, 3, 1, 8, 0),
-            ("Hook", self.tfont, cap["hook_size"], "&H00FFFFFF", "&H40000000", "&H00000000", -1, 3, 22, 0, 5, 0),
-            ("HookHi", self.tfont, cap["hook_size"], hi, "&H40000000", "&H00000000", -1, 3, 22, 0, 5, 0),
-            ("Thumb", self.tfont, 128, hi, "&H00000000", "&HA0000000", -1, 1, 9, 4, 8, 0),
+            # Jis line ka tarjuma zaroori nahi: sirf asal (English) line, bari aur safed
+            ("OrigBig", self.ofont, int(cap["translation_size"] * 0.82), "&H00FFFFFF", "&H00000000", "&H96000000", -1, 1, 5, 2, 8, 0),
+            ("Hook", self.nfont, cap["hook_size"], "&H00FFFFFF", "&H40000000", "&H00000000", -1, 3, 22, 0, 5, 0),
+            ("HookHi", self.nfont, cap["hook_size"], hi, "&H40000000", "&H00000000", -1, 3, 22, 0, 5, 0),
+            ("Thumb", self.thfont, 128, hi, "&H00000000", "&HA0000000", -1, 1, 9, 4, 8, 0),
             ("Brand", self.lfont, 42, "&H40FFFFFF", "&H80000000", "&H00000000", -1, 1, 2, 0, 8, 110),
         ]
 
@@ -169,19 +174,29 @@ class Captions:
             a = ln["start"] - offset
             b = (lines[i + 1]["start"] - offset) if i + 1 < len(lines) else min(ln["end"] - offset + 0.6, dur)
             b = max(b, a + 0.4)
+            translated = (ln.get("translated") or "").strip()
+            needs_tr = cap["show_translation"] and translated and translated != ln["original"]
             parts = []
-            if cap["show_translation"]:
-                parts.append(_ass_text(ln["translated"]))
-            if cap["show_original"] and ln["original"] != ln["translated"]:
+            if needs_tr:
+                parts.append(_ass_text(translated))
+            if cap["show_original"] or not needs_tr:
                 prefix = r"\N{\rOrig}" if parts else ""
                 parts.append(prefix + _ass_text(ln["original"]))
             if parts:
-                style = "Trans" if cap["show_translation"] else "Orig"
+                style = "Trans" if needs_tr else ("OrigBig" if cap["show_original"] or not cap["show_translation"] else "Orig")
                 ev.append((1, a, b, style, top_y, pop + "".join(parts)))
         return ev + self.brand(dur)
 
     def thumb_events(self, text):
-        return [(1, 0, 5, "Thumb", 230, _ass_text(text).upper())] + self.brand(5)
+        lines = []
+        for x in (text or "").splitlines():
+            if not x.strip():
+                continue
+            x = _ass_text(x).upper()
+            if re.fullmatch(r"PART \d+", x):  # "PART 1" English font mein (Urdu font ke number chhote)
+                x = "{\\fn" + self.lfont + "}" + x
+            lines.append(x)
+        return [(1, 0, 5, "Thumb", 230, r"\N".join(lines))] + self.brand(5)
 
     def card_events(self, text, dur, highlight=False):
         style = "HookHi" if highlight else "Hook"

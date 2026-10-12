@@ -5,6 +5,7 @@ Istemal:
     python bot.py "https://www.youtube.com/watch?v=XXXX"
     python bot.py links.txt                 (har line par ek link)
     python bot.py video.mp4                 (computer par pari video)
+    python bot.py LINK --series 3           (ek scene: Part 1, 2, 3 - har ek ~50 second)
     python bot.py LINK --clips 5 --lang french --voice male   (female / male / child)
     python bot.py --check                   (sab kuch theek install hai?)
     python bot.py --test-voice "Assalam o Alaikum"
@@ -139,7 +140,9 @@ def process(source: str, cfg: dict, args, on_short=None, permission: str = None)
     used = history["videos"].get(src["id"], [])
     # Pichhli dafa AI ne plan bana diya tha lekin baad mein kuch fail hua: wahi plan
     # dobara use karo (AI ke paise dobara nahi lagte). Mukammal hone par mit jata hai.
-    key = f"{cfg['language']['target']}-{cfg['voice']['gender']}-{cfg['clips']['per_video']}-{cfg['clips']['focus']}"
+    c = cfg["clips"]
+    shape = f"series{c['parts']}x{c['part_seconds']}" if c["mode"] == "series" else f"single{c['per_video']}"
+    key = f"{cfg['language']['target']}-{cfg['voice']['gender']}-{shape}-{c['focus']}"
     plan_path = src["dir"] / f"plan-{slug(key, 60)}.json"
     plan = read_json(plan_path)
     if plan and plan.get("clips"):
@@ -295,7 +298,10 @@ def check(cfg: dict):
         say("ℹ️  Telegram nahi jura (zaroori nahi). README ka Telegram wala hissa dekhein.")
     say(f"ℹ️  Shorts yahan save honge: {cfg['paths']['output']}")
     lang = languages.get(cfg["language"]["target"])
-    say(f"ℹ️  Zubaan: {lang['key']}  |  Awaaz: {cfg['voice']['gender']}  |  Layout: {cfg['video']['layout']}")
+    narr = languages.narration(cfg)
+    say(f"ℹ️  Subtitles: {lang['key']} + asal  |  Awaaz/title: {narr['key']}  |  "
+        f"Thumbnail: {languages.thumbnail(cfg)['key']}  |  "
+        f"Awaaz: {cfg['voice']['gender']}  |  Style: {cfg['clips']['mode']}")
     say("\nSab theek hai! ✅" if ok else "\nUpar ❌ wali cheezein theek karein.")
 
 
@@ -345,8 +351,11 @@ def main():
     load_env_file()
     p = argparse.ArgumentParser(description="Podcast se Shorts banane wala bot")
     p.add_argument("sources", nargs="*", help="YouTube link, video file, ya links.txt")
-    p.add_argument("--clips", type=int, help="Har video se kitne Shorts")
-    p.add_argument("--lang", help="Target zubaan: urdu, english, french, german, hindi, arabic ...")
+    p.add_argument("--clips", type=int, help="Har video se kitne Shorts (alag alag moments)")
+    p.add_argument("--series", type=int, metavar="N", help="Ek scene ke N parts (Part 1, 2, 3...)")
+    p.add_argument("--seconds", type=int, help="Series mein har part kitne second ka (jaise 50)")
+    p.add_argument("--lang", help="Subtitles ki zubaan: urdu, english, french, german, hindi, arabic ...")
+    p.add_argument("--narration", help="Awaaz/title/thumbnail ki zubaan (english, urdu, same ...)")
     p.add_argument("--voice", choices=["female", "male", "child"], help="Awaaz: larki, larka ya bachcha")
     p.add_argument("--layout", choices=["blur", "face"], help="Video ka andaaz")
     p.add_argument("--focus", help='Topic, jaise "paisa aur business"')
@@ -380,8 +389,16 @@ def main():
         cfg = config_mod.load(Path(args.config))
         if args.clips:
             cfg["clips"]["per_video"] = args.clips
+            cfg["clips"]["mode"] = "single"
+        if args.series:
+            cfg["clips"]["parts"] = args.series
+            cfg["clips"]["mode"] = "series"
+        if args.seconds:
+            cfg["clips"]["part_seconds"] = args.seconds
         if args.lang:
             cfg["language"]["target"] = args.lang
+        if args.narration:
+            cfg["language"]["narration"] = args.narration
         if args.voice:
             cfg["voice"]["gender"] = args.voice
             cfg["voice"]["edge_voice"] = ""

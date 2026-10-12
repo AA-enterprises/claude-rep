@@ -12,14 +12,18 @@ language:
   # Shorts kis zubaan mein banein (voice + captions + title):
   # urdu, english, hindi, arabic, french, german, spanish, turkish,
   # portuguese, italian, indonesian, bengali, russian, japanese, korean, chinese
-  target: urdu
+  target: urdu                  # Subtitles (captions) ki zubaan
+  # Awaaz (hook/outro), screen ka text, title, description aur thumbnail kis zubaan mein:
+  #   english = English (captions phir bhi upar wali zubaan + asal English mein)
+  #   same    = wahi jo target (sab kuch Urdu)
+  narration: english
   # Podcast kis zubaan mein hai? "auto" = bot khud pehchan lega
   source: auto
   # Title/description kis tarah likhe jayein:
   #   target  = target zubaan ke apne script mein (jaise اردو)
   #   roman   = Roman mein (jaise "Ye baat sun kar hairan reh jaoge")
   #   english = English mein
-  title_style: roman
+  title_style: english
 
 voice:
   engine: edge                  # edge = muft (Microsoft) | google = muft backup | elevenlabs = paid, zyada asli
@@ -42,7 +46,12 @@ ai:
   effort: high                  # low | medium | high  (high = behtar, thora mehnga)
 
 clips:
-  per_video: 3                  # Ek podcast se kitne Shorts banein
+  # series = ek poora scene Part 1, Part 2, Part 3 mein (har part ~50 second, suspense ke saath)
+  # single = video ke alag alag behtareen moments, har ek alag Short
+  mode: series
+  parts: 3                      # series mein kitne parts
+  part_seconds: 50              # har part kitne second ka (asal clip; hook/outro alag)
+  per_video: 3                  # (single mode) ek video se kitne Shorts banein
   min_seconds: 20               # Asal clip kam se kam kitne second ka ho
   max_seconds: 50               # Asal clip zyada se zyada kitne second ka ho
   hook: true                    # Shuru mein AI voice ka hook (2-4 second)
@@ -60,6 +69,7 @@ video:
 captions:
   show_translation: true        # Target zubaan ke captions
   show_original: true           # Asal (English) baat chhoti peeli line mein
+  smart_translation: true       # AI har line par dekhe: aasaan English line par sirf English, baaqi par Urdu bhi
   translation_size: 84
   original_size: 50
   hook_size: 96
@@ -81,6 +91,7 @@ transcript:
 
 thumbnail:
   make: true                    # Har Short ke saath thumbnail (.jpg) bhi banao
+  language: urdu                # Thumbnail ka text: urdu | english | same (= awaaz wali zubaan)
 
 telegram:
   send: true                    # true = har tayyar Short Telegram par bhejo (agar jura ho)

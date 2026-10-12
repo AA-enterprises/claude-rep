@@ -6,22 +6,23 @@ from .util import BotError
 
 DEFAULTS = {
     "channel": {"name": "My Channel", "show_name_on_video": True},
-    "language": {"target": "urdu", "source": "auto", "title_style": "roman"},
+    "language": {"target": "urdu", "narration": "english", "source": "auto", "title_style": "english"},
     "voice": {"engine": "edge", "fallback_google": True, "gender": "female", "edge_voice": "", "rate": "+5%",
               "pitch": "+0Hz", "child_rate": "+8%", "child_pitch": "+45Hz",
               "elevenlabs_voices": {"female": "", "male": "", "child": ""},
               "elevenlabs_voice_id": "", "elevenlabs_model": "eleven_v3"},
     "ai": {"model": "claude-opus-5-5", "effort": "high"},
-    "clips": {"per_video": 3, "min_seconds": 20, "max_seconds": 50, "hook": True,
-              "outro": True, "focus": ""},
+    "clips": {"mode": "series", "parts": 3, "part_seconds": 50, "per_video": 3,
+              "min_seconds": 20, "max_seconds": 50, "hook": True, "outro": True, "focus": ""},
     "video": {"layout": "blur", "download": "parts", "max_download_height": 1080, "fps": 30, "quality": 20},
     "captions": {"show_translation": True, "show_original": True, "translation_size": 84,
-                 "original_size": 50, "hook_size": 96, "highlight_color": "#FFD60A"},
+                 "original_size": 50, "hook_size": 96, "highlight_color": "#FFD60A",
+                 "smart_translation": True},
     "music": {"enabled": True, "folder": "music", "volume": 0.10},
     "transcript": {"prefer_youtube_captions": True, "engine": "auto", "whisper_model": "small"},
     "safety": {"ask_permission": True},
     "telegram": {"send": True},
-    "thumbnail": {"make": True},
+    "thumbnail": {"make": True, "language": "urdu"},
     "paths": {"output": "output", "work": "work"},
 }
 

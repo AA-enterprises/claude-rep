@@ -18,8 +18,8 @@ from .util import BotError, read_json, say, write_json
 HELP = """🤖 Shorts Bot commands
 
 📥 Short mangwana:
-/nasa  → NASA ki nayi video se Short
-/nasa 3  → 3 Shorts
+/nasa  → NASA ki nayi video se series (Part 1, 2, 3)
+/nasa 4  → 4 parts ki series
 /jpl  /goddard  /whitehouse  → doosre mehfooz channels
 /cc business podcast  → Creative Commons videos mein se (topic likhein)
 /link https://youtube.com/...  → apna link (sirf Creative Commons)
@@ -104,13 +104,16 @@ class TelegramBot:
     def _args(self, strict: bool):
         return SimpleNamespace(yes=False, strict=strict)
 
-    def _cfg(self, clips: int):
+    def _cfg(self, count: int = None):
+        """count = series ke parts (series mode) ya alag Shorts (single mode)."""
         cfg = copy.deepcopy(self.cfg)
-        cfg["clips"]["per_video"] = clips
+        if count:
+            key = "parts" if cfg["clips"]["mode"] == "series" else "per_video"
+            cfg["clips"][key] = count
         return cfg
 
     # ----------------------------------------------------------- commands
-    def make_from_source(self, key: str = None, topic: str = None, count: int = 1, to: int = None):
+    def make_from_source(self, key: str = None, topic: str = None, count: int = None, to: int = None):
         what = f"'{topic}' (Creative Commons)" if topic else key
         self.reply(f"⏳ {what}: nayi video dhoond raha hoon...", to)
         vids, kind, note = sources.candidates(self.cfg, key=key, topic=topic)
@@ -135,7 +138,7 @@ class TelegramBot:
         self.reply("⏳ Short ban raha hai (5-15 minute)...", to)
         permission = "User ne Telegram par ijazat confirm ki" if allowed else None
         try:
-            out = self.process(url, self._cfg(self.cfg["clips"]["per_video"]),
+            out = self.process(url, self._cfg(),
                                self._args(strict=not allowed),
                                on_short=self.on_short, permission=permission)
             if not out:
@@ -213,8 +216,8 @@ class TelegramBot:
                 field = {"/title": "title", "/desc": "description", "/thumb": "thumbnail_text"}[cmd]
                 self.edit(msg, field=field, value=rest)
         elif cmd.startswith("/") and cmd[1:] in srcs and (not rest or rest.isdigit()):
-            count = int(rest) if rest.isdigit() else 1
-            self.make_from_source(key=cmd[1:], count=max(1, min(count, 5)), to=to)
+            count = max(1, min(int(rest), 5)) if rest.isdigit() else None
+            self.make_from_source(key=cmd[1:], count=count, to=to)
         else:  # Aam baat (/ ke saath ya baghair): AI samjhe ke kya chahiye
             self.understand(msg, text.lstrip("/").strip(), srcs)
 
@@ -229,7 +232,8 @@ class TelegramBot:
         if act != "edit" and r.get("reply"):
             self.reply("🤖 " + r["reply"], to)
         if act == "source" and r.get("source") in srcs:
-            self.make_from_source(key=r["source"], count=max(1, min(int(r.get("count") or 1), 5)), to=to)
+            n = int(r.get("count") or 0)
+            self.make_from_source(key=r["source"], count=max(1, min(n, 5)) if n else None, to=to)
         elif act == "cc" and r.get("topic"):
             self.make_from_source(topic=r["topic"], to=to)
         elif act == "link" and r.get("url", "").startswith("http"):

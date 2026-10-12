@@ -16,7 +16,7 @@ def pick_voice(cfg: dict) -> str:
     v = cfg["voice"]
     if v.get("edge_voice"):
         return v["edge_voice"]
-    lang = languages.get(cfg["language"]["target"])
+    lang = languages.narration(cfg)
     female, male = lang["voices"]
     gender = v.get("gender", "female")
     if gender == "child":
@@ -32,7 +32,7 @@ def pick_voice(cfg: dict) -> str:
 def _rate_pitch(cfg: dict, voice: str) -> tuple:
     """Bachche ki awaaz: asli child voice na ho to pitch ooncha aur raftar tez."""
     v = cfg["voice"]
-    lang = languages.get(cfg["language"]["target"])
+    lang = languages.narration(cfg)
     if v.get("gender") == "child" and not v.get("edge_voice") and voice != lang.get("child"):
         return v.get("child_rate", "+8%"), v.get("child_pitch", "+45Hz")
     return v["rate"], v["pitch"]
@@ -117,7 +117,7 @@ def _google(text: str, out: Path, cfg: dict):
     pitch badal kar banta hai (speak() mein)."""
     import requests
 
-    code = languages.get(cfg["language"]["target"])["code"]
+    code = languages.narration(cfg)["code"]
     code = {"zh": "zh-CN"}.get(code, code)
     audio = b""
     for part in _chunks(text):

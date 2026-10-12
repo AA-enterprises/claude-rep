@@ -2,6 +2,8 @@
 
 Ye bot ek lambi podcast video ko kai viral **YouTube Shorts** mein badal deta hai. Har Short mein:
 
+**Default style (series):** English video ka ek poora scene **Part 1, Part 2, Part 3** (har part ~50 second) mein. Har part mein English awaaz ka suspense wala intro, **Urdu + English subtitles** (AI dekhta hai kahan Urdu zaroori hai, aasaan lines par sirf English), aakhir mein cliffhanger "Watch Part 2", English title, aur **Urdu thumbnail** "PART 1" ke saath. Alag alag moments chahiye to `config.yaml` mein `clips.mode: single`.
+
 1. **Hook:** shuru mein AI awaaz 2-4 second mein curiosity paida karti hai. Awaaz **larki, larke ya bachche** ki ho sakti hai, har zubaan mein (default: larki).
 2. **Asal clip:** podcast ka sab se viral hissa 9:16 vertical mein, aap ki zubaan ke **captions** ke saath (neeche chhoti peeli line mein asal English bhi).
 3. **Outro:** AI awaaz apni raye/sabaq deti hai aur aakhir mein viewers se sawal poochti hai (comments ke liye).
@@ -91,7 +93,9 @@ python bot.py links.txt
 
 **Ek dafa ke liye kuch badalna ho:**
 ```
-python bot.py LINK --clips 5              (5 Shorts banao)
+python bot.py LINK --series 4             (ek scene ke 4 parts)
+python bot.py LINK --series 3 --seconds 45  (har part 45 second)
+python bot.py LINK --clips 5              (series nahi: 5 alag Shorts)
 python bot.py LINK --lang french          (French mein)
 python bot.py LINK --voice male           (larke ki awaaz)
 python bot.py LINK --voice child          (bachche ki awaaz)

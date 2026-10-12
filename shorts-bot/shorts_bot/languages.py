@@ -74,3 +74,16 @@ def get(name_or_code: str) -> dict:
         return {"key": k, **LANGUAGES[k]}
     # Na-maloom zubaan: AI phir bhi likh dega, font Noto Sans, voice config se.
     return {"key": key, "code": short, "name": key.title(), "font": "noto", "voices": ("", "")}
+
+
+def narration(cfg: dict) -> dict:
+    """Awaaz, screen ka text, title, thumbnail kis zubaan mein (language.narration).
+    "same" ya khaali = captions wali zubaan (language.target)."""
+    n = (cfg["language"].get("narration") or "same").strip().lower()
+    return get(cfg["language"]["target"] if n in ("same", "") else n)
+
+
+def thumbnail(cfg: dict) -> dict:
+    """Thumbnail ka text kis zubaan mein (thumbnail.language). "same" = narration wali."""
+    t = (cfg.get("thumbnail", {}).get("language") or "same").strip().lower()
+    return narration(cfg) if t in ("same", "") else get(t)
