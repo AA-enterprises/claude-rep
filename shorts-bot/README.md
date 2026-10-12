@@ -167,6 +167,7 @@ Computer par **`telegram.bat`** par double-click karein aur window khuli rehne d
 | `/link https://...` | Apna link (sirf Creative Commons) |
 | `/link https://... ijazat` | Ijazat wali video (zimmedari aap ki) |
 | `/sources` | Channels ki list |
+| `/status` | Abhi kya ban raha hai, line mein kya hai |
 | `/help` | Saari commands |
 
 **Short badalna:** Short ke kisi message par **reply** karein (reply na karein to aakhri Short badlega):

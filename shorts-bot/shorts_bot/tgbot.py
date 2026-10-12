@@ -4,8 +4,11 @@ title / description / thumbnail badalna.
 Sirf aap ki chat (TELEGRAM_CHAT_ID) ke messages mane jate hain."""
 
 import copy
+import inspect
 import os
+import queue
 import re
+import threading
 import time
 import traceback
 from datetime import datetime
@@ -26,6 +29,7 @@ HELP = """🤖 Shorts Bot commands
 /link https://youtube.com/...  → apna link (sirf Creative Commons)
 /link https://... ijazat  → ijazat wali video (aap zimmedar)
 /sources  → saare channels ki list
+/status  → abhi kya ban raha hai, line mein kya hai
 
 ✏️ Short badalna (Short ke kisi message par REPLY karein; reply na karein to aakhri Short badlega):
 /title naya title
@@ -45,11 +49,17 @@ class State:
     def __init__(self, path: Path):
         self.path = path
         self.data = read_json(path, {"offset": 0, "shorts": {}, "msg": {}, "last": None})
+        self.lock = threading.RLock()  # Short banane wala aur message sunne wala saath chalte hain
 
     def save(self):
-        write_json(self.path, self.data)
+        with self.lock:
+            write_json(self.path, self.data)
 
     def add_short(self, info: dict, msg_ids: list):
+        with self.lock:
+            self._add_short(info, msg_ids)
+
+    def _add_short(self, info: dict, msg_ids: list):
         key = Path(info["video"]).stem
         self.data["shorts"][key] = info
         for m in msg_ids:
@@ -85,6 +95,53 @@ class TelegramBot:
         self.process = process
         self.chat = str(os.environ.get("TELEGRAM_CHAT_ID", ""))
         self.state = State(cfg["paths"]["output"] / "telegram-state.json")
+        self.jobs = queue.Queue()   # Shorts ek ek karke bante hain (line)
+        self.current = None         # Abhi kya ban raha hai
+        threading.Thread(target=self._worker, daemon=True).start()
+
+    # ------------------------------------------------------------- line (queue)
+    def _worker(self):
+        while True:
+            desc, fn, to, kwargs = self.jobs.get()
+            self.current = desc
+            try:
+                self._safe(fn, to, **kwargs)
+            finally:
+                self.current = None
+                self.jobs.task_done()
+
+    def queue_job(self, desc: str, fn, to: int = None, **kwargs):
+        ahead = self.jobs.qsize() + (1 if self.current else 0)
+        self.jobs.put((desc, fn, to, kwargs))
+        if ahead:
+            self.reply(f"✅ Line mein laga diya: {desc}\nAap se pehle {ahead} kaam hai, bari aate hi shuru "
+                       "hoga. Is dauran title/thumbnail badalna aur /status chalta rahega.", to)
+
+    def _safe(self, fn, to, *args, **kwargs):
+        """Kaam chalao; ghalti ho to bot band na ho, Telegram par ek dafa batao."""
+        try:
+            if "to" in inspect.signature(fn).parameters:
+                fn(*args, to=to, **kwargs)
+            else:
+                fn(*args, **kwargs)
+        except BotError as e:
+            self.fail(str(e)[:600], to)
+        except Exception as e:
+            log = self.cfg["paths"]["work"] / "error-log.txt"
+            log.parent.mkdir(parents=True, exist_ok=True)
+            with open(log, "a", encoding="utf-8") as f:
+                f.write(f"\n===== {datetime.now():%Y-%m-%d %H:%M} telegram\n{traceback.format_exc()}")
+            self.reply(f"❌ Bot mein ghalti: {type(e).__name__}: {str(e)[:200]}\n"
+                       f"Tafseel computer par: {log}", to)
+
+    def status(self, to: int = None):
+        if not self.current and self.jobs.empty():
+            self.reply("😴 Abhi koi kaam nahi chal raha. Naya Short mangwayein!", to)
+            return
+        waiting = [d for d, *_ in list(self.jobs.queue)]
+        lines = [f"⚙️ Abhi ban raha hai: {self.current}"] if self.current else []
+        lines += [f"{i}. {d}" for i, d in enumerate(waiting, 1)]
+        self.reply("\n".join(lines) if not waiting else "\n".join(lines[:1] + ["⏳ Line mein:"] + lines[1:]), to)
 
     # ------------------------------------------------------------ helpers
     def reply(self, text: str, to: int = None) -> list:
@@ -190,7 +247,13 @@ class TelegramBot:
                     if "Creative Commons nahi" in str(e) else "")
             self.fail(f"{str(e)[:600]}{hint}", to)
 
-    def edit(self, msg: dict, field: str = None, value: str = None, request: str = None):
+    def edit(self, msg: dict, field: str = None, value: str = None, request: str = None,
+             quiet: bool = False):
+        with self.state.lock:
+            self._edit(msg, field, value, request, quiet)
+
+    def _edit(self, msg: dict, field: str = None, value: str = None, request: str = None,
+              quiet: bool = False):
         to = msg["message_id"]
         reply_to = (msg.get("reply_to_message") or {}).get("message_id")
         key, info = self.state.target(reply_to)
@@ -202,7 +265,8 @@ class TelegramBot:
             new[field] = value
             note = "✅ Badal diya."
         else:
-            self.reply("⏳ AI aap ki baat samajh kar badal raha hai...", to)
+            if not quiet:
+                self.reply("⏳ AI aap ki baat samajh kar badal raha hai...", to)
             res = planner.edit_metadata(self.cfg, new, request)
             note = "✅ " + res.pop("reply", "Badal diya.")
             new.update({k: (res.get(k) or new[k]).strip() for k in new})
@@ -235,6 +299,8 @@ class TelegramBot:
         srcs = sources.load(self.cfg["_base"])
         if cmd in ("/start", "/help"):
             self.reply(HELP, to)
+        elif cmd == "/status":
+            self.status(to)
         elif cmd == "/sources":
             lines = [f"/{k}  → {v.get('name', k)}" for k, v in srcs.items()]
             self.reply("📺 Mehfooz channels:\n" + "\n".join(lines)
@@ -243,14 +309,14 @@ class TelegramBot:
             if not rest:
                 self.reply("Topic bhi likhein, jaise: /cc business podcast", to)
             else:
-                self.make_from_source(topic=rest, to=to)
+                self.queue_job(f"'{rest}' (Creative Commons)", self.make_from_source, to, topic=rest)
         elif cmd == "/link":
             parts = rest.split()
             if not parts or not parts[0].startswith("http"):
                 self.reply("Link bhi likhein, jaise: /link https://www.youtube.com/watch?v=...", to)
             else:
                 allowed = any(p.lower() in ("ijazat", "permission", "haan") for p in parts[1:])
-                self.make_from_link(parts[0], allowed, to)
+                self.queue_job("aap ka link", self.make_from_link, to, url=parts[0], allowed=allowed)
         elif cmd in ("/title", "/desc", "/thumb"):
             if not rest:
                 self.reply(f"Naya text bhi likhein, jaise: {cmd} ...", to)
@@ -259,12 +325,14 @@ class TelegramBot:
                 self.edit(msg, field=field, value=rest)
         elif cmd.startswith("/") and cmd[1:] in srcs and (not rest or rest.isdigit()):
             count = max(1, min(int(rest), 5)) if rest.isdigit() else None
-            self.make_from_source(key=cmd[1:], count=count, to=to)
+            self.queue_job(srcs[cmd[1:]].get("name", cmd[1:]), self.make_from_source, to,
+                           key=cmd[1:], count=count)
         else:  # Aam baat (/ ke saath ya baghair): AI samjhe ke kya chahiye
             self.understand(msg, text.lstrip("/").strip(), srcs)
 
     def understand(self, msg: dict, text: str, srcs: dict):
         to = msg["message_id"]
+        self.reply("🤔 Samajh raha hoon...", to)
         is_reply = bool((msg.get("reply_to_message") or {}).get("message_id"))
         names = {k: v.get("name", k) for k, v in srcs.items()}
         r = planner.route_message(self.cfg, text, names, bool(self.state.data.get("last")))
@@ -276,13 +344,16 @@ class TelegramBot:
         shape = {"count": int(r.get("count") or 0) or None, "seconds": int(r.get("seconds") or 0) or None,
                  "mode": r.get("mode") if r.get("mode") in ("single", "series") else None}
         if act == "source" and r.get("source") in srcs:
-            self.make_from_source(key=r["source"], to=to, **shape)
+            self.queue_job(srcs[r["source"]].get("name", r["source"]), self.make_from_source, to,
+                           key=r["source"], **shape)
         elif act == "cc" and r.get("topic"):
-            self.make_from_source(topic=r["topic"], to=to, **shape)
+            self.queue_job(f"'{r['topic']}' (Creative Commons)", self.make_from_source, to,
+                           topic=r["topic"], **shape)
         elif act == "link" and r.get("url", "").startswith("http"):
-            self.make_from_link(r["url"], bool(r.get("permission")), to, **shape)
+            self.queue_job("aap ka link", self.make_from_link, to, url=r["url"],
+                           allowed=bool(r.get("permission")), **shape)
         elif act == "edit":
-            self.edit(msg, request=text)
+            self.edit(msg, request=text, quiet=True)
         elif act == "help":
             self.reply(HELP, to)
         else:
@@ -313,17 +384,9 @@ class TelegramBot:
                 msg = u.get("message") or {}
                 if str((msg.get("chat") or {}).get("id")) != self.chat:
                     continue  # Sirf aap ki chat
-                try:
-                    self.handle(msg)
-                except BotError as e:
-                    self.fail(str(e)[:600], msg.get("message_id"))
-                except Exception as e:  # Bot band na ho: ghalti likh kar agla message
-                    log = self.cfg["paths"]["work"] / "error-log.txt"
-                    log.parent.mkdir(parents=True, exist_ok=True)
-                    with open(log, "a", encoding="utf-8") as f:
-                        f.write(f"\n===== {datetime.now():%Y-%m-%d %H:%M} telegram\n{traceback.format_exc()}")
-                    self.reply(f"❌ Bot mein ghalti: {type(e).__name__}: {str(e)[:200]}\n"
-                               f"Tafseel computer par: {log}", msg.get("message_id"))
+                # Har message alag thread mein: Short ban raha ho tab bhi foran jawab
+                threading.Thread(target=self._safe, args=(self.handle, msg.get("message_id"), msg),
+                                 daemon=True).start()
 
 
 def run(cfg: dict, process):
