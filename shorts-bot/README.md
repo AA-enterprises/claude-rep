@@ -6,7 +6,8 @@ Ye bot ek lambi podcast video ko kai viral **YouTube Shorts** mein badal deta ha
 2. **Asal clip:** podcast ka sab se viral hissa 9:16 vertical mein, aap ki zubaan ke **captions** ke saath (neeche chhoti peeli line mein asal English bhi).
 3. **Outro:** AI awaaz apni raye/sabaq deti hai aur aakhir mein viewers se sawal poochti hai (comments ke liye).
 4. Halka **background music** (agar aap `music` folder mein daalein).
-5. Saath mein ek **.txt file** jis mein title, description (credit ke saath) aur hashtags tayyar hote hain.
+5. Ek **thumbnail (.jpg)**: clip ka sab se achha frame (jahan chehra saaf ho) aur bare akharon mein AI ka likha chubhta hua text.
+6. Saath mein ek **.txt file** jis mein title, description (credit ke saath) aur hashtags tayyar hote hain.
 
 **Zubaanein:** urdu, english, hindi, arabic, french, german, spanish, turkish, portuguese, italian, indonesian, bengali, russian, japanese, korean, chinese. Podcast kisi bhi zubaan mein ho sakta hai: English se Urdu, Urdu se English, English se French, sab chalta hai.
 
@@ -79,6 +80,23 @@ Tayyar Shorts **`output`** folder mein milenge: har `.mp4` ke saath us ki `.txt`
 > Ek hi video dobara chalayein to bot **naye moments** chunega. Pehle wale clips `output/history.json` mein yaad rehte hain.
 
 ---
+
+## 📲 Shorts phone par Telegram mein mangwana
+
+Har Short tayyar hote hi aap ke Telegram par video aur alag message mein title/description aa jayenge. Phone se copy karke seedha YouTube app par upload kar sakte hain, ya WhatsApp par forward.
+
+1. Phone par Telegram mein **@BotFather** search karein aur kholein → **START**.
+2. Likhein `/newbot`. Bot ka naam likhein (jaise `Mere Shorts`), phir username likhein jo `bot` par khatam ho (jaise `hamza_shorts_bot`).
+3. BotFather ek **token** dega (`123456789:ABC...`). Use copy karein. ⚠️ Ye kisi ko na dein.
+4. Computer par `notepad .env` kholein, nayi line likhein: `TELEGRAM_BOT_TOKEN=yahan-token` aur Ctrl+S.
+5. Telegram mein **apna naya bot** kholein (BotFather ke message mein link hota hai) aur **START** dabayein.
+6. Computer par chalayein:
+   ```
+   python bot.py --telegram-setup
+   ```
+   Telegram par "✅ Shorts Bot jur gaya!" aa jaye to kaam ho gaya.
+
+Kisi dafa Telegram par na bhejna ho: `python bot.py LINK --no-telegram`. Hamesha band karna ho: `config.yaml` mein `telegram.send: false`.
 
 ## 🛠️ Settings badalna (`config.yaml`)
 

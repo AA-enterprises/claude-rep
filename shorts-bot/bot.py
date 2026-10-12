@@ -8,6 +8,7 @@ Istemal:
     python bot.py LINK --clips 5 --lang french --voice male   (female / male / child)
     python bot.py --check                   (sab kuch theek install hai?)
     python bot.py --test-voice "Assalam o Alaikum"
+    python bot.py --telegram-setup          (Shorts phone par Telegram mein mangwayein)
 """
 
 import argparse
@@ -72,6 +73,20 @@ Upload se pehle check:
 [ ] Audience: "No, it's not made for kids"
 """
     path.write_text(text, encoding="utf-8")
+    return clip["title"].strip(), desc
+
+
+def send_to_telegram(video: Path, title: str, desc: str, thumb, cfg: dict):
+    from shorts_bot import telegram
+
+    if not cfg["telegram"]["send"] or not telegram.enabled():
+        return
+    say("  📲 Telegram par bhej raha hoon...")
+    try:
+        telegram.send_short(video, title, desc, thumb)
+        say("  📲 Telegram par bhej diya.")
+    except BotError as e:  # Bhejna fail ho to bhi Short computer par mehfooz hai
+        say(f"  ⚠️  Telegram par nahi gaya: {e}")
 
 
 def process(source: str, cfg: dict, args) -> list:
@@ -112,9 +127,15 @@ def process(source: str, cfg: dict, args) -> list:
         name = f"{stamp}_{slug(src.get('title', 'video'), 25)}_{k}"
         final = cfg["paths"]["output"] / f"{name}.mp4"
         render.render_short(src, clip, voices, cfg, cwork, final, tr["language"])
-        write_upload_sheet(final.with_suffix(".txt"), clip, src, permission, cfg)
+        title, desc = write_upload_sheet(final.with_suffix(".txt"), clip, src, permission, cfg)
+        thumb = None
+        if cfg["thumbnail"]["make"]:
+            say("  Thumbnail bana raha hoon...")
+            thumb = render.make_thumbnail(src, clip, cfg, cwork, final.with_suffix(".jpg"),
+                                          tr["language"])
         say(f"  ✅ Tayyar: {final}")
         outputs.append(final)
+        send_to_telegram(final, title, desc, thumb, cfg)
 
         history["videos"].setdefault(src["id"], []).append([clip["start_index"], clip["end_index"]])
         history["hooks"] = (history["hooks"] + [clip["hook_voice"]])[-60:]
@@ -171,6 +192,12 @@ def check(cfg: dict):
     else:
         say("⚠️  GROQ_API_KEY bhi nahi: jin videos ke YouTube subtitles na hon, un ke subtitles nahi banenge.")
         say("   Hal: console.groq.com se muft key lein aur .env mein GROQ_API_KEY=... likhein (README).")
+    if os.environ.get("TELEGRAM_BOT_TOKEN") and os.environ.get("TELEGRAM_CHAT_ID"):
+        say("✅ Telegram jura hua hai (Shorts phone par aayenge)")
+    elif os.environ.get("TELEGRAM_BOT_TOKEN"):
+        say("⚠️  Telegram token hai, lekin chat nahi jurri. Chalayein: python bot.py --telegram-setup")
+    else:
+        say("ℹ️  Telegram nahi jura (zaroori nahi). README ka Telegram wala hissa dekhein.")
     lang = languages.get(cfg["language"]["target"])
     say(f"ℹ️  Zubaan: {lang['key']}  |  Awaaz: {cfg['voice']['gender']}  |  Layout: {cfg['video']['layout']}")
     say("\nSab theek hai! ✅" if ok else "\nUpar ❌ wali cheezein theek karein.")
@@ -231,6 +258,8 @@ def main():
     p.add_argument("--config", default=str(HERE / "config.yaml"))
     p.add_argument("--check", action="store_true", help="Installation check karo")
     p.add_argument("--test-voice", metavar="TEXT", help="Sirf awaaz test karo")
+    p.add_argument("--telegram-setup", action="store_true", help="Telegram jorro (README dekhein)")
+    p.add_argument("--no-telegram", action="store_true", help="Is dafa Telegram par mat bhejo")
     args = p.parse_args()
 
     try:
@@ -247,8 +276,13 @@ def main():
         if args.focus:
             cfg["clips"]["focus"] = args.focus
 
+        if args.no_telegram:
+            cfg["telegram"]["send"] = False
         if args.check:
             return check(cfg)
+        if args.telegram_setup:
+            from shorts_bot import telegram
+            return telegram.setup(HERE / ".env")
         from shorts_bot.util import require_ffmpeg
         require_ffmpeg()
         if args.test_voice:

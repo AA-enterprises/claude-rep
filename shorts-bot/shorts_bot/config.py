@@ -20,6 +20,8 @@ DEFAULTS = {
     "music": {"enabled": True, "folder": "music", "volume": 0.10},
     "transcript": {"prefer_youtube_captions": True, "engine": "auto", "whisper_model": "small"},
     "safety": {"ask_permission": True},
+    "telegram": {"send": True},
+    "thumbnail": {"make": True},
     "paths": {"output": "output", "work": "work"},
 }
 

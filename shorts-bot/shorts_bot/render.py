@@ -130,6 +130,7 @@ class Captions:
             ("Orig", self.ofont, cap["original_size"], hi, "&H00000000", "&H96000000", -1, 1, 3, 1, 8, 0),
             ("Hook", self.tfont, cap["hook_size"], "&H00FFFFFF", "&H40000000", "&H00000000", -1, 3, 22, 0, 5, 0),
             ("HookHi", self.tfont, cap["hook_size"], hi, "&H40000000", "&H00000000", -1, 3, 22, 0, 5, 0),
+            ("Thumb", self.tfont, 128, hi, "&H00000000", "&HA0000000", -1, 1, 9, 4, 8, 0),
             ("Brand", self.lfont, 42, "&H40FFFFFF", "&H80000000", "&H00000000", -1, 1, 2, 0, 8, 110),
         ]
 
@@ -142,9 +143,11 @@ class Captions:
             "BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, "
             "BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding",
         ]
+        # Aakhri "-1" (Encoding): libass khud direction pehchane, taake Urdu/Arabic mein
+        # numbers aur English alfaaz sahi jagah aayein.
         for n, font, size, prim, outc, back, bold, bs, ol, sh, al, mv in self.styles:
             head.append(f"Style: {n},{font},{size},{prim},&H000000FF,{outc},{back},{bold},0,0,0,"
-                        f"100,100,0,0,{bs},{ol},{sh},{al},80,80,{mv},1")
+                        f"100,100,0,0,{bs},{ol},{sh},{al},80,80,{mv},-1")
         head += ["", "[Events]",
                  "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text"]
         body = [f"Dialogue: {layer},{_ts(a)},{_ts(b)},{style},,0,0,{mv},,{text}"
@@ -175,6 +178,9 @@ class Captions:
                 style = "Trans" if cap["show_translation"] else "Orig"
                 ev.append((1, a, b, style, top_y, pop + "".join(parts)))
         return ev + self.brand(dur)
+
+    def thumb_events(self, text):
+        return [(1, 0, 5, "Thumb", 230, _ass_text(text).upper())] + self.brand(5)
 
     def card_events(self, text, dur, highlight=False):
         style = "HookHi" if highlight else "Hook"
@@ -267,6 +273,52 @@ def render_short(src: dict, clip: dict, voices: dict, cfg: dict, work: Path, fin
     else:
         joined.replace(final)
     return final
+
+
+def _best_frame_time(video, start, end):
+    """Clip mein woh lamha dhoondo jahan chehra sab se bara ho (thumbnail ke liye)."""
+    try:
+        import cv2
+    except Exception:
+        return start + (end - start) * 0.4
+    cascade = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_frontalface_default.xml")
+    cap = cv2.VideoCapture(str(video))
+    best_t, best_area = start + (end - start) * 0.4, 0
+    for k in range(1, 13):
+        t = start + (end - start) * k / 13
+        cap.set(cv2.CAP_PROP_POS_MSEC, t * 1000)
+        ok, frame = cap.read()
+        if not ok:
+            continue
+        h, w = frame.shape[:2]
+        small = cv2.resize(frame, (480, int(h * 480 / w)))
+        gray = cv2.cvtColor(small, cv2.COLOR_BGR2GRAY)
+        faces = cascade.detectMultiScale(gray, 1.1, 6, minSize=(40, 40))
+        area = max((fw * fh for _, _, fw, fh in faces), default=0)
+        sharp = cv2.Laplacian(gray, cv2.CV_64F).var()  # Dhundla frame na ho
+        score = area * min(sharp / 100, 1.5)
+        if score > best_area:
+            best_t, best_area = t, score
+    cap.release()
+    return best_t
+
+
+def make_thumbnail(src: dict, clip: dict, cfg: dict, work: Path, out: Path, src_lang: str) -> Path:
+    """9:16 thumbnail: sab se achha frame + bara text."""
+    work.mkdir(parents=True, exist_ok=True)
+    video = src["video"]
+    t = _best_frame_time(video, clip["start"], clip["end"])
+    layout, _ = build_layout(video, cfg, t, t + 0.5)
+    png = work / "thumb_frame.png"
+    _frame(video, t, layout(getattr(layout, "first_x", None)), png, work)
+    caps = Captions(cfg, src_lang)
+    ass = work / "thumb.ass"
+    caps.write(ass, caps.thumb_events(clip.get("thumbnail_text") or clip["hook_on_screen"]))
+    vf = (f"eq=contrast=1.12:saturation=1.25:brightness=-0.03,vignette=PI/5,"
+          f"{_subs_filter(ass, work, cfg['_fonts'])}")
+    run(["ffmpeg", "-y", "-v", "error", "-i", png, "-vf", vf, "-frames:v", "1", "-q:v", "2",
+         out], cwd=work)
+    return out
 
 
 def _pick_music(cfg):

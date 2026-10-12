@@ -20,7 +20,8 @@ Your job for each podcast:
    - Hook (spoken before the clip): one or two short sentences, about 2-4 seconds when spoken. Create curiosity about what the speaker is about to say without giving the punchline away. Do not lie or exaggerate beyond what the clip delivers.
    - Outro (spoken after the clip): two or three short sentences, about 6-10 seconds when spoken. Add real value of your own: the lesson, why it matters, or a sharp opinion, then end with a question that makes viewers comment. This commentary is what makes the channel original, so it must be specific to this clip, never generic.
    - Every hook and outro must use a different opening and structure. Avoid formula phrases you have used before (a list of previous hooks may be given).
-4. Write YouTube metadata: a title under 70 characters that is curiosity-driven but honest, a 2-3 line description, and 5-8 relevant hashtags.
+4. Write thumbnail_text: 2 to 5 punchy words in the target language that make people tap (a number, a shocking claim or a strong emotion from the clip, e.g. the equivalent of "HE LOST EVERYTHING"). Honest, no fake claims.
+5. Write YouTube metadata: a title under 70 characters that is curiosity-driven but honest, a 2-3 line description, and 5-8 relevant hashtags.
 
 Rules:
 - Pick clips that do not overlap and come from different parts of the episode when possible.
@@ -51,6 +52,7 @@ def _schema():
             "why_it_will_go_viral": {"type": "string"},
             "hook_voice": {"type": "string"},
             "hook_on_screen": {"type": "string"},
+            "thumbnail_text": {"type": "string"},
             "translations": {
                 "type": "array",
                 "items": {
@@ -67,7 +69,7 @@ def _schema():
             "hashtags": {"type": "array", "items": {"type": "string"}},
         },
         "required": ["start_index", "end_index", "category", "why_it_will_go_viral",
-                     "hook_voice", "hook_on_screen", "translations", "outro_voice",
+                     "hook_voice", "hook_on_screen", "thumbnail_text", "translations", "outro_voice",
                      "outro_on_screen", "title", "description", "hashtags"],
         "additionalProperties": False,
     }

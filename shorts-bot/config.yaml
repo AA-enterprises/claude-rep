@@ -77,6 +77,12 @@ transcript:
   engine: auto
   whisper_model: small          # tiny | base | small | medium (bara = behtar magar dheema)
 
+thumbnail:
+  make: true                    # Har Short ke saath thumbnail (.jpg) bhi banao
+
+telegram:
+  send: true                    # true = har tayyar Short Telegram par bhejo (agar jura ho)
+
 safety:
   ask_permission: true          # Creative Commons na ho to har video par ijazat confirm karwaye
 
