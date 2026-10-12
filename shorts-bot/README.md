@@ -105,11 +105,25 @@ Har Short tayyar hote hi aap ke Telegram par video aur alag message mein title/d
    Telegram par "✅ Shorts Bot jur gaya!" aa jaye to kaam ho gaya.
 
 **"Computer se Telegram tak rabta nahi hua" aaye to:** Pakistan mein kai internet companies computer par Telegram rok deti hain (phone ki app phir bhi chalti hai). Hal:
-- **Aasaan:** computer par muft **Cloudflare WARP** (https://one.one.one.one) install karke **Connect** karein, phir bot chalayein.
+- **Behtareen (ek dafa, muft, VPN ke baghair): apna Telegram relay.** Neeche "Telegram relay" dekhein.
+- **Ya:** computer par muft **Cloudflare WARP** (https://one.one.one.one) install karke **Connect** karein, phir bot chalayein.
 - Ya agar aap ke paas proxy hai: `.env` mein `TELEGRAM_PROXY=socks5h://127.0.0.1:1080` (apne proxy ka pata) likhein.
 - Check: browser mein https://api.telegram.org kholein. Page khul jaye to bot bhi chal jayega.
 
 Kisi dafa Telegram par na bhejna ho: `python bot.py LINK --no-telegram`. Hamesha band karna ho: `config.yaml` mein `telegram.send: false`.
+
+### Telegram relay (apna muft Cloudflare Worker)
+Ye aap ka apna chhota sa server hai jo bot ke messages Telegram tak pahunchata hai. Koi aur is ke beech nahi hota.
+1. https://dash.cloudflare.com/sign-up par muft account banayein (email se).
+2. Baayen menu mein **Workers & Pages** → **Create** → **Create Worker** (ya "Start with Hello World").
+3. Naam rakhein, jaise `tg-relay` → **Deploy**.
+4. **Edit code** dabayein. Wahan likha saara code mita dein aur is repo ki file `telegram-relay/worker.js` ka poora code paste karein → **Deploy**.
+5. Upar aap ke Worker ka pata likha hoga, jaise `https://tg-relay.aapkanaam.workers.dev`. Use browser mein kholein: "Shorts Bot relay chal raha hai." aana chahiye.
+6. `notepad .env` mein nayi line likhein:
+   ```
+   TELEGRAM_API_URL=https://tg-relay.aapkanaam.workers.dev
+   ```
+   Ctrl+S karein, phir `python bot.py --telegram-setup` chalayein.
 
 ## 🛠️ Settings badalna (`config.yaml`)
 

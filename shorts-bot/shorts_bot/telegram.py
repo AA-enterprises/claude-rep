@@ -6,7 +6,13 @@ from pathlib import Path
 
 from .util import BotError, duration, say
 
-API = "https://api.telegram.org/bot{token}/{method}"
+API = "{base}/bot{token}/{method}"
+DEFAULT_BASE = "https://api.telegram.org"
+
+
+def _base() -> str:
+    """Apna Cloudflare relay ho to us ka pata (.env: TELEGRAM_API_URL), warna Telegram."""
+    return (os.environ.get("TELEGRAM_API_URL", "").strip() or DEFAULT_BASE).rstrip("/")
 MAX_BYTES = 50 * 1024 * 1024  # Telegram bot 50 MB tak ki file bhej sakta hai
 
 
@@ -24,7 +30,7 @@ def _call(method: str, data=None, files=None, token=None, timeout=60):
             for f in files.values():
                 f[1].seek(0)
         try:
-            r = requests.post(API.format(token=token, method=method), data=data, files=files,
+            r = requests.post(API.format(base=_base(), token=token, method=method), data=data, files=files,
                               timeout=timeout, proxies=proxies)
             break
         except requests.RequestException as e:
@@ -36,8 +42,8 @@ def _call(method: str, data=None, files=None, token=None, timeout=60):
         raise BotError(
             "Computer se Telegram tak rabta nahi hua. Aksar internet company Telegram ko rok "
             "deti hai (phone app phir bhi chal jati hai).\n"
-            "Hal: computer par VPN chalayein (jaise Cloudflare WARP, muft), ya .env mein "
-            "TELEGRAM_PROXY=... likhein. README ka Telegram hissa dekhein.\n"
+            "Hal: apna muft Cloudflare relay banayein (README: 'Telegram relay'), ya computer "
+            "par VPN chalayein (jaise Cloudflare WARP).\n"
             f"Asal error: {msg[:200]}") from last
     try:
         res = r.json()
