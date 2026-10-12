@@ -51,6 +51,8 @@ def make_track(video: Path, clip: dict, cfg: dict, work: Path, start: float, dur
     run(["ffmpeg", "-y", "-v", "error", "-ss", f"{start:.3f}", "-t", f"{dur:.3f}", "-i", video,
          "-vn", "-af", f"aresample=48000,volume={vol},apad=whole_dur={total:.3f}", "-ac", "2", orig])
 
+    # Jo line waqt ke andar shuru hi na ho sake use chhoro (beech se kati awaaz se behtar)
+    items = [it for it in items if it[1] < total - 0.8]
     inputs = ["-i", orig]
     chains, labels = [], ["[0:a]"]
     for k, (wav, rel, tempo) in enumerate(items, 1):
