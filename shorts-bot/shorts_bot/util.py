@@ -18,8 +18,16 @@ def say(msg: str):
     print(msg, flush=True)
 
 
+STEP_HOOK = None  # Telegram ka "video ban rahi hai" message har qadam par badalne ke liye
+
+
 def step(msg: str):
     print(f"\n▶ {msg}", flush=True)
+    if STEP_HOOK:
+        try:
+            STEP_HOOK(msg)
+        except Exception:
+            pass
 
 
 def run(cmd: list, cwd=None) -> str:

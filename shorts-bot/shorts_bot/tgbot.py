@@ -90,6 +90,75 @@ class State:
         return key, self.data["shorts"].get(key) if key else None
 
 
+class Progress:
+    """Video bante waqt chat mein 'ban rahi hai' ka nishan: upar "sending video..." aur ek
+    message jo har qadam par badalta hai. Video aate hi message hat jata hai."""
+    SPIN = "◐◓◑◒"
+
+    def __init__(self, bot, to, desc: str):
+        self.bot, self.to, self.desc = bot, to, desc
+        self.text = "Shuru ho raha hai..."
+        self.n = 0
+        self.mid = None
+        self.started = time.time()
+        self.stop = threading.Event()
+        self.lock = threading.Lock()
+        self._show()
+        threading.Thread(target=self._loop, daemon=True).start()
+
+    def _body(self) -> str:
+        m = re.match(r"(\d)/5\s+(.*)", self.text)
+        k, what = (int(m.group(1)), m.group(2)) if m else (0, self.text)
+        bar = "▰" * k + "▱" * (5 - k)
+        secs = int(time.time() - self.started)
+        return (f"{self.SPIN[self.n % 4]} 🎬 Video ban rahi hai: {self.desc}\n"
+                f"{bar}  {what}\n⏱️ {secs // 60}:{secs % 60:02d}  (tayyar hote hi yahan aa jayegi)")
+
+    def _show(self):
+        with self.lock:
+            if self.stop.is_set():
+                return
+            try:
+                if self.mid is None:
+                    self.mid = telegram.send_message(self._body(), self.to)[0]
+                else:
+                    telegram._call("editMessageText", data={"chat_id": self.bot.chat,
+                                                            "message_id": self.mid, "text": self._body()})
+            except BotError:
+                pass
+
+    def _loop(self):
+        tick = 0
+        while not self.stop.wait(4):
+            tick += 1
+            try:  # Chat ke upar "sending video..." (5 second tak rehta hai, is liye har 4 second)
+                telegram._call("sendChatAction", data={"chat_id": self.bot.chat, "action": "upload_video"})
+            except BotError:
+                pass
+            if tick % 3 == 0:  # Har 12 second message mein waqt/ghoomta nishan
+                self.n += 1
+                self._show()
+
+    def update(self, text: str):
+        self.text = text
+        self.n += 1
+        self._show()
+
+    def hide(self):
+        """Video bhejne se pehle nishan hatao (series ka agla part aaye to naya ban jata hai)."""
+        with self.lock:
+            if self.mid is not None:
+                try:
+                    telegram._call("deleteMessage", data={"chat_id": self.bot.chat, "message_id": self.mid})
+                except BotError:
+                    pass
+                self.mid = None
+
+    def finish(self):
+        self.hide()
+        self.stop.set()
+
+
 def _rewrite_sheet(txt: Path, title: str, desc: str):
     """Upload sheet (.txt) mein title aur description badlo, baaqi waisa hi."""
     if not txt.exists():
@@ -114,6 +183,7 @@ class TelegramBot:
         self.state = State(cfg["paths"]["output"] / "telegram-state.json")
         self.jobs = queue.Queue()   # Shorts ek ek karke bante hain (line)
         self.current = None         # Abhi kya ban raha hai
+        self.progress = None        # Chat mein "video ban rahi hai" ka nishan
         self.chat_log = collections.deque(maxlen=12)  # Haal ki baatein (gap-shap ke liye)
         # Bheje gaye awaaz ke namoone: message id -> awaaz ki settings (restart ke baad bhi yaad)
         self.voice_msgs = {int(k): v for k, v in (self.state.data.get("voices") or {}).items()}
@@ -125,9 +195,16 @@ class TelegramBot:
         while True:
             desc, fn, to, kwargs = self.jobs.get()
             self.current = desc
+            from . import util
             try:
+                self.progress = Progress(self, to, desc)
+                util.STEP_HOOK = self.progress.update
                 self._safe(fn, to, **kwargs)
             finally:
+                util.STEP_HOOK = None
+                if self.progress:
+                    self.progress.finish()
+                self.progress = None
                 self.current = None
                 self.jobs.task_done()
 
@@ -174,6 +251,8 @@ class TelegramBot:
 
     def on_short(self, info: dict):
         say("  📲 Telegram par bhej raha hoon...")
+        if self.progress:  # "Ban rahi hai" hatao, phir video
+            self.progress.hide()
         try:
             ids = telegram.send_short(Path(info["video"]), info["title"], info["description"],
                                       Path(info["thumb"]) if info.get("thumb") else None)
@@ -226,10 +305,9 @@ class TelegramBot:
 
     def make_from_source(self, key: str = None, topic: str = None, count: int = None, to: int = None,
                          mode: str = None, seconds: int = None):
-        what = f"'{topic}' (Creative Commons)" if topic else key
         cfg = self._cfg(count, mode, seconds)
-        self.reply(f"⏳ {what}: video dhoond kar Short bana raha hoon ({self._shape(cfg)}). "
-                   "5-15 minute lagenge...", to)
+        if self.progress:
+            self.progress.update(f"Video dhoond raha hoon ({self._shape(cfg)}). 5-15 minute lagenge")
         vids, kind, note = sources.candidates(self.cfg, key=key, topic=topic)
         if not vids:
             self.fail("Koi nayi munasib video nahi mili. Doosra channel/topic try karein.", to)
@@ -256,7 +334,8 @@ class TelegramBot:
     def make_from_link(self, url: str, allowed: bool, to: int = None, count: int = None,
                        mode: str = None, seconds: int = None):
         cfg = self._cfg(count, mode, seconds)
-        self.reply(f"⏳ Short ban raha hai ({self._shape(cfg)}). 5-15 minute lagenge...", to)
+        if self.progress:
+            self.progress.update(f"Shuru ({self._shape(cfg)}). 5-15 minute lagenge")
         permission = "User ne Telegram par ijazat confirm ki" if allowed else None
         try:
             out = self.process(url, cfg,
