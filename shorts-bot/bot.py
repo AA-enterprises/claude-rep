@@ -225,6 +225,9 @@ def self_update(quiet: bool = False):
         return
     before = git("rev-parse", "HEAD").stdout.strip()
     say("🔄 Naya version check ho raha hai...")
+    # YouTube har hafte badalta hai: yt-dlp hamesha sab se naya rakho
+    subprocess.run([sys.executable, "-m", "pip", "install", "-q", "-U", "yt-dlp[default]"],
+                   capture_output=True)
     r = git("pull", "--ff-only", "-q")
     if r.returncode != 0:
         say("⚠️  Update nahi hua (internet?). Purane version se chal raha hai.")
@@ -259,6 +262,10 @@ def check(cfg: dict):
         first = (str(e).strip().splitlines() or [type(e).__name__])[0]
         say(f"⚠️  Whisper computer par nahi chal raha: {first[:150]}")
         whisper_ok = False
+    deno = shutil.which("deno")
+    say(f"{'✅' if deno else '⚠️ '} Deno {'mil gaya' if deno else 'nahi mila (YouTube ke liye zaroori ho sakta hai): winget install DenoLand.Deno'}")
+    cookies = HERE / "cookies.txt"
+    say(f"{'✅' if cookies.exists() else 'ℹ️ '} cookies.txt {'mil gayi' if cookies.exists() else 'nahi (sirf YouTube rokne par zaroori)'}")
     for mod in ("anthropic", "yt_dlp", "edge_tts", "cv2", "yaml"):
         try:
             __import__(mod)

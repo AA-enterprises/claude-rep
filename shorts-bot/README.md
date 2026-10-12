@@ -247,14 +247,20 @@ Channels `sources.yaml` mein hain. Apne channels `sources.local.yaml` mein add k
 
 `config.yaml` mein `transcript.engine` se chun sakte hain: `auto` (default), `local` ya `groq`.
 
-### YouTube ne rok diya ("not a bot")
-YouTube bohot si requests dekh kar kabhi kabhi computer ko "bot" samajh leta hai. Bot ko apni YouTube cookies dein:
-1. Chrome ya Edge mein extension **"Get cookies.txt LOCALLY"** install karein.
-2. **youtube.com** kholein (apne Google account se login hon), extension ka icon dabayein → **Export** (Netscape format).
-3. Download hui file ka naam **`cookies.txt`** rakh kar bot ke folder (`shorts-bot`) mein daal dein.
+### YouTube ne rok diya ("not a bot" / "page needs to be reloaded")
+1. `python bot.py --update` (yt-dlp naya ho jata hai; YouTube har hafte badalta hai).
+2. **Deno** install karein (naye yt-dlp ko YouTube ke liye chahiye), phir naya terminal kholein:
+   ```
+   winget install DenoLand.Deno
+   ```
+3. Nayi **cookies.txt**, lekin **Incognito** window se (normal window ki cookies YouTube jaldi badal deta hai):
+   - Chrome mein **Ctrl + Shift + N** (Incognito). Extension "Get cookies.txt LOCALLY" ko Incognito mein allow karein (Extensions → Details → "Allow in Incognito").
+   - Incognito mein **youtube.com** par login karein → extension se **Export**.
+   - Phir **Incognito window band** kar dein (dobara na kholein).
+   - File ka naam `cookies.txt` rakh kar bot folder mein rakhein (purani replace).
 4. 10-15 minute baad dobara chalayein.
 
-⚠️ `cookies.txt` aap ke YouTube login ki chaabi hai: kisi ko na dein. (Ye GitHub par kabhi nahi jati.) Agar ek dafa kaam kar ke phir rukne lage, to nayi cookies.txt nikal lein.
+⚠️ `cookies.txt` aap ke YouTube login ki chaabi hai: kisi ko na dein. (Ye GitHub par kabhi nahi jati.)
 
 ## 🧩 Bot ke hisse (badalne ke liye)
 

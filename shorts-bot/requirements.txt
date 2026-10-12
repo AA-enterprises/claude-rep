@@ -1,6 +1,6 @@
 anthropic>=1.13
 pyyaml>=6.0
-yt-dlp>=2025.1.1
+yt-dlp[default]>=2025.11.12
 edge-tts>=7.0
 opencv-python-headless>=4.9,<5
 faster-whisper>=1.1

@@ -39,18 +39,20 @@ def _pick_captions(info: dict, source_lang: str):
 
 
 BOT_CHECK = (
-    "YouTube ne aap ke computer ko \"bot\" samajh kar rok diya hai (Sign in to confirm you're not a bot).\n"
-    "Hal: bot ko YouTube ki cookies dein (README: 'YouTube ne rok diya'):\n"
-    "  1. Chrome/Edge mein extension \"Get cookies.txt LOCALLY\" install karein.\n"
-    "  2. youtube.com kholein (login hon), extension se cookies.txt download karein.\n"
-    "  3. Woh file bot ke folder mein \"cookies.txt\" naam se rakh dein.\n"
-    "Phir 10-15 minute baad dobara try karein. Baar baar koshish se rukawat lambi hoti hai."
+    "YouTube ne download rok diya (\"not a bot\" / \"page needs to be reloaded\").\n"
+    "Hal (README: 'YouTube ne rok diya'):\n"
+    "  1. python bot.py --update  (yt-dlp naya hona chahiye)\n"
+    "  2. Deno install karein: winget install DenoLand.Deno  (phir naya terminal)\n"
+    "  3. Nayi cookies.txt INCOGNITO window se nikalein: Incognito kholein, youtube.com par login,\n"
+    "     extension se cookies.txt export, phir Incognito window BAND kar dein.\n"
+    "  4. 10-15 minute baad dobara. Baar baar koshish se rukawat lambi hoti hai."
 )
 
 
 def is_bot_check(err) -> bool:
     t = str(err).lower()
-    return "confirm you" in t and "bot" in t or "sign in to confirm" in t
+    return ("confirm you" in t and "bot" in t) or "sign in to confirm" in t \
+        or "page needs to be reloaded" in t
 
 
 def base_opts(cfg: dict) -> dict:
