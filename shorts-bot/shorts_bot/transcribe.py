@@ -187,21 +187,23 @@ def _words_from_audio(src: dict, cfg: dict):
     tcfg = cfg["transcript"]
     engine = tcfg.get("engine", "auto")
     lang = cfg["language"]["source"]
-    total = duration(src["video"])
+    from .download import audio_for_listening
+    media = audio_for_listening(src, cfg)
+    total = duration(media)
     has_groq = bool(os.environ.get("GROQ_API_KEY"))
     if engine == "groq":
         if not has_groq:
             raise BotError("config mein transcript.engine: groq hai, lekin .env mein GROQ_API_KEY nahi.")
-        return _words_groq(src["video"], total, lang, src["dir"])
+        return _words_groq(media, total, lang, src["dir"])
     try:
-        return _words_local(src["video"], total, tcfg["whisper_model"], lang)
+        return _words_local(media, total, tcfg["whisper_model"], lang)
     except BotError:
         raise
     except Exception as e:
         first = (str(e).strip().splitlines() or [type(e).__name__])[0][:200]
         if engine == "auto" and has_groq:
             say(f"  Computer par Whisper nahi chala ({first[:80]}). Groq istemal kar raha hoon.")
-            return _words_groq(src["video"], total, lang, src["dir"])
+            return _words_groq(media, total, lang, src["dir"])
         raise BotError(NO_LISTENER.format(err=first)) from e
 
 

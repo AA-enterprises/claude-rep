@@ -1,6 +1,7 @@
 """Video aur us ki maloomat (title, channel, license, subtitles) laana."""
 
 import hashlib
+import time
 from pathlib import Path
 
 from .util import BotError, read_json, say, slug, write_json
@@ -37,7 +38,47 @@ def _pick_captions(info: dict, source_lang: str):
     return None, None
 
 
+def _opts(cfg: dict, **extra) -> dict:
+    """yt-dlp settings: kamzor internet par bhi chalne ke liye retries aur resume."""
+    height = int(cfg["video"]["max_download_height"])
+    opts = {
+        "quiet": True,
+        "no_warnings": True,
+        "noplaylist": True,
+        "format": f"bv*[height<={height}][ext=mp4]+ba[ext=m4a]/bv*[height<={height}]+ba/b[height<={height}]/b",
+        "merge_output_format": "mp4",
+        "retries": 15,
+        "fragment_retries": 15,
+        "file_access_retries": 5,
+        "socket_timeout": 60,
+        "http_chunk_size": 10 * 1024 * 1024,
+        "continuedl": True,
+    }
+    opts.update(extra)
+    return opts
+
+
+def _download(url: str, opts: dict, what: str):
+    """Download karo; connection toote to ruk kar dobara (adhoori file se aage)."""
+    import yt_dlp
+
+    last = None
+    for attempt in range(1, 5):
+        try:
+            with yt_dlp.YoutubeDL(opts) as dl:
+                dl.download([url])
+            return
+        except Exception as e:  # Internet ka masla: thora ruk kar dobara
+            last = e
+            if attempt < 4:
+                say(f"  Internet ka masla ({what}), {attempt * 10} second baad dobara koshish...")
+                time.sleep(attempt * 10)
+    raise BotError(f"{what} download nahi hua (4 dafa koshish ki). Internet check karein.\n{last}")
+
+
 def fetch(source: str, cfg: dict) -> dict:
+    """Video ki maloomat aur subtitles lao. Video khud abhi download nahi hoti:
+    AI ke moments chunne ke baad sirf wohi hisse aate hain (clip_media)."""
     work = cfg["paths"]["work"]
     if not _is_url(source):
         path = Path(source).expanduser().resolve()
@@ -53,19 +94,16 @@ def fetch(source: str, cfg: dict) -> dict:
 
     if source.startswith("www."):
         source = "https://" + source
-    height = int(cfg["video"]["max_download_height"])
-    opts = {
-        "quiet": True,
-        "no_warnings": True,
-        "noplaylist": True,
-        "format": f"bv*[height<={height}][ext=mp4]+ba[ext=m4a]/bv*[height<={height}]+ba/b[height<={height}]/b",
-        "merge_output_format": "mp4",
-    }
-    with yt_dlp.YoutubeDL(opts) as ydl:
-        try:
-            info = ydl.extract_info(source, download=False)
-        except Exception as e:
-            raise BotError(f"Video ki maloomat nahi mili. Link sahi hai?\n{e}") from e
+    with yt_dlp.YoutubeDL(_opts(cfg)) as ydl:
+        info = None
+        for attempt in range(1, 4):
+            try:
+                info = ydl.extract_info(source, download=False)
+                break
+            except Exception as e:
+                if attempt == 3 or "unsupported url" in str(e).lower() or "private" in str(e).lower():
+                    raise BotError(f"Video ki maloomat nahi mili. Link sahi hai?\n{e}") from e
+                time.sleep(5)
         if info.get("_type") == "playlist":
             raise BotError("Ye playlist ka link hai. Ek video ka link dein (ya links.txt use karein).")
 
@@ -95,24 +133,55 @@ def fetch(source: str, cfg: dict) -> dict:
                         say("  YouTube subtitles nahi mile, AI khud sunega (Whisper).")
             write_json(meta_path, meta)
 
-        video = d / "video.mp4"
-        if not video.exists():
-            say(f"  Download: {meta['title'][:70]}")
-            dl_opts = dict(opts, outtmpl=str(d / "video.%(ext)s"), quiet=True, noprogress=False)
-            with yt_dlp.YoutubeDL(dl_opts) as dl:
-                try:
-                    dl.download([meta["url"]])
-                except Exception as e:
-                    raise BotError(f"Video download nahi hui:\n{e}") from e
-            if not video.exists():
-                found = sorted(d.glob("video.*"))
-                found = [f for f in found if f.suffix in (".mp4", ".mkv", ".webm")]
-                if not found:
-                    raise BotError("Video download ke baad file nahi mili.")
-                video = found[0]
-        else:
-            say("  Video pehle se download hai.")
-
+    full = d / "video.mp4"
+    video = full if full.exists() else None
+    if video is None and cfg["video"].get("download") == "full":
+        say(f"  Poori video download ho rahi hai: {meta['title'][:60]}")
+        _download(meta["url"], _opts(cfg, outtmpl=str(d / "video.%(ext)s")), "Video")
+        video = full if full.exists() else next(
+            (f for f in sorted(d.glob("video.*")) if f.suffix in (".mp4", ".mkv", ".webm")), None)
+        if video is None:
+            raise BotError("Video download ke baad file nahi mili.")
     cap = d / "captions.json3"
     return {**meta, "dir": d, "video": video,
             "captions": cap if cap.exists() and meta.get("caption_lang") else None}
+
+
+def audio_for_listening(src: dict, cfg: dict) -> Path:
+    """Whisper ke liye sirf audio (video se kai guna chhota)."""
+    if src.get("video"):
+        return src["video"]
+    d = src["dir"]
+    found = [f for f in d.glob("audio.*") if f.suffix != ".part"]
+    if found:
+        return found[0]
+    say("  Sirf audio download ho raha hai (subtitles banane ke liye)...")
+    _download(src["url"], _opts(cfg, format="ba[ext=m4a]/ba/b", outtmpl=str(d / "audio.%(ext)s"),
+                                merge_output_format=None), "Audio")
+    found = [f for f in d.glob("audio.*") if f.suffix != ".part"]
+    if not found:
+        raise BotError("Audio download ke baad file nahi mili.")
+    return found[0]
+
+
+def clip_media(src: dict, clip: dict, cfg: dict):
+    """Clip ke liye video. Wapas: (file, offset). offset = file ka 0 asal video ka kaunsa second."""
+    if src.get("video"):
+        return src["video"], 0.0
+    from yt_dlp.utils import download_range_func
+
+    a = max(0.0, round(clip["start"] - 1.5, 2))
+    b = round(clip["end"] + 1.5, 2)
+    out = src["dir"] / f"part-{int(a * 100)}-{int(b * 100)}.mp4"
+    if out.exists():
+        return out, a
+    say(f"  Sirf clip wala hissa download ho raha hai ({int(b - a)} second)...")
+    _download(src["url"], _opts(cfg, outtmpl=str(out.with_suffix(".%(ext)s")),
+                                download_ranges=download_range_func(None, [(a, b)]),
+                                force_keyframes_at_cuts=True), "Clip")
+    if not out.exists():
+        alt = [f for f in out.parent.glob(out.stem + ".*") if f.suffix in (".mkv", ".webm")]
+        if not alt:
+            raise BotError("Clip download ke baad file nahi mili.")
+        return alt[0], a
+    return out, a

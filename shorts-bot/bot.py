@@ -76,6 +76,16 @@ Upload se pehle check:
     return clip["title"].strip(), desc
 
 
+def shift_clip(clip: dict, offset: float) -> dict:
+    """Sirf clip wala hissa download hua ho to saare waqt us hisse ke hisaab se karo."""
+    if not offset:
+        return clip
+    out = dict(clip, start=clip["start"] - offset, end=clip["end"] - offset)
+    out["lines"] = [dict(ln, start=ln["start"] - offset, end=ln["end"] - offset)
+                    for ln in clip["lines"]]
+    return out
+
+
 def send_to_telegram(video: Path, title: str, desc: str, thumb, cfg: dict):
     from shorts_bot import telegram
 
@@ -124,14 +134,16 @@ def process(source: str, cfg: dict, args) -> list:
             voices["outro"] = voice.speak(clip["outro_voice"], cwork / "outro", cfg)
 
         step(f"5/5  Short {k}/{len(plan['clips'])}: video edit ho rahi hai")
+        media, offset = download.clip_media(src, clip, cfg)
+        csrc, cclip = dict(src, video=media), shift_clip(clip, offset)
         name = f"{stamp}_{slug(src.get('title', 'video'), 25)}_{k}"
         final = cfg["paths"]["output"] / f"{name}.mp4"
-        render.render_short(src, clip, voices, cfg, cwork, final, tr["language"])
+        render.render_short(csrc, cclip, voices, cfg, cwork, final, tr["language"])
         title, desc = write_upload_sheet(final.with_suffix(".txt"), clip, src, permission, cfg)
         thumb = None
         if cfg["thumbnail"]["make"]:
             say("  Thumbnail bana raha hoon...")
-            thumb = render.make_thumbnail(src, clip, cfg, cwork, final.with_suffix(".jpg"),
+            thumb = render.make_thumbnail(csrc, cclip, cfg, cwork, final.with_suffix(".jpg"),
                                           tr["language"])
         say(f"  ✅ Tayyar: {final}")
         outputs.append(final)
