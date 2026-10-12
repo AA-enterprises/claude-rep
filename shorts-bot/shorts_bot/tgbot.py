@@ -31,6 +31,9 @@ HELP = """🤖 Shorts Bot commands
 /link https://... ijazat  → ijazat wali video (aap zimmedar)
 /sources  → saare channels ki list
 /status  → abhi kya ban raha hai, line mein kya hai
+/awaaz  → saari awaazon ke namoone (aur batata hai Microsoft lagi ya Google backup)
+/awaaz 2  → 2 number wali awaaz channel ki awaaz bana do
+/update  → bot ka naya version abhi lao (waise bhi khud har 30 minute check karta hai)
 
 ✏️ Short badalna (Short ke kisi message par REPLY karein; reply na karein to aakhri Short badlega):
 /title naya title
@@ -96,9 +99,13 @@ def _rewrite_sheet(txt: Path, title: str, desc: str):
 
 
 class TelegramBot:
-    def __init__(self, cfg: dict, process):
+    def __init__(self, cfg: dict, process, updater=None, update_available=None):
         self.cfg = cfg
         self.process = process
+        self.updater = updater                  # GitHub se naya code (bot.self_update)
+        self.update_available = update_available
+        self.restart = False
+        self.update_wanted = None               # /update aaya lekin Short ban raha tha
         self.chat = str(os.environ.get("TELEGRAM_CHAT_ID", ""))
         self.state = State(cfg["paths"]["output"] / "telegram-state.json")
         self.jobs = queue.Queue()   # Shorts ek ek karke bante hain (line)
@@ -166,6 +173,8 @@ class TelegramBot:
         except BotError as e:
             say(f"  ⚠️  Telegram par nahi gaya: {e}")
             ids = []
+        if info.get("voice_note"):
+            self.reply(info["voice_note"])
         self.state.add_short(info, ids)
 
     def _args(self, strict: bool):
@@ -309,6 +318,10 @@ class TelegramBot:
             self.reply(HELP, to)
         elif cmd == "/status":
             self.status(to)
+        elif cmd in ("/awaaz", "/voice"):
+            self.voice_test(rest, to)
+        elif cmd == "/update":
+            self.update_now(to)
         elif cmd == "/sources":
             lines = [f"/{k}  → {v.get('name', k)}" for k, v in srcs.items()]
             self.reply("📺 Mehfooz channels:\n" + "\n".join(lines)
@@ -337,6 +350,86 @@ class TelegramBot:
                            key=cmd[1:], count=count)
         else:  # Aam baat (/ ke saath ya baghair): AI samjhe ke kya chahiye
             self.understand(msg, text.lstrip("/").strip(), srcs)
+
+    # ----------------------------------------------------------- khud update
+    def busy(self) -> bool:
+        return bool(self.current) or not self.jobs.empty()
+
+    def update_now(self, to: int = None, auto: bool = False):
+        if not self.updater:
+            return self.reply("Update yahan se nahi ho sakta.", to)
+        if self.busy():
+            self.update_wanted = to or 0
+            if not auto:
+                self.reply("⏳ Abhi Short ban raha hai. Khatam hote hi update kar doonga.", to)
+            return
+        self.update_wanted = None
+        if not auto:
+            self.reply("🔄 Naya version dekh raha hoon...", to)
+        if self.restart:
+            return
+        log = self.updater(quiet=True)
+        if log is None:
+            if not auto:
+                self.reply("⚠️ Update nahi hua (internet?). Purana version chal raha hai.", to)
+        elif not log:
+            if not auto:
+                self.reply("✅ Bot pehle se naya hai.", to)
+        else:
+            self.reply("🔄 Naya version aa gaya, bot restart ho raha hai...\n" + log[:1500], to)
+            self.restart = True
+
+    def _auto_update(self):
+        """Har 30 minute GitHub dekho; naya code ho aur bot khaali ho to khud update + restart."""
+        last = 0.0
+        while not self.restart:
+            time.sleep(60)
+            if self.restart:
+                break
+            try:
+                if self.update_wanted is not None and not self.busy():
+                    self.update_now(self.update_wanted or None)
+                elif time.time() - last > 1800:
+                    last = time.time()
+                    if self.update_available and self.update_available():
+                        self.update_now(auto=True)
+            except Exception as e:  # Update ki ghalti se bot band na ho
+                say(f"⚠️  Khud update check nahi hua: {str(e)[:150]}")
+
+    def voice_test(self, text: str, to: int = None):
+        """/awaaz = har awaaz ka namoona. /awaaz 2 = 2 number wali awaaz channel ki awaaz bana do."""
+        from . import config as config_mod
+        from . import voice
+        from .util import run
+        if text.strip().isdigit():
+            n = int(text.strip())
+            if not 1 <= n <= voice.NARRATOR_CHOICES:
+                return self.reply(f"1 se {voice.NARRATOR_CHOICES} tak number likhein, jaise: /awaaz 2", to)
+            label, _, over = voice.SAMPLES[n - 1]
+            styles = dict(self.cfg["dub"].get("styles") or {}, narrator=over)
+            self.cfg["dub"]["styles"] = styles
+            config_mod.save_local(self.cfg["_base"], {"dub": {"styles": {"narrator": over}}})
+            return self.reply(f"✅ Ab se intro, outro aur kahani wali awaaz: {n}. {label}", to)
+        self.reply("🎙️ Awaaz ke namoone bana raha hoon (1-2 minute)...", to)
+        line = text or ("یہ کہانی انیس سو انہتر کی ہے، جب انسان نے پہلی بار چاند پر قدم رکھا۔ "
+                        "لیکن اس رات کچھ ایسا ہوا جو آج تک کسی کو نہیں بتایا گیا۔")
+        folder = self.cfg["paths"]["output"] / "awaaz"
+        folder.mkdir(parents=True, exist_ok=True)
+        voice.USED.clear()
+        sent = 0
+        for i, (label, _, over) in enumerate(voice.SAMPLES):
+            try:
+                wav = voice.speak(line, folder / f"awaaz-{i + 1}", voice.sample_cfg(self.cfg, i))
+                mp3 = folder / f"awaaz-{i + 1}.mp3"
+                run(["ffmpeg", "-y", "-v", "error", "-i", wav, "-b:a", "128k", mp3])
+                tag = "  ← pasand ho to: /awaaz " + str(i + 1) if over is not None else ""
+                telegram.send_document(mp3, f"{i + 1}. {label}{tag}", mime="audio/mpeg")
+                sent += 1
+            except BotError as e:
+                say(f"  ⚠️  Namoona {i + 1} nahi bana: {str(e)[:150]}")
+        if not sent:
+            return self.fail("Koi awaaz nahi bani. Internet check karein.", to)
+        self.reply(voice.report() + "\n\nPasand ki awaaz ka number bhejein, jaise: /awaaz 2", to)
 
     def understand(self, msg: dict, text: str, srcs: dict):
         to = msg["message_id"]
@@ -383,7 +476,9 @@ class TelegramBot:
         say(f"✅ Telegram bot @{me.get('username')} sun raha hai. Telegram par /help bhejein.")
         say("   (Ye window khuli rakhein. Band karne ke liye Ctrl + C.)")
         self.reply("🟢 Bot on ho gaya. /help se commands dekhein.")
-        while True:
+        if self.updater:
+            threading.Thread(target=self._auto_update, daemon=True).start()
+        while not self.restart:
             try:
                 updates = telegram._call(
                     "getUpdates", timeout=40,
@@ -404,5 +499,7 @@ class TelegramBot:
                                  daemon=True).start()
 
 
-def run(cfg: dict, process):
-    TelegramBot(cfg, process).run()
+def run(cfg: dict, process, updater=None, update_available=None):
+    b = TelegramBot(cfg, process, updater, update_available)
+    b.run()
+    return "restart" if b.restart else None

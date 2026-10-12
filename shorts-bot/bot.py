@@ -124,7 +124,7 @@ def log_short(cfg: dict, video: Path, title: str, src: dict, permission: str):
                     src.get("channel", ""), src.get("title", ""), src.get("url", ""), permission])
 
 
-def send_to_telegram(video: Path, title: str, desc: str, thumb, cfg: dict):
+def send_to_telegram(video: Path, title: str, desc: str, thumb, cfg: dict, note: str = ""):
     from shorts_bot import telegram
 
     if not cfg["telegram"]["send"] or not telegram.enabled():
@@ -132,6 +132,8 @@ def send_to_telegram(video: Path, title: str, desc: str, thumb, cfg: dict):
     say("  📲 Telegram par bhej raha hoon...")
     try:
         telegram.send_short(video, title, desc, thumb)
+        if note:
+            telegram.send_message(note)
         say("  📲 Telegram par bhej diya.")
     except BotError as e:  # Bhejna fail ho to bhi Short computer par mehfooz hai
         say(f"  ⚠️  Telegram par nahi gaya: {e}")
@@ -184,6 +186,7 @@ def process(source: str, cfg: dict, args, on_short=None, permission: str = None)
         cwork = src["dir"] / f"clip-{clip['start_index']}-{clip['end_index']}"
         cwork.mkdir(parents=True, exist_ok=True)
         voices = {}
+        voice.USED.clear()
         if cfg["clips"]["hook"] and clip["hook_voice"].strip():
             voices["hook"] = voice.speak(clip["hook_voice"], cwork / "hook",
                                          voice.styled(cfg, cfg["voice"]["gender"]))
@@ -207,6 +210,9 @@ def process(source: str, cfg: dict, args, on_short=None, permission: str = None)
             say("  Thumbnail bana raha hoon...")
             thumb = render.make_thumbnail(csrc, cclip, cfg, cwork, final.with_suffix(".jpg"),
                                           tr["language"])
+        note = voice.report()
+        if note:
+            say("  " + note)
         say(f"  ✅ Tayyar: {final}")
         outputs.append(final)
         log_short(cfg, final, title, src, permission)
@@ -215,9 +221,9 @@ def process(source: str, cfg: dict, args, on_short=None, permission: str = None)
                       "thumb": str(thumb) if thumb else "", "title": title, "description": desc,
                       "thumbnail_text": clip.get("thumbnail_text") or clip["hook_on_screen"],
                       "media": str(media), "clip": cclip, "lang": tr["language"],
-                      "cwork": str(cwork), "source": src.get("title", "")})
+                      "cwork": str(cwork), "source": src.get("title", ""), "voice_note": note})
         else:
-            send_to_telegram(final, title, desc, thumb, cfg)
+            send_to_telegram(final, title, desc, thumb, cfg, note)
 
         history["videos"].setdefault(src["id"], []).append([clip["start_index"], clip["end_index"]])
         history["hooks"] = (history["hooks"] + [clip["hook_voice"]])[-60:]
@@ -247,7 +253,7 @@ def self_update(quiet: bool = False):
     if git("rev-parse", "--is-inside-work-tree").returncode != 0:
         if not quiet:
             say("❌ Ye folder Git se download nahi hua. README ka 'Khud-ba-khud update' hissa dekhein.")
-        return
+        return None
     before = git("rev-parse", "HEAD").stdout.strip()
     say("🔄 Naya version check ho raha hai...")
     # YouTube har hafte badalta hai: yt-dlp hamesha sab se naya rakho
@@ -258,17 +264,28 @@ def self_update(quiet: bool = False):
         say("⚠️  Update nahi hua (internet?). Purane version se chal raha hai.")
         if not quiet:
             say(r.stderr.strip()[-500:])
-        return
+        return None
     after = git("rev-parse", "HEAD").stdout.strip()
     if before == after:
         say(f"✅ Bot pehle se naya hai: {version_text()}")
-        return
+        return ""
     say("📦 Naye packages check ho rahe hain...")
     subprocess.run([sys.executable, "-m", "pip", "install", "-q", "-r", str(HERE / "requirements.txt")])
     say(f"✅ Update ho gaya! Naya version: {version_text()}")
     log = git("log", "--format=  • %s", f"{before}..{after}")
     if log.stdout.strip():
         say("Kya naya hai:\n" + log.stdout.rstrip())
+    return log.stdout.rstrip() or "naya version"
+
+
+def update_available() -> bool:
+    """GitHub par naya version hai? (sirf dekhta hai, kuch badalta nahi)"""
+    if not shutil.which("git") or git("rev-parse", "--is-inside-work-tree").returncode != 0:
+        return False
+    if git("fetch", "-q").returncode != 0:
+        return False
+    r = git("rev-list", "--count", "HEAD..@{u}")
+    return r.returncode == 0 and r.stdout.strip() not in ("", "0")
 
 
 def check(cfg: dict):
@@ -459,15 +476,18 @@ def main():
             from shorts_bot.util import require_ffmpeg as _rf
             from shorts_bot import tgbot
             _rf()
-            return tgbot.run(cfg, process)
+            if tgbot.run(cfg, process, self_update, update_available) == "restart":
+                # Naya code: bot dobara chalao (isi window mein)
+                raise SystemExit(subprocess.call([sys.executable, str(HERE / "bot.py"), "--telegram"]))
+            return
         from shorts_bot.util import require_ffmpeg
         require_ffmpeg()
         if args.test_voice:
             from shorts_bot import voice
             out = cfg["paths"]["output"] / "voice-test"
             out.parent.mkdir(parents=True, exist_ok=True)
-            wav = voice.speak(args.test_voice, out, cfg)
-            return say(f"✅ Awaaz bani: {wav}  (awaaz: {voice.pick_voice(cfg)})")
+            wav = voice.speak(args.test_voice, out, voice.styled(cfg, cfg["voice"]["gender"]))
+            return say(f"✅ Awaaz bani: {wav}\n{voice.report()}")
 
         sources = []
         for s in args.sources:

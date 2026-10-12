@@ -70,3 +70,18 @@ def load(path: Path) -> dict:
     if c["min_seconds"] >= c["max_seconds"]:
         raise BotError("config.yaml: clips.min_seconds, max_seconds se chhota hona chahiye.")
     return cfg
+
+
+def save_local(base: Path, changes: dict):
+    """Telegram se badli hui setting config.local.yaml mein yaad rakho (update se nahi mitti)."""
+    path = Path(base) / "config.local.yaml"
+    data = {}
+    if path.exists():
+        try:
+            with open(path, encoding="utf-8-sig") as f:
+                data = yaml.safe_load(f) or {}
+        except yaml.YAMLError:
+            data = {}
+    data = _merge(data, changes)
+    with open(path, "w", encoding="utf-8") as f:
+        yaml.safe_dump(data, f, allow_unicode=True, sort_keys=False)

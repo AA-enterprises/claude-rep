@@ -2,6 +2,7 @@
 
 import asyncio
 import base64
+import collections
 import json
 import os
 import re
@@ -182,6 +183,8 @@ def _google(text: str, out: Path, cfg: dict):
 # Microsoft baar baar fail ho to thori der seedha backup (waqt bachta hai)
 _edge_skip_until = 0.0
 _edge_fails = 0
+USED = collections.Counter()   # Kis engine ne kitni lines boleen (report ke liye)
+LAST_EDGE_ERROR = ""
 _rubberband = None
 
 
@@ -216,15 +219,17 @@ def _pitch_filter(cfg: dict) -> str:
 
 def speak(text: str, out: Path, cfg: dict) -> Path:
     """Text ko awaaz mein badal kar WAV file banao (48kHz stereo)."""
-    global _edge_skip_until, _edge_fails
+    global _edge_skip_until, _edge_fails, LAST_EDGE_ERROR
     mp3 = out.with_suffix(".mp3")
     extra = ""
     engine = cfg["voice"]["engine"]
     if engine == "elevenlabs":
         _elevenlabs(text, mp3, cfg)
+        USED["elevenlabs"] += 1
     elif engine == "google":
         _google(text, mp3, cfg)
         extra = _pitch_filter(cfg)
+        USED["google"] += 1
     else:
         err = None
         if time.time() >= _edge_skip_until:
@@ -232,6 +237,7 @@ def speak(text: str, out: Path, cfg: dict) -> Path:
                 try:
                     _edge(text, mp3, cfg)
                     err, _edge_fails = None, 0
+                    USED["microsoft"] += 1
                     break
                 except BotError as e:
                     err = e
@@ -242,6 +248,8 @@ def speak(text: str, out: Path, cfg: dict) -> Path:
             if not cfg["voice"].get("fallback_google", True):
                 raise err
             _edge_fails += 1
+            if time.time() >= _edge_skip_until:  # Asal ghalti yaad rakho (skip wali nahi)
+                LAST_EDGE_ERROR = str(err).splitlines()[-1][:150]
             if _edge_fails >= 2:  # Lagataar fail: 5 minute backup, phir Microsoft dobara
                 _edge_skip_until = time.time() + 300
             if _edge_fails == 1:
@@ -249,6 +257,7 @@ def speak(text: str, out: Path, cfg: dict) -> Path:
                 say(f"  ⚠️  Microsoft awaaz nahi mili ({first}). Google ki backup awaaz laga raha hoon.")
             _google(text, mp3, cfg)
             extra = _pitch_filter(cfg)
+            USED["google"] += 1
     wav = out.with_suffix(".wav")
     # Shuru/aakhir ki khamoshi kaato, awaaz barabar karo
     run(["ffmpeg", "-y", "-v", "error", "-i", mp3, "-af",
@@ -271,3 +280,41 @@ def fit(wav: Path, max_sec: float) -> Path:
     run(["ffmpeg", "-y", "-v", "error", "-i", wav, "-af", f"atempo={tempo:.3f}",
          "-ar", "48000", "-ac", "2", out])
     return out
+
+
+def report() -> str:
+    """Is dafa kaunsi awaaz lagi: user ko seedha batao."""
+    ms, gg, el = USED["microsoft"], USED["google"], USED["elevenlabs"]
+    if el:
+        return f"🎙️ Awaaz: ElevenLabs ({el} lines) ✅"
+    if ms and not gg:
+        return f"🎙️ Awaaz: Microsoft (asli Urdu awaaz) ✅  {ms} lines"
+    if gg and not ms:
+        return ("⚠️ Awaaz: sirf Google ki BACKUP awaaz lagi (saaf nahi hoti). Microsoft nahi chali: "
+                f"{LAST_EDGE_ERROR or 'wajah maloom nahi'}")
+    if gg:
+        return (f"⚠️ Awaaz: Microsoft {ms} lines, Google backup {gg} lines. Microsoft beech mein ruki: "
+                f"{LAST_EDGE_ERROR or 'wajah maloom nahi'}")
+    return ""
+
+
+# /awaaz par namoone: pehle 4 = intro/outro/kahani wali (narrator) awaaz ke option,
+# baaqi = video ke bandon ki awaazein (sirf sunne ke liye).
+SAMPLES = [
+    ("Bhaari narrator (Asad) + studio asar", "narrator", {}),
+    ("Bhaari narrator (Salman) + studio asar", "narrator", {"voice": "ur-IN-SalmanNeural"}),
+    ("Bohot bhaari, dheemi (Asad)", "narrator", {"pitch": "-18Hz", "rate": "-10%"}),
+    ("Saada narrator (Asad, studio asar ke baghair)", "narrator", {"fx": "none", "pitch": "-4Hz", "rate": "+0%"}),
+    ("Video mein buddha banda", "old_man", None),
+    ("Video mein jawan banda", "young_man", None),
+    ("Video mein aurat", "woman", None),
+]
+NARRATOR_CHOICES = 4
+
+
+def sample_cfg(cfg: dict, idx: int) -> dict:
+    label, style, over = SAMPLES[idx]
+    c = dict(cfg, dub=dict(cfg.get("dub", {})))
+    if over is not None:  # Narrator option: config ki purani pasand ki jagah ye
+        c["dub"]["styles"] = dict(c["dub"].get("styles") or {}, narrator=over)
+    return styled(c, style)
