@@ -13,9 +13,9 @@ language:
   # urdu, roman (Roman Urdu), english, hindi, arabic, french, german, spanish, turkish,
   # portuguese, italian, indonesian, bengali, russian, japanese, korean, chinese
   target: urdu                  # Subtitles (captions) ki zubaan
-  # Awaaz (hook/outro), screen ka text, title, description aur thumbnail kis zubaan mein:
-  #   english = English (captions phir bhi upar wali zubaan + asal English mein)
-  #   same    = wahi jo target (sab kuch Urdu)
+  voice: urdu                   # AI awaaz (intro/hook aur outro) kis zubaan mein bole
+  # Screen par likha text, title aur description kis zubaan mein:
+  #   english = English  |  same = wahi jo target (Urdu)
   narration: english
   # Podcast kis zubaan mein hai? "auto" = bot khud pehchan lega
   source: auto

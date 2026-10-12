@@ -142,7 +142,9 @@ def process(source: str, cfg: dict, args, on_short=None, permission: str = None)
     # dobara use karo (AI ke paise dobara nahi lagte). Mukammal hone par mit jata hai.
     c = cfg["clips"]
     shape = f"series{c['parts']}x{c['part_seconds']}" if c["mode"] == "series" else f"single{c['per_video']}"
-    key = f"{cfg['language']['target']}-{cfg['voice']['gender']}-{shape}-{c['focus']}"
+    lang = cfg["language"]
+    key = (f"{lang['target']}-{lang.get('voice')}-{lang.get('narration')}-{cfg['thumbnail'].get('language')}"
+           f"-{cfg['voice']['gender']}-{shape}-{c['focus']}")
     plan_path = src["dir"] / f"plan-{slug(key, 60)}.json"
     plan = read_json(plan_path)
     if plan and plan.get("clips"):
@@ -299,9 +301,9 @@ def check(cfg: dict):
     say(f"ℹ️  Shorts yahan save honge: {cfg['paths']['output']}")
     lang = languages.get(cfg["language"]["target"])
     narr = languages.narration(cfg)
-    say(f"ℹ️  Subtitles: {lang['key']} + asal  |  Awaaz/title: {narr['key']}  |  "
+    say(f"ℹ️  Subtitles: {lang['key']} + asal  |  Awaaz: {languages.voice(cfg)['key']}  |  Title/text: {narr['key']}  |  "
         f"Thumbnail: {languages.thumbnail(cfg)['key']}  |  "
-        f"Awaaz: {cfg['voice']['gender']}  |  Style: {cfg['clips']['mode']}")
+        f"Awaaz kis ki: {cfg['voice']['gender']}  |  Style: {cfg['clips']['mode']}")
     say("\nSab theek hai! ✅" if ok else "\nUpar ❌ wali cheezein theek karein.")
 
 

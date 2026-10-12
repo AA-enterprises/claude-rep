@@ -94,3 +94,9 @@ def thumbnail(cfg: dict) -> dict:
     """Thumbnail ka text kis zubaan mein (thumbnail.language). "same" = narration wali."""
     t = (cfg.get("thumbnail", {}).get("language") or "same").strip().lower()
     return narration(cfg) if t in ("same", "") else get(t)
+
+
+def voice(cfg: dict) -> dict:
+    """AI awaaz (hook/outro) kis zubaan mein bole (language.voice). "same" = narration wali."""
+    v = (cfg["language"].get("voice") or "same").strip().lower()
+    return narration(cfg) if v in ("same", "") else get(v)

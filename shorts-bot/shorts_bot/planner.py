@@ -16,7 +16,7 @@ SYSTEM_TEMPLATE = """You are the head editor of a fast-growing YouTube Shorts ch
 Your job for each podcast:
 1. Find the moments most likely to get millions of views as standalone Shorts: a surprising claim, a strong opinion, a personal story with a twist, a money or success lesson, a funny exchange, an emotional confession, a hot take, or a clear useful tip. The clip must make sense on its own, without the rest of the episode. Start on a line that grabs attention immediately (never on a filler word or mid-thought) and end on a payoff line, not mid-sentence.
 2. Translate the spoken lines in the clip into the caption language, naturally and briefly, the way a native speaker would say it, so it reads well as an on-screen caption. Keep names and brand names as they are.
-3. Write a narrator hook and outro in the narration language. The narrator is {narrator} talking straight to the viewer, like a friend sharing something they just heard. In languages with grammatical gender (Urdu, Hindi, Arabic, French, ...), use the verb and adjective forms that match a {gender} narrator.
+3. Write a narrator hook and outro in the spoken narrator language. The narrator is {narrator} talking straight to the viewer, like a friend sharing something they just heard. In languages with grammatical gender (Urdu, Hindi, Arabic, French, ...), use the verb and adjective forms that match a {gender} narrator.
    - Hook (spoken before the clip): one or two short sentences, about 2-4 seconds when spoken. Create curiosity about what the speaker is about to say without giving the punchline away. Do not lie or exaggerate beyond what the clip delivers.
    - Outro (spoken after the clip): two or three short sentences, about 6-10 seconds when spoken. Add real value of your own: the lesson, why it matters, or a sharp opinion, then end with a question that makes viewers comment. This commentary is what makes the channel original, so it must be specific to this clip, never generic.
    - Every hook and outro must use a different opening and structure. Avoid formula phrases you have used before (a list of previous hooks may be given).
@@ -27,7 +27,7 @@ Rules:
 - Pick clips that do not overlap and come from different parts of the episode when possible.
 - Never choose segments that are ads, sponsor reads, intros, or outros of the podcast itself.
 - Avoid clips whose main content is hate, harassment, graphic violence, or dangerous medical or financial advice that could hurt viewers; YouTube demonetizes these.
-- Write the narrator text exactly as it should be spoken by a text-to-speech voice: no emojis, no hashtags, no stage directions, numbers written the way they are read aloud in the narration language."""
+- Write the narrator text exactly as it should be spoken by a text-to-speech voice: no emojis, no hashtags, no stage directions, numbers written the way they are read aloud in the spoken narrator language."""
 
 
 NARRATORS = {
@@ -192,6 +192,7 @@ def make_plan(src: dict, transcript: dict, cfg: dict, used: list, recent_hooks: 
     target = languages.get(cfg["language"]["target"])
     narr = languages.narration(cfg)
     thumb = languages.thumbnail(cfg)
+    spoken = languages.voice(cfg)
     source = languages.get(transcript.get("language") or "en")
     c = cfg["clips"]
     segs = transcript["segments"]
@@ -202,7 +203,8 @@ def make_plan(src: dict, transcript: dict, cfg: dict, used: list, recent_hooks: 
         f"Channel: {src.get('channel') or 'unknown'}",
         f"Spoken language: {source['name']}",
         f"Caption translation language: {target['name']}",
-        f"Language for the narrator hook and outro, hook_on_screen and outro_on_screen: {narr['name']}",
+        f"Language for the spoken narrator hook_voice and outro_voice: {spoken['name']}",
+        f"Language for hook_on_screen and outro_on_screen: {narr['name']}",
         f"Language for thumbnail_text: {thumb['name']} (keep the word PART and its number in English letters)",
         _title_rule(cfg["language"]["title_style"], narr if narr["code"] != target["code"] else target),
     ]
@@ -256,7 +258,7 @@ def make_plan(src: dict, transcript: dict, cfg: dict, used: list, recent_hooks: 
 SERIES_RULES = """SERIES MODE: Instead of separate moments, choose ONE continuous, gripping scene or story from the video (about {total} seconds in total) and split it into exactly {n} consecutive parts, returned in order in "clips" as Part 1 to Part {n}.
 - Part k+1 must start at the segment right after Part k ends: no gaps, no overlap, so viewers see the whole scene across the parts.
 - Each part must last between {lo} and {hi} seconds (aim for {sec}). Cut each part on a line that leaves the viewer wanting more (a question, a reveal about to happen, a tense pause), never mid-word.
-- hook_voice: Part 1 builds suspense about what is coming without spoiling it. Later parts start with a very short recap like "In the last part..." and then raise the tension again. Speak in the narration language.
+- hook_voice: Part 1 builds suspense about what is coming without spoiling it. Later parts start with a very short recap like "In the last part..." and then raise the tension again. Speak in the spoken narrator language.
 - outro_voice: every part except the last ends on a cliffhanger and tells viewers to watch the next part (e.g. the equivalent of "What happened next? Watch Part 2."). The last part gives the payoff or lesson and asks viewers a question.
 - title: the same series name for all parts plus "| Part k", e.g. "Mars par aakhri 7 minute | Part 1".
 - thumbnail_text: 2-5 words and must include "PART k".
