@@ -69,8 +69,13 @@ music:
   volume: 0.10                  # 0.05 halka ... 0.2 tez
 
 transcript:
-  prefer_youtube_captions: true # true = YouTube ke subtitles use karo (bahut tez)
-  whisper_model: small          # Subtitles na hon to: tiny | base | small | medium (bara = behtar magar dheema)
+  prefer_youtube_captions: true # true = YouTube ke subtitles ho to wohi (sab se tez)
+  # Subtitles na hon to bot khud sun kar banata hai:
+  #   auto  = pehle computer par Whisper, na chale to Groq (agar .env mein GROQ_API_KEY ho)
+  #   local = sirf computer par Whisper (muft, dheema)
+  #   groq  = sirf Groq internet service (tez, free plan mein limit)
+  engine: auto
+  whisper_model: small          # tiny | base | small | medium (bara = behtar magar dheema)
 
 safety:
   ask_permission: true          # Creative Commons na ho to har video par ijazat confirm karwaye

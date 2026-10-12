@@ -126,16 +126,20 @@ Tayyar Shorts **`output`** folder mein milenge: har `.mp4` ke saath us ki `.txt`
 | `credit khatam` | console.anthropic.com → Billing |
 | Video download nahi hoti | `pip install -U yt-dlp` chalayein (YouTube aksar badalta rehta hai) |
 | Captions mein dabbe (□□□) dikhte hain | `fonts` folder delete karein, bot dobara download karega |
-| `--check` mein faster_whisper ⚠️ ("Application Control policy has blocked") | Windows ka **Smart App Control** Whisper ko rok raha hai. Bot phir bhi un videos par chalega jin ke YouTube subtitles hon. Neeche "Whisper nahi chalta" dekhein |
+| Video ke subtitles nahi hain | Bot khud sun kar subtitles banata hai (Whisper). Computer par na chale to Groq se, neeche "Subtitles kaise bante hain" dekhein |
 | Bahut dheema hai | Video ke YouTube subtitles na hon to Whisper chalta hai. `transcript.whisper_model: base` kar dein |
 
 ---
 
-### Whisper nahi chalta (Smart App Control)
-Whisper sirf un videos ke liye chahiye jin ke YouTube par subtitles nahi hote. Zyada tar podcasts ke subtitles hote hain, is liye aksar is ki zaroorat nahi parti.
+### Subtitles kaise bante hain
+1. Video ke **YouTube subtitles** hon to bot wohi le leta hai (sab se tez).
+2. Na hon to bot **khud sunta hai (Whisper)**, aap ke computer par, muft. Pehli dafa model download hota hai, aur lambi video mein waqt lagta hai.
+3. Agar Whisper computer par na chale (jaise Windows ka "Smart App Control" rok de), to bot **Groq** (internet service) se subtitles banwata hai:
+   - https://console.groq.com par muft account banayein → **API Keys → Create API Key**.
+   - `notepad .env` kholein, nayi line likhein: `GROQ_API_KEY=gsk_...` aur Ctrl+S.
+   - Free plan mein ghante ki limit hai. Lambi video par bot khud ruk ruk kar poora kar leta hai.
 
-Agar Whisper zaroor chahiye: **Windows Security → App & browser control → Smart App Control settings → Off**.
-⚠️ Dhyan rahe: Smart App Control ek dafa off ho jaye to Windows dobara install kiye baghair wapas on nahi hota. Antivirus (Windows Defender) phir bhi chalta rehta hai.
+`config.yaml` mein `transcript.engine` se chun sakte hain: `auto` (default), `local` ya `groq`.
 
 ## 🧩 Bot ke hisse (badalne ke liye)
 

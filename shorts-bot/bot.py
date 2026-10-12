@@ -149,37 +149,69 @@ def check(cfg: dict):
                 say("   Hal: python -m pip install -r requirements.txt")
             ok = False
     key = os.environ.get("ANTHROPIC_API_KEY", "")
-    env_file = HERE / ".env"
     if key.startswith("sk-ant-") and "yahan" not in key:
-        say("✅ ANTHROPIC_API_KEY set hai")
+        say(f"✅ ANTHROPIC_API_KEY set hai (sk-ant-...{key[-4:]})")
     else:
         ok = False
-        if not env_file.exists():
-            say(f"❌ ANTHROPIC_API_KEY: .env file nahi mili ({env_file})")
-        elif not key:
-            say("❌ ANTHROPIC_API_KEY: .env mein key khaali hai. 'notepad .env' se key paste karke Ctrl+S karein")
+        if not key:
+            say("❌ ANTHROPIC_API_KEY nahi mili.")
+        elif "yahan" in key:
+            say("❌ ANTHROPIC_API_KEY: .env mein abhi tak namoona text hai, asli key paste karke Ctrl+S karein.")
         else:
-            say("❌ ANTHROPIC_API_KEY: .env mein asli key nahi (sk-ant-... se shuru honi chahiye)")
+            say("❌ ANTHROPIC_API_KEY ajeeb hai (sk-ant-... se shuru honi chahiye).")
+        say(f"   {describe_env()}")
+        say('   Hal: "notepad .env" chalayein, ek line likhein: ANTHROPIC_API_KEY=sk-ant-... aur Ctrl+S.')
+    groq = os.environ.get("GROQ_API_KEY", "")
+    say(f"{'✅' if groq else 'ℹ️ '} GROQ_API_KEY {'set hai' if groq else 'nahi (zaroori nahi, sirf backup subtitles ke liye)'}")
     lang = languages.get(cfg["language"]["target"])
     say(f"ℹ️  Zubaan: {lang['key']}  |  Awaaz: {cfg['voice']['gender']}  |  Layout: {cfg['video']['layout']}")
     say("\nSab theek hai! ✅" if ok else "\nUpar ❌ wali cheezein theek karein.")
 
 
-def load_env_file(path: Path):
-    """.env file se API keys parho (KEY=value), agar pehle se set na hon."""
-    if not path.exists():
-        return
-    for line in path.read_text(encoding="utf-8-sig").splitlines():
-        if "=" in line and not line.strip().startswith("#"):
-            k, v = line.split("=", 1)
-            k, v = k.strip(), v.strip().strip('"').strip("'")
+def env_files() -> list:
+    """.env ke saath Notepad ki ghalti se bani '.env.txt' bhi dekho."""
+    return [p for p in (HERE / ".env", HERE / ".env.txt") if p.exists()]
+
+
+def read_env_text(path: Path) -> str:
+    raw = path.read_bytes()
+    if raw.startswith((b"\xff\xfe", b"\xfe\xff")):  # Notepad "UTF-16" mein save hui ho
+        return raw.decode("utf-16")
+    return raw.decode("utf-8-sig", "replace")
+
+
+def load_env_file():
+    """.env se API keys parho (KEY=value), agar pehle se set na hon."""
+    for path in env_files():
+        for line in read_env_text(path).splitlines():
+            line = line.strip().removeprefix("export ").strip()
+            if not line or line.startswith("#"):
+                continue
+            if "=" in line:
+                k, v = line.split("=", 1)
+            elif line.startswith("sk-ant-"):  # Sirf key paste hui, naam mit gaya
+                k, v = "ANTHROPIC_API_KEY", line
+            else:
+                continue
+            k, v = k.strip(), v.strip().strip('"').strip("'").strip()
             if k and v and not os.environ.get(k):
                 os.environ[k] = v
 
 
+def describe_env() -> str:
+    """Key dikhaye baghair batao ke .env mein kya mila."""
+    files = env_files()
+    if not files:
+        return f".env file nahi mili. Is folder mein honi chahiye: {HERE}"
+    path = files[0]
+    lines = [ln.strip() for ln in read_env_text(path).splitlines() if ln.strip() and not ln.strip().startswith("#")]
+    names = [ln.split("=", 1)[0].strip() for ln in lines if "=" in ln]
+    return f"{path.name} mili ({len(lines)} line), is mein ye naam hain: {', '.join(names) or 'koi nahi'}"
+
+
 def main():
     console_utf8()
-    load_env_file(HERE / ".env")
+    load_env_file()
     p = argparse.ArgumentParser(description="Podcast se Shorts banane wala bot")
     p.add_argument("sources", nargs="*", help="YouTube link, video file, ya links.txt")
     p.add_argument("--clips", type=int, help="Har video se kitne Shorts")

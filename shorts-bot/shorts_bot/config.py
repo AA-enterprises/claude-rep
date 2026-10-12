@@ -18,7 +18,7 @@ DEFAULTS = {
     "captions": {"show_translation": True, "show_original": True, "translation_size": 84,
                  "original_size": 50, "hook_size": 96, "highlight_color": "#FFD60A"},
     "music": {"enabled": True, "folder": "music", "volume": 0.10},
-    "transcript": {"prefer_youtube_captions": True, "whisper_model": "small"},
+    "transcript": {"prefer_youtube_captions": True, "engine": "auto", "whisper_model": "small"},
     "safety": {"ask_permission": True},
     "paths": {"output": "output", "work": "work"},
 }
