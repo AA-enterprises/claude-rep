@@ -5,3 +5,4 @@ music/*
 !music/README.txt
 .env
 config.local.yaml
+sources.local.yaml

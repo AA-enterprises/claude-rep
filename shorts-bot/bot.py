@@ -30,7 +30,7 @@ def is_creative_commons(src: dict) -> bool:
     return "creative commons" in (src.get("license") or "").lower()
 
 
-def confirm_permission(src: dict, cfg: dict, assume_yes: bool) -> str:
+def confirm_permission(src: dict, cfg: dict, assume_yes: bool, strict: bool = False) -> str:
     if is_creative_commons(src):
         say("  ✅ Ye video Creative Commons hai (credit ke saath reuse allowed).")
         return "Creative Commons (CC BY)"
@@ -38,6 +38,8 @@ def confirm_permission(src: dict, cfg: dict, assume_yes: bool) -> str:
         return "Local file (aap ki apni ya permission wali)"
     if assume_yes or not cfg["safety"]["ask_permission"]:
         return "User ne ijazat confirm ki"
+    if strict:  # Telegram se: poochh nahi sakte, is liye sirf CC chalao
+        raise BotError("Ye video Creative Commons nahi, is liye chhor di.")
     say("\n  ⚠️  Ye video Creative Commons NAHI hai.")
     say(f"     Channel: {src.get('channel')}")
     say("     Bina ijazat clips lagane se copyright strike aa sakti hai.")
@@ -116,7 +118,7 @@ def send_to_telegram(video: Path, title: str, desc: str, thumb, cfg: dict):
         say(f"  ⚠️  Telegram par nahi gaya: {e}")
 
 
-def process(source: str, cfg: dict, args) -> list:
+def process(source: str, cfg: dict, args, on_short=None, permission: str = None) -> list:
     from shorts_bot import download, planner, render, transcribe, voice
 
     step("1/5  Video aur maloomat la raha hoon")
@@ -124,7 +126,8 @@ def process(source: str, cfg: dict, args) -> list:
     say(f"  Title  : {src.get('title', '')[:80]}")
     if src.get("channel"):
         say(f"  Channel: {src['channel']}")
-    permission = confirm_permission(src, cfg, args.yes)
+    if not permission:
+        permission = confirm_permission(src, cfg, args.yes, strict=getattr(args, "strict", False))
 
     step("2/5  Baat-cheet ko text mein badal raha hoon")
     tr = transcribe.get_transcript(src, cfg)
@@ -177,7 +180,14 @@ def process(source: str, cfg: dict, args) -> list:
         say(f"  ✅ Tayyar: {final}")
         outputs.append(final)
         log_short(cfg, final, title, src, permission)
-        send_to_telegram(final, title, desc, thumb, cfg)
+        if on_short:
+            on_short({"video": str(final), "txt": str(final.with_suffix(".txt")),
+                      "thumb": str(thumb) if thumb else "", "title": title, "description": desc,
+                      "thumbnail_text": clip.get("thumbnail_text") or clip["hook_on_screen"],
+                      "media": str(media), "clip": cclip, "lang": tr["language"],
+                      "cwork": str(cwork), "source": src.get("title", "")})
+        else:
+            send_to_telegram(final, title, desc, thumb, cfg)
 
         history["videos"].setdefault(src["id"], []).append([clip["start_index"], clip["end_index"]])
         history["hooks"] = (history["hooks"] + [clip["hook_voice"]])[-60:]
@@ -352,6 +362,8 @@ def main():
     p.add_argument("--quiet", action="store_true", help=argparse.SUPPRESS)
     p.add_argument("--ask", action="store_true", help="Link poochho (start.bat ke liye)")
     p.add_argument("--version", action="store_true", help="Bot ka version dikhao")
+    p.add_argument("--telegram", action="store_true",
+                   help="Telegram se commands suno (/nasa, /cc, /link, /title ...)")
     args = p.parse_args()
     if args.update:
         return self_update(args.quiet)
@@ -388,6 +400,11 @@ def main():
         if args.telegram_setup:
             from shorts_bot import telegram
             return telegram.setup(HERE / ".env")
+        if args.telegram:
+            from shorts_bot.util import require_ffmpeg as _rf
+            from shorts_bot import tgbot
+            _rf()
+            return tgbot.run(cfg, process)
         from shorts_bot.util import require_ffmpeg
         require_ffmpeg()
         if args.test_voice:

@@ -94,6 +94,72 @@ def _title_rule(style: str, target: dict) -> str:
     return f"Write title and description in {target['name']}."
 
 
+def ask_claude(cfg: dict, system: str, prompt: str, schema: dict, effort: str = "high") -> dict:
+    """Claude se JSON jawab lo (structured output). Saari ghaltiyan Urdu BotError mein."""
+    model = cfg["ai"]["model"]
+    kwargs = dict(
+        model=model,
+        max_tokens=64000,
+        system=system,
+        messages=[{"role": "user", "content": prompt}],
+        output_config={"effort": effort, "format": {"type": "json_schema", "schema": schema}},
+    )
+    if model in FALLBACK_MODELS:
+        kwargs["betas"] = ["server-side-fallback-2026-07-01"]
+        kwargs["fallbacks"] = "default"
+    if not (os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("ANTHROPIC_AUTH_TOKEN")):
+        raise BotError("ANTHROPIC_API_KEY set nahi. README ka Step 4 dekhein (.env file).")
+    try:
+        client = anthropic.Anthropic()
+        if "betas" in kwargs:
+            with client.beta.messages.stream(**kwargs) as stream:
+                resp = stream.get_final_message()
+        else:
+            with client.messages.stream(**kwargs) as stream:
+                resp = stream.get_final_message()
+    except anthropic.AuthenticationError as e:
+        raise BotError("ANTHROPIC_API_KEY ghalat hai ya set nahi. README ka Step 4 dekhein.") from e
+    except anthropic.PermissionDeniedError as e:
+        raise BotError(f"API key ko is model ki ijazat nahi: {e}") from e
+    except anthropic.RateLimitError as e:
+        raise BotError("AI ki limit poori ho gayi. Thori der baad dobara chalayein "
+                       "(ya console.anthropic.com par credit check karein).") from e
+    except anthropic.BadRequestError as e:
+        if "credit" in str(e).lower():
+            raise BotError("Anthropic account mein credit khatam. console.anthropic.com > Billing.") from e
+        raise BotError(f"AI ne request qubool nahi ki: {e}") from e
+    except anthropic.APIStatusError as e:
+        raise BotError(f"AI server ka masla ({e.status_code}). Thori der baad chalayein.") from e
+    except anthropic.APIConnectionError as e:
+        raise BotError("Internet ka masla: AI se rabta nahi hua.") from e
+
+    if resp.stop_reason == "refusal":
+        raise BotError("AI ne is kaam se inkaar kiya (content policy). Doosri video/baat try karein.")
+    if resp.stop_reason == "max_tokens":
+        raise BotError("AI ka jawab adhoora reh gaya. clips.per_video kam karke dobara chalayein.")
+    text = next((b.text for b in resp.content if b.type == "text"), "")
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError as e:
+        raise BotError("AI ka jawab samajh nahi aaya. Dobara chalayein.") from e
+
+
+EDIT_SYSTEM = """You help a YouTube Shorts creator polish one Short's metadata. You get the current title, description and thumbnail text, plus the creator's request (often in Roman Urdu or Urdu). Apply exactly what they ask and keep everything else unchanged. Keep titles under 70 characters, curiosity-driven but honest. Thumbnail text: 2-5 punchy words. Keep the same language and script as the current text unless the creator asks otherwise. Never remove the credit line or hashtags from the description unless asked. In 'reply', tell the creator in one short Roman Urdu sentence what you changed."""
+
+
+def edit_metadata(cfg: dict, current: dict, request: str) -> dict:
+    """Telegram par user ki baat ('title zyada chatpata karo') ke mutabiq title/description/thumbnail badlo."""
+    schema = {
+        "type": "object",
+        "properties": {k: {"type": "string"} for k in ("title", "description", "thumbnail_text", "reply")},
+        "required": ["title", "description", "thumbnail_text", "reply"],
+        "additionalProperties": False,
+    }
+    prompt = (f"Current title:\n{current['title']}\n\nCurrent description:\n{current['description']}\n\n"
+              f"Current thumbnail text:\n{current['thumbnail_text']}\n\nCreator's request:\n{request}")
+    return ask_claude(cfg, EDIT_SYSTEM, prompt, schema, effort="low")
+
+
 def make_plan(src: dict, transcript: dict, cfg: dict, used: list, recent_hooks: list) -> dict:
     target = languages.get(cfg["language"]["target"])
     source = languages.get(transcript.get("language") or "en")
@@ -126,55 +192,8 @@ def make_plan(src: dict, transcript: dict, cfg: dict, used: list, recent_hooks: 
     parts.append("Transcript (segment index, time, text):\n" + lines)
     prompt = "\n\n".join(parts)
 
-    model = cfg["ai"]["model"]
-    kwargs = dict(
-        model=model,
-        max_tokens=64000,
-        system=_system(cfg),
-        messages=[{"role": "user", "content": prompt}],
-        output_config={"effort": cfg["ai"]["effort"],
-                       "format": {"type": "json_schema", "schema": _schema()}},
-    )
-    if model in FALLBACK_MODELS:
-        kwargs["betas"] = ["server-side-fallback-2026-07-01"]
-        kwargs["fallbacks"] = "default"
-
-    if not (os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("ANTHROPIC_AUTH_TOKEN")):
-        raise BotError("ANTHROPIC_API_KEY set nahi. README ka Step 4 dekhein (.env file).")
-    say(f"  AI ({model}) best moments dhoond raha hai aur script likh raha hai...")
-    try:
-        client = anthropic.Anthropic()
-        if "betas" in kwargs:
-            with client.beta.messages.stream(**kwargs) as stream:
-                resp = stream.get_final_message()
-        else:
-            with client.messages.stream(**kwargs) as stream:
-                resp = stream.get_final_message()
-    except anthropic.AuthenticationError as e:
-        raise BotError("ANTHROPIC_API_KEY ghalat hai ya set nahi. README ka Step 4 dekhein.") from e
-    except anthropic.PermissionDeniedError as e:
-        raise BotError(f"API key ko is model ki ijazat nahi: {e}") from e
-    except anthropic.RateLimitError as e:
-        raise BotError("AI ki limit poori ho gayi. Thori der baad dobara chalayein "
-                       "(ya console.anthropic.com par credit check karein).") from e
-    except anthropic.BadRequestError as e:
-        if "credit" in str(e).lower():
-            raise BotError("Anthropic account mein credit khatam. console.anthropic.com > Billing.") from e
-        raise BotError(f"AI ne request qubool nahi ki: {e}") from e
-    except anthropic.APIStatusError as e:
-        raise BotError(f"AI server ka masla ({e.status_code}). Thori der baad chalayein.") from e
-    except anthropic.APIConnectionError as e:
-        raise BotError("Internet ka masla: AI se rabta nahi hua.") from e
-
-    if resp.stop_reason == "refusal":
-        raise BotError("AI ne is video par kaam karne se inkaar kiya (content policy). Doosri video try karein.")
-    if resp.stop_reason == "max_tokens":
-        raise BotError("AI ka jawab adhoora reh gaya. clips.per_video kam karke dobara chalayein.")
-    text = next((b.text for b in resp.content if b.type == "text"), "")
-    try:
-        plan = json.loads(text)
-    except json.JSONDecodeError as e:
-        raise BotError("AI ka jawab samajh nahi aaya. Dobara chalayein.") from e
+    say(f"  AI ({cfg['ai']['model']}) best moments dhoond raha hai aur script likh raha hai...")
+    plan = ask_claude(cfg, _system(cfg), prompt, _schema(), effort=cfg["ai"]["effort"])
     plan["clips"] = _validate(plan.get("clips", []), segs, c, used)
     if not plan["clips"]:
         raise BotError("Is video mein munasib clips nahi mile.")

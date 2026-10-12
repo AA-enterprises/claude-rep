@@ -151,6 +151,27 @@ Ye aap ka apna chhota sa server hai jo bot ke messages Telegram tak pahunchata h
    ```
    Ctrl+S karein, phir `python bot.py --telegram-setup` chalayein.
 
+## 📱 Telegram se bot chalana (phone se commands)
+
+Computer par **`telegram.bat`** par double-click karein aur window khuli rehne dein. Ab phone ke Telegram se:
+
+| Command | Kaam |
+|---|---|
+| `/nasa` | NASA ki nayi video se Short (`/nasa 3` = 3 Shorts) |
+| `/jpl` `/goddard` `/whitehouse` | Doosre mehfooz (public domain) channels |
+| `/cc business podcast` | Creative Commons videos mein se, topic ke hisaab se |
+| `/link https://...` | Apna link (sirf Creative Commons) |
+| `/link https://... ijazat` | Ijazat wali video (zimmedari aap ki) |
+| `/sources` | Channels ki list |
+| `/help` | Saari commands |
+
+**Short badalna:** Short ke kisi message par **reply** karein (reply na karein to aakhri Short badlega):
+- `/title naya title`, `/desc nayi description`, `/thumb naya thumbnail text`
+- Ya seedha likhein: *"title aur chatpata karo"*, *"thumbnail par SHOCKING likho"*. AI khud badal dega.
+
+Channels `sources.yaml` mein hain. Apne channels `sources.local.yaml` mein add karein (update se nahi badalti).
+⚠️ Computer on aur `telegram.bat` chalti honi chahiye. Sirf aap ki Telegram chat ke messages mane jate hain.
+
 ## 🛡️ Copyright strike se bachao
 
 - Bot har Short ka record **`shorts-log.csv`** (output folder mein, Excel mein khulta hai) mein rakhta hai: kis channel ki kis video se bana. Agar kisi creator ki shikayat aaye, to unhi ke saare Shorts foran dhoond kar YouTube se hata sakte hain.

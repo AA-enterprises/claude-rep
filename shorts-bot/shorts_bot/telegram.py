@@ -61,32 +61,43 @@ def enabled() -> bool:
     return bool(os.environ.get("TELEGRAM_BOT_TOKEN") and os.environ.get("TELEGRAM_CHAT_ID"))
 
 
-def send_message(text: str):
-    # Telegram ek message mein 4096 akhar tak leta hai
-    for i in range(0, len(text), 4000):
-        _call("sendMessage", data={"chat_id": os.environ["TELEGRAM_CHAT_ID"],
-                                   "text": text[i:i + 4000]})
+def send_message(text: str, reply_to: int = None) -> list:
+    """Message bhejo; wapas: bheje gaye messages ke IDs."""
+    ids = []
+    for i in range(0, len(text), 4000):  # Telegram ek message mein 4096 akhar tak leta hai
+        data = {"chat_id": os.environ["TELEGRAM_CHAT_ID"], "text": text[i:i + 4000]}
+        if reply_to:
+            data["reply_to_message_id"] = reply_to
+        ids.append(_call("sendMessage", data=data)["message_id"])
+    return ids
 
 
-def send_short(video: Path, title: str, description: str, thumb: Path = None):
-    """Video + title, phir description alag message mein (copy karne ke liye)."""
+def send_document(path: Path, caption: str = "", mime: str = "image/jpeg") -> int:
+    with open(path, "rb") as f:
+        res = _call("sendDocument", timeout=120,
+                    data={"chat_id": os.environ["TELEGRAM_CHAT_ID"], "caption": caption[:1000]},
+                    files={"document": (path.name, f, mime)})
+    return res["message_id"]
+
+
+def send_short(video: Path, title: str, description: str, thumb: Path = None) -> list:
+    """Video + thumbnail + title/description. Wapas: saare messages ke IDs (reply pehchanne ke liye)."""
     size = video.stat().st_size
     if size > MAX_BYTES:
-        send_message(f"⚠️ Short tayyar hai lekin {size // (1024 * 1024)} MB ka hai "
-                     f"(Telegram limit 50 MB). Computer par dekhein:\n{video.name}")
-        return
+        return send_message(f"⚠️ Short tayyar hai lekin {size // (1024 * 1024)} MB ka hai "
+                            f"(Telegram limit 50 MB). Computer par dekhein:\n{video.name}")
+    ids = []
     with open(video, "rb") as f:
-        _call("sendVideo", timeout=600,
-              data={"chat_id": os.environ["TELEGRAM_CHAT_ID"], "caption": title[:1000],
-                    "supports_streaming": "true", "width": 1080, "height": 1920,
-                    "duration": int(duration(video))},
-              files={"video": (video.name, f, "video/mp4")})
-    if thumb and thumb.exists():  # Document ki shakal mein: quality kharab nahi hoti
-        with open(thumb, "rb") as f:
-            _call("sendDocument", timeout=120,
-                  data={"chat_id": os.environ["TELEGRAM_CHAT_ID"], "caption": "🖼️ Thumbnail"},
-                  files={"document": (thumb.name, f, "image/jpeg")})
-    send_message(f"📋 TITLE:\n{title}\n\n📋 DESCRIPTION:\n{description}")
+        res = _call("sendVideo", timeout=600,
+                    data={"chat_id": os.environ["TELEGRAM_CHAT_ID"], "caption": title[:1000],
+                          "supports_streaming": "true", "width": 1080, "height": 1920,
+                          "duration": int(duration(video))},
+                    files={"video": (video.name, f, "video/mp4")})
+        ids.append(res["message_id"])
+    if thumb and Path(thumb).exists():  # Document ki shakal mein: quality kharab nahi hoti
+        ids.append(send_document(Path(thumb), "🖼️ Thumbnail"))
+    ids += send_message(f"📋 TITLE:\n{title}\n\n📋 DESCRIPTION:\n{description}")
+    return ids
 
 
 def setup(env_path: Path):

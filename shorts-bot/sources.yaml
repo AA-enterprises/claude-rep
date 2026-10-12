@@ -1,0 +1,32 @@
+# =====================================================================
+#  MEHFOOZ CHANNELS (Telegram command: /naam, jaise /nasa)
+#  type: public_domain = qanoonan sab ke liye free (US hukumat ki videos)
+#        cc            = sirf Creative Commons wali videos li jayengi
+#  Naya channel add karna ho to neeche copy karke naam/url badal dein.
+#  (Apni marzi ke channels config.local.yaml ke bajaye yahan ya
+#   sources.local.yaml mein likhein; sources.local.yaml update se nahi badalti.)
+# =====================================================================
+
+nasa:
+  name: NASA
+  url: https://www.youtube.com/@NASA/videos
+  type: public_domain
+  note: "NASA ki videos US hukumat ka kaam hain (public domain). NASA ka logo apni taraf se na lagayein."
+
+jpl:
+  name: NASA JPL (Mars, robots, space missions)
+  url: https://www.youtube.com/@NASAJPL/videos
+  type: public_domain
+  note: "NASA JPL - public domain."
+
+goddard:
+  name: NASA Goddard (Earth, Sun, galaxies)
+  url: https://www.youtube.com/@NASAGoddard/videos
+  type: public_domain
+  note: "NASA Goddard - public domain."
+
+whitehouse:
+  name: The White House
+  url: https://www.youtube.com/@WhiteHouse/videos
+  type: public_domain
+  note: "US federal hukumat ka kaam - public domain. Siyasi content ho sakta hai."
