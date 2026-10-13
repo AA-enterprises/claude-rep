@@ -16,12 +16,15 @@ const routes = {
     <a href="/about">About</a> <a href="/missing">Old link</a> <a href="/js-broken">Deals</a>
     <a href="/wide">Gallery</a> <a href="/crash">Checkout</a> <a href="/leak">Product</a>
     <a href="/files/menu.pdf">Menu PDF</a> <a href="/private/x">Admin</a>
-    <a href="/clicky">Tools</a> <a href="/long">Story</a>`),
+    <a href="/clicky">Tools</a> <a href="/account">Account</a> <a href="/long">Story</a>`),
   '/clicky': page('Tools', `<p>Interactive tools page with a few buttons on it.</p>
     <button id="menu" onclick="openMegaMenu()">Open menu</button>
     <button onclick="fetch('/api/save', {method: 'POST', body: 'x'})">Save draft</button>
     <button onclick="fetch('/api/delete-account')">Delete account</button>
     <button onclick="location.href='/hidden-page'">Our team</button>`),
+  '/account': page('Account', `<p>Account page that checks the login in the background.</p>
+    <span class="sr-only" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap">Screen reader label</span>
+    <script>fetch('/api/auth/refresh'); fetch('/about?_rsc=abc123')</script>`),
   '/hidden-page': page('Team', '<p>This page has no normal link, only a button.</p><script>null.boom</script>'),
   '/long': page('Story', `<a href="#pricing">See pricing</a><p>A long story page with lots of text here.</p>
     <div style="height:3000px"></div><img loading="lazy" src="/img/lazy-gone.png" alt="late">
@@ -38,6 +41,8 @@ const hits = [];
 const server = http.createServer((req, res) => {
   hits.push(`${req.method} ${req.url}`);
   if (req.url === '/.env') { res.writeHead(200, { 'content-type': 'text/plain' }); return res.end('DB_PASSWORD=hunter2\n'); }
+  if (req.url === '/api/auth/refresh') { res.writeHead(401); return res.end(); }
+  if (req.url.includes('_rsc=')) { res.writeHead(404); return res.end(); }
   if (req.url === '/robots.txt') return res.end('User-agent: *\nDisallow: /private/\n');
   if (req.url === '/crash') { res.writeHead(500, { 'content-type': 'text/html' }); return res.end('<h1>Internal error</h1>'); }
   const body = routes[req.url];
@@ -79,6 +84,8 @@ const checks = [
   ['deep: link to missing #section found', has('/long', 'broken-anchor')],
   ['deep: noindex found', issuesOf('/long').some((i) => /noindex/.test(i.message))],
   ['deep: old jQuery found', has('/long', 'outdated-lib')],
+  ['logged-out 401 API call is not critical', !issuesOf('/account').some((i) => i.severity === 'critical')],
+  ['screen-reader-only text not flagged as cut off', !issuesOf('/account').some((i) => /cut off/.test(i.message))],
   ['deep: exposed .env found', report.siteIssues.some((i) => i.type === 'exposed-file' && i.detail.endsWith('/.env'))],
 ];
 let failed = 0;

@@ -124,7 +124,10 @@ export function mobileAudit() {
     const r = el.getBoundingClientRect();
     if (r.width === 0 || r.height === 0) continue;
     const cs = getComputedStyle(el);
-    if (clipped.length < 5 && el.children.length === 0 && el.textContent.trim().length > 3 &&
+    // Screen-reader-only text (sr-only, visually-hidden) is clipped on purpose.
+    const srOnly = r.width <= 2 || r.height <= 2 || cs.clip === 'rect(0px, 0px, 0px, 0px)' ||
+      /inset\(50%\)/.test(cs.clipPath) || /\b(sr-only|visually-hidden|screen-reader)/.test(el.className);
+    if (clipped.length < 5 && !srOnly && el.children.length === 0 && el.textContent.trim().length > 3 &&
         el.scrollWidth > el.clientWidth + 2 && /hidden|clip/.test(cs.overflowX) && cs.textOverflow !== 'ellipsis') {
       clipped.push(`${name(el)} "${el.textContent.trim().slice(0, 40)}"`);
     }

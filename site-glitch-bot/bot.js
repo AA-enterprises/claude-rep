@@ -291,9 +291,18 @@ async function checkPage(context, url, opts, origin, shared) {
     const req = res.request();
     if (req.resourceType() === 'document' && req.frame() === page.mainFrame()) return;
     if (res.status() >= 400) {
+      const type = req.resourceType();
+      const api = type === 'fetch' || type === 'xhr';
+      // Next.js prefetches linked pages with ?_rsc=; the linked page itself gets
+      // crawled and reported, so the prefetch would only be a duplicate.
+      if (api && new URL(res.url()).searchParams.has('_rsc')) return;
+      // Login checks (e.g. /api/auth/refresh) answer 401/403 when nobody is
+      // logged in. That's normal for a visitor, not a glitch.
+      if (api && (res.status() === 401 || res.status() === 403)) {
+        return add('info', 'auth-request', `${type} returned HTTP ${res.status()} (normal if it needs login)`, res.url());
+      }
       const firstParty = sameSite(res.url(), origin);
-      add(firstParty ? 'critical' : 'warning', 'resource-error',
-        `${req.resourceType()} returned HTTP ${res.status()}`, res.url());
+      add(firstParty ? 'critical' : 'warning', 'resource-error', `${type} returned HTTP ${res.status()}`, res.url());
     }
   });
   page.on('request', (req) => {
