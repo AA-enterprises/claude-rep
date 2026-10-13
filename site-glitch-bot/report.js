@@ -14,6 +14,10 @@ export function renderHtmlReport(report) {
   // Group identical issues across the site so one broken footer image
   // doesn't show up as 200 separate problems.
   const groups = new Map();
+  for (const i of report.siteIssues || []) {
+    const key = `${i.severity}|${i.type}|${i.message}|${i.detail ?? ''}`;
+    groups.set(key, { ...i, pages: ['(whole site)'] });
+  }
   for (const r of report.results) {
     for (const i of r.issues) {
       const key = `${i.severity}|${i.type}|${i.message}|${i.detail ?? ''}`;
@@ -77,9 +81,11 @@ ${topIssues.map((g) => `<div class="card" data-sev="${g.severity}">
   <span class="pill ${g.severity}">${g.severity}</span><b>${esc(g.message)}</b>
   <span class="muted"> · ${g.pages.length} page${g.pages.length > 1 ? 's' : ''}</span>
   ${g.detail ? `<div class="detail">${esc(g.detail)}</div>` : ''}
-  <details><summary>Where</summary><ul>${g.pages.slice(0, 50).map((u) => `<li><a href="${esc(u)}">${esc(u)}</a></li>`).join('')}${g.pages.length > 50 ? `<li>…and ${g.pages.length - 50} more</li>` : ''}</ul></details>
+  <details><summary>Where</summary><ul>${g.pages.slice(0, 50).map((u) => u.startsWith('(') ? `<li>${esc(u)}</li>` : `<li><a href="${esc(u)}">${esc(u)}</a></li>`).join('')}${g.pages.length > 50 ? `<li>…and ${g.pages.length - 50} more</li>` : ''}</ul></details>
 </div>`).join('\n') || '<p class="muted">None.</p>'}
 </div>
+
+${report.discovered?.length ? `<h2>Pages found by clicking</h2><div class="card"><p class="muted">These pages have no normal link; the bot found them by clicking buttons and menus.</p><ul>${report.discovered.map((u) => `<li><a href="${esc(u)}">${esc(u)}</a></li>`).join('')}</ul></div>` : ''}
 
 ${linkSection('Broken links to files on your site', report.brokenFiles)}
 ${linkSection('Broken external links', report.brokenExternal)}
@@ -98,8 +104,8 @@ ${pages.map((r) => `<div class="card" data-sev="${['critical', 'warning', 'info'
 </div>`).join('\n') || '<p class="muted">None.</p>'}
 
 <h2>Slowest pages</h2>
-<div class="card"><table><tr><th>Load time</th><th>Page</th></tr>
-${slowest.map((r) => `<tr><td>${(r.loadMs / 1000).toFixed(2)}s</td><td><a href="${esc(r.url)}">${esc(r.url)}</a></td></tr>`).join('')}
+<div class="card" style="overflow-x:auto"><table><tr><th>Load</th><th>Main content</th><th>Jumping</th><th>Size</th><th>Page</th></tr>
+${slowest.map((r) => `<tr><td>${(r.loadMs / 1000).toFixed(2)}s</td><td>${r.vitals?.lcp ? (r.vitals.lcp / 1000).toFixed(1) + 's' : '—'}</td><td>${r.vitals ? r.vitals.cls : '—'}</td><td>${r.bytes ? (r.bytes / 1048576).toFixed(1) + ' MB' : '—'}</td><td><a href="${esc(r.url)}">${esc(r.url)}</a></td></tr>`).join('')}
 </table></div>
 
 ${report.skipped.robots || report.skipped.filtered ? `<p class="muted">Skipped ${report.skipped.robots} URLs blocked by robots.txt and ${report.skipped.filtered} by your include/exclude filters.</p>` : ''}

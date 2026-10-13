@@ -6,6 +6,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { renderHtmlReport } from './report.js';
+import * as deep from './deep.js';
 
 const HELP = `
 Site Glitch Bot - find glitches on your own websites
@@ -13,7 +14,14 @@ Site Glitch Bot - find glitches on your own websites
 Usage:
   node bot.js <url> [options]
 
+Deep scan is ON by default: scrolls every page, clicks safe buttons/menus/tabs
+(never submit/buy/delete; form sends are blocked), measures speed and layout
+shift, runs accessibility checks and whole-site security checks.
+
 Options:
+  --quick               Fast surface scan only (no clicking, no deep checks)
+  --max-clicks <n>      Buttons to click per page in deep mode (default 25)
+  --urls <file>         Text file with extra page URLs to check (one per line)
   --max-pages <n>       Pages to crawl (default 200)
   --concurrency <n>     Pages checked in parallel (default 4)
   --delay <ms>          Pause between page loads per worker (default 250)
@@ -36,6 +44,7 @@ function parseArgs(argv) {
     maxPages: 200, concurrency: 4, delay: 250, timeout: 30000, slow: 4000,
     checkExternal: false, mobile: true, sitemap: true, robots: true,
     include: null, exclude: null, out: 'glitch-report', failOn: 'critical',
+    quick: false, maxClicks: 25, urls: null,
   };
   const rest = [];
   for (let i = 0; i < argv.length; i++) {
@@ -47,6 +56,9 @@ function parseArgs(argv) {
     };
     switch (a) {
       case '-h': case '--help': opts.help = true; break;
+      case '--quick': opts.quick = true; break;
+      case '--max-clicks': opts.maxClicks = +next(); break;
+      case '--urls': opts.urls = next(); break;
       case '--max-pages': opts.maxPages = +next(); break;
       case '--concurrency': opts.concurrency = Math.max(1, +next()); break;
       case '--delay': opts.delay = +next(); break;
@@ -77,7 +89,8 @@ function normalize(raw, base) {
   try {
     const u = new URL(raw, base);
     if (!/^https?:$/.test(u.protocol)) return null;
-    u.hash = '';
+    // Keep hash routes (#/about) used by single-page apps; drop plain #section.
+    if (!/^#!?\//.test(u.hash)) u.hash = '';
     // Drop common tracking params so the same page isn't crawled many times.
     for (const k of [...u.searchParams.keys()]) {
       if (/^(utm_|fbclid$|gclid$|mc_)/i.test(k)) u.searchParams.delete(k);
@@ -191,7 +204,7 @@ function inPageAudit() {
   for (const f of document.querySelectorAll('input:not([type=hidden]):not([type=submit]):not([type=button]), select, textarea')) {
     const labelled = f.id && document.querySelector(`label[for="${CSS.escape(f.id)}"]`);
     if (!labelled && !f.closest('label') && !f.getAttribute('aria-label') && !f.getAttribute('aria-labelledby') && !f.placeholder) {
-      add('info', 'a11y', 'Form field has no label', f.outerHTML.slice(0, 100));
+      add('info', 'a11y-label', 'Form field has no label', f.outerHTML.slice(0, 100));
     }
   }
 
@@ -232,17 +245,42 @@ function overflowAudit() {
 
 // ---------- Page check ----------
 
-async function checkPage(context, url, opts, origin) {
+async function checkPage(context, url, opts, origin, shared) {
   const page = await context.newPage();
   const issues = [];
   const add = (severity, type, message, detail) => issues.push({ severity, type, message, detail });
   const pageHttps = url.startsWith('https:');
 
-  page.on('pageerror', (err) => add('critical', 'js-error', 'Uncaught JavaScript error', err.message));
+  // While the bot is clicking, errors are labelled with what was clicked.
+  let action = null;
+  let blockedSince = () => false;
+  const setAction = (a, blocked = () => false) => { action = a; blockedSince = blocked; };
+
+  page.on('pageerror', (err) => {
+    if (!action) return add('critical', 'js-error', 'Uncaught JavaScript error', err.message);
+    // If the bot blocked a form send just before, the error may be the bot's doing.
+    if (blockedSince()) return add('info', 'js-error', `JavaScript error ${action} (a send was blocked by the bot)`, err.message);
+    add('critical', 'js-error', `JavaScript error ${action}`, err.message);
+  });
   page.on('console', (msg) => {
     // Network failures are already reported by the response/requestfailed handlers.
-    if (msg.type() === 'error' && !/^Failed to load resource/.test(msg.text())) add('warning', 'console-error', 'Console error', msg.text().slice(0, 300));
+    if (msg.type() === 'error' && !/^Failed to load resource/.test(msg.text())) {
+      add(action && blockedSince() ? 'info' : 'warning', 'console-error', action ? `Console error ${action}` : 'Console error', msg.text().slice(0, 300));
+    }
   });
+
+  // Page weight and heavy files.
+  let bytes = 0;
+  const sizeJobs = [];
+  page.on('requestfinished', (req) => sizeJobs.push(req.sizes().then((s) => {
+    const n = s.responseBodySize;
+    bytes += n;
+    const type = req.resourceType();
+    const mb = (n / 1048576).toFixed(1);
+    if (type === 'image' && n > 400 * 1024) add('warning', 'heavy-file', `Heavy image (${mb} MB): compress it or use WebP`, req.url());
+    else if ((type === 'script' || type === 'stylesheet') && n > 1024 * 1024) add('warning', 'heavy-file', `Heavy ${type} (${mb} MB)`, req.url());
+    else if (type === 'media' && n > 8 * 1024 * 1024) add('info', 'heavy-file', `Large video/audio (${mb} MB)`, req.url());
+  }).catch(() => {})));
   page.on('requestfailed', (req) => {
     const err = req.failure()?.errorText || '';
     if (/ERR_ABORTED|ERR_BLOCKED_BY_CLIENT/.test(err)) return;
@@ -272,6 +310,7 @@ async function checkPage(context, url, opts, origin) {
     await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
     result.status = res ? res.status() : null;
     result.finalUrl = page.url();
+    result.headers = res ? res.headers() : {};
 
     if (res) {
       const chain = [];
@@ -306,14 +345,54 @@ async function checkPage(context, url, opts, origin) {
     const failedUrls = new Set(issues.map((i) => i.detail));
     issues.push(...audit.issues.filter((i) => !(i.type === 'broken-image' && failedUrls.has(i.detail))));
 
-    if (opts.mobile) {
-      await page.setViewportSize({ width: 375, height: 812 });
-      await page.waitForTimeout(400);
-      const ov = await page.evaluate(overflowAudit);
-      if (ov) {
-        add('warning', 'layout', `Page scrolls sideways on mobile (${ov.pageWidth}px wide on a ${ov.viewport}px screen)`,
-          ov.culprits.join('; '));
+    if (!opts.quick) {
+      const v = await page.evaluate(deep.readVitals);
+      result.vitals = { lcp: v.lcp, cls: +v.cls.toFixed(3), blockingMs: v.blockingMs };
+      if (v.lcp > 4000) add('warning', 'speed', `Main content shows after ${(v.lcp / 1000).toFixed(1)}s (Google wants under 2.5s)`, v.lcpEl && `Biggest element: ${v.lcpEl}`);
+      else if (v.lcp > 2500) add('info', 'speed', `Main content shows after ${(v.lcp / 1000).toFixed(1)}s (Google wants under 2.5s)`, v.lcpEl && `Biggest element: ${v.lcpEl}`);
+      if (v.cls > 0.25) add('warning', 'layout-shift', `Page jumps around while loading (layout shift ${v.cls.toFixed(2)}, should be under 0.1)`, v.shifters.join('; '));
+      else if (v.cls > 0.1) add('info', 'layout-shift', `Some jumping while loading (layout shift ${v.cls.toFixed(2)})`, v.shifters.join('; '));
+      if (v.blockingMs > 600) add('warning', 'speed', `Page freezes for ${v.blockingMs}ms while JavaScript runs (buttons won't respond)`);
+
+      await deep.scrollThrough(page);
+      const d = await page.evaluate(deep.deepAudit);
+      const seen = new Set(issues.map((i) => i.detail));
+      issues.push(...d.issues.filter((i) => !(i.type === 'broken-image' && seen.has(i.detail))));
+      if (d.canonical) {
+        result.canonical = d.canonical;
+        if (!sameSite(d.canonical, origin)) add('warning', 'seo', 'Canonical tag points to another website', d.canonical);
       }
+
+      try {
+        const violations = await deep.axeAudit(page);
+        // axe covers these more accurately than the quick checks.
+        for (let i = issues.length - 1; i >= 0; i--) if (['img-no-alt', 'a11y-label'].includes(issues[i].type)) issues.splice(i, 1);
+        for (const v of violations) add('warning', 'a11y', `Accessibility: ${v.help}`, `${v.count} element(s), e.g. ${v.sample}`);
+      } catch { /* axe is best-effort */ }
+    }
+
+    if (opts.mobile) {
+      for (const [w, h, label] of opts.quick ? [[375, 812, 'mobile']] : [[375, 812, 'mobile'], [768, 1024, 'tablet']]) {
+        await page.setViewportSize({ width: w, height: h });
+        await page.waitForTimeout(400);
+        const ov = await page.evaluate(overflowAudit);
+        if (ov) {
+          add('warning', 'layout', `Page scrolls sideways on ${label} (${ov.pageWidth}px wide on a ${ov.viewport}px screen)`,
+            ov.culprits.join('; '));
+        }
+        if (!opts.quick && label === 'mobile') {
+          const m = await page.evaluate(deep.mobileAudit);
+          if (m.clipped.length) add('warning', 'layout', 'Text is cut off on mobile', m.clipped.join('; '));
+          if (m.small.length > 3) add('info', 'mobile', `${m.small.length} buttons/links are too small to tap on a phone (under 24px)`, m.small.slice(0, 5).join('; '));
+        }
+      }
+      await page.setViewportSize({ width: 1366, height: 900 });
+    }
+
+    if (!opts.quick && opts.maxClicks > 0) {
+      result.clicks = await deep.interact(page, result.finalUrl, opts, {
+        clicked: shared.clicked, onNewUrl: shared.onNewUrl, setAction, add, issues,
+      });
     }
   } catch (err) {
     result.loadMs = Date.now() - t0;
@@ -329,6 +408,9 @@ async function checkPage(context, url, opts, origin) {
       result.screenshot = file;
     } catch { /* screenshot is best-effort */ }
   }
+  await Promise.allSettled(sizeJobs);
+  result.bytes = bytes;
+  if (!opts.quick && bytes > 5 * 1048576) add('warning', 'heavy-page', `Page downloads ${(bytes / 1048576).toFixed(1)} MB (slow on mobile data)`);
   await page.close();
   return result;
 }
@@ -347,6 +429,7 @@ async function crawl(opts) {
     ignoreHTTPSErrors: false,
     viewport: { width: 1366, height: 900 },
   });
+  if (!opts.quick) await context.addInitScript(deep.initScript);
   const request = context.request;
 
   const robots = opts.robots ? await loadRobots(origin, request) : [];
@@ -364,6 +447,25 @@ async function crawl(opts) {
     if (!robotsAllows(robots, url)) { skipped.robots++; return; }
     queued.add(url);
     queue.push(url);
+  };
+
+  if (opts.urls) {
+    const lines = (await fs.readFile(opts.urls, 'utf8')).split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+    for (const l of lines) {
+      const n = normalize(l, origin);
+      if (n && sameSite(n, origin)) enqueue(n);
+    }
+    log(`Added ${lines.length} URLs from ${opts.urls}`);
+  }
+
+  // Shared across pages: header/footer buttons get clicked once, not on every page.
+  const clicked = new Set();
+  const discovered = new Set();
+  const onNewUrl = (raw) => {
+    const n = normalize(raw);
+    if (!n || !sameSite(n, origin) || SKIP_EXT.test(new URL(n).pathname)) return;
+    if (!queued.has(n)) discovered.add(n);
+    enqueue(n);
   };
 
   if (opts.sitemap) {
@@ -388,11 +490,12 @@ async function crawl(opts) {
       const url = queue.shift();
       inFlight++;
       try {
-        const r = await checkPage(context, url, opts, origin);
+        const r = await checkPage(context, url, opts, origin, { clicked, onNewUrl });
         results.push(r);
         done++;
         const crit = r.issues.filter((i) => i.severity === 'critical').length;
-        log(`[${done}/${queued.size}] ${r.status ?? 'ERR'} ${url}${crit ? `  ⚠ ${crit} critical` : ''}`);
+        log(`[${done}/${queued.size}] ${r.status ?? 'ERR'} ${url}${crit ? `  ⚠ ${crit} critical` : ''}${r.clicks ? `  (${r.clicks} clicks)` : ''}`);
+        if (r.canonical) onNewUrl(r.canonical);
         for (const l of r.links) {
           const n = normalize(l.href, r.finalUrl);
           if (!n) continue;
@@ -413,6 +516,15 @@ async function crawl(opts) {
     }
   }
   await Promise.all(Array.from({ length: opts.concurrency }, worker));
+  if (discovered.size) log(`Found ${discovered.size} extra pages by clicking buttons/menus`);
+
+  let siteIssues = [];
+  const home = results.find((r) => r.url === start) || results[0];
+  if (!opts.quick && home?.status) {
+    log('Running whole-site checks (SSL, security headers, exposed files)…');
+    siteIssues = await deep.siteChecks(start, request, home?.headers);
+  }
+  for (const r of results) delete r.headers;
 
   // Attach "linked from" info to broken pages.
   for (const r of results) {
@@ -443,7 +555,8 @@ async function crawl(opts) {
     .map(([title, urls]) => ({ title, urls }));
 
   await browser.close();
-  return { start, startedAt: new Date().toISOString(), opts, results, brokenFiles, brokenExternal, duplicateTitles, skipped };
+  return { start, startedAt: new Date().toISOString(), opts, results, brokenFiles, brokenExternal, duplicateTitles, skipped,
+    siteIssues, discovered: [...discovered] };
 }
 
 async function checkUrls(urls, request, refMap, opts) {
@@ -477,9 +590,34 @@ function log(msg) {
 function summarize(report) {
   const counts = { critical: 0, warning: 0, info: 0 };
   for (const r of report.results) for (const i of r.issues) counts[i.severity]++;
+  for (const i of report.siteIssues) counts[i.severity]++;
   counts.critical += report.brokenFiles.length;
   counts.warning += report.brokenExternal.length + report.duplicateTitles.length;
   return counts;
+}
+
+// Short list of the worst problems right in the terminal.
+function printTop(report) {
+  const groups = new Map();
+  const addIssue = (i, where) => {
+    if (i.severity === 'info') return;
+    const key = `${i.severity}|${i.message}`;
+    if (!groups.has(key)) groups.set(key, { ...i, pages: new Set() });
+    groups.get(key).pages.add(where);
+  };
+  for (const i of report.siteIssues) addIssue(i, 'whole site');
+  for (const r of report.results) for (const i of r.issues) addIssue(i, r.url);
+  for (const b of report.brokenFiles) addIssue({ severity: 'critical', message: 'Broken link to a file', detail: b.url }, b.url);
+  const top = [...groups.values()].sort((a, b) => (a.severity === b.severity ? b.pages.size - a.pages.size : a.severity === 'critical' ? -1 : 1));
+  if (!top.length) return;
+  console.log('\n  Top problems:');
+  for (const g of top.slice(0, 15)) {
+    const where = g.pages.size > 1 ? `${g.pages.size} pages` : [...g.pages][0];
+    console.log(`  ${g.severity === 'critical' ? '[CRITICAL]' : '[warning] '} ${g.message}  — ${where}`);
+    if (g.detail) console.log(`             ${String(g.detail).slice(0, 110)}`);
+  }
+  if (top.length > 15) console.log(`  …and ${top.length - 15} more in the report`);
+  console.log('');
 }
 
 async function main() {
@@ -507,6 +645,7 @@ async function main() {
   const c = report.counts;
   console.log(`\nDone: ${report.results.length} pages scanned.`);
   console.log(`  Critical: ${c.critical}   Warnings: ${c.warning}   Info: ${c.info}`);
+  printTop(report);
   console.log(`  Report: ${path.resolve(opts.out, 'report.html')}`);
 
   const fail = opts.failOn === 'critical' ? c.critical > 0

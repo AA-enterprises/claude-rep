@@ -15,6 +15,35 @@ link and reports everything that looks broken.
 | Warning | Console errors, slow pages, sideways scrolling on mobile (names the element that's too wide), mixed content, redirect chains, soft-404s, blank pages, `undefined` / `NaN` / `[object Object]` / `{{ }}` / PHP errors / stack traces / lorem ipsum showing on the page, missing `<title>` or viewport tag, duplicate titles, broken external links (optional) |
 | Info | Missing meta description / `<h1>`, images without alt, form fields without labels, duplicate ids, links that go nowhere |
 
+### Deep scan (on by default)
+
+On every page the bot also:
+
+- **Scrolls to the bottom**, so lazy-loaded images and sections are checked too.
+- **Clicks every safe button, menu, tab and accordion** and reports JavaScript
+  errors that only happen after a click (`JavaScript error after clicking "Menu"`).
+  Pages that open only from a button (no normal link) are found and scanned.
+  It never clicks anything like Delete, Buy, Checkout, Pay, Submit, Logout or
+  Sign up, and it blocks every form send/POST while clicking, so no data changes.
+- **Measures speed like Google does:** when the main content appears (LCP),
+  how much the page jumps while loading (layout shift), how long it freezes,
+  total download size, and heavy images/scripts.
+- **Checks phone and tablet** widths: sideways scrolling, text cut off, buttons
+  too small to tap.
+- **Accessibility** (axe-core): unreadable low-contrast text, missing labels, etc.
+- **SEO:** noindex left on by mistake, wrong canonical, missing share previews,
+  links to `#sections` that don't exist.
+- **Whole-site security checks, once per site:** SSL certificate expiry,
+  http → https redirect, security headers, server version leaks, old jQuery,
+  and publicly exposed files like `.env`, `.git`, database dumps and open folder
+  listings.
+
+The worst problems are also printed in the terminal at the end.
+
+Use `--quick` for the old fast surface scan, `--max-clicks 0` to scan deeply
+without clicking, and `--urls pages.txt` to add pages the bot can't reach by
+itself (one URL per line).
+
 Every broken page shows **which pages link to it**, and pages with critical
 problems get a screenshot.
 

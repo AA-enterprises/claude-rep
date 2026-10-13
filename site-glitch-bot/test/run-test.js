@@ -15,7 +15,18 @@ const routes = {
   '/': page('Home', `<p>Welcome to the test shop, this is the home page.</p>
     <a href="/about">About</a> <a href="/missing">Old link</a> <a href="/js-broken">Deals</a>
     <a href="/wide">Gallery</a> <a href="/crash">Checkout</a> <a href="/leak">Product</a>
-    <a href="/files/menu.pdf">Menu PDF</a> <a href="/private/x">Admin</a>`),
+    <a href="/files/menu.pdf">Menu PDF</a> <a href="/private/x">Admin</a>
+    <a href="/clicky">Tools</a> <a href="/long">Story</a>`),
+  '/clicky': page('Tools', `<p>Interactive tools page with a few buttons on it.</p>
+    <button id="menu" onclick="openMegaMenu()">Open menu</button>
+    <button onclick="fetch('/api/save', {method: 'POST', body: 'x'})">Save draft</button>
+    <button onclick="fetch('/api/delete-account')">Delete account</button>
+    <button onclick="location.href='/hidden-page'">Our team</button>`),
+  '/hidden-page': page('Team', '<p>This page has no normal link, only a button.</p><script>null.boom</script>'),
+  '/long': page('Story', `<a href="#pricing">See pricing</a><p>A long story page with lots of text here.</p>
+    <div style="height:3000px"></div><img loading="lazy" src="/img/lazy-gone.png" alt="late">
+    <script>window.jQuery = { fn: { jquery: '1.12.4' } };</script>`,
+    '<meta name="robots" content="noindex">'),
   '/about': page('About', '<p>About us text that is long enough to count.</p><img src="/img/logo-gone.png" alt="logo">'),
   '/js-broken': page('Deals', '<p>Great deals today on everything we sell.</p><script>window.cart.total()</script>'),
   '/wide': page('Gallery', '<p>Our gallery of products and photos here.</p><div class="banner" style="width:1200px;height:20px"></div>'),
@@ -23,7 +34,10 @@ const routes = {
   '/private/x': page('Secret', '<p>Should be skipped because of robots.txt rules.</p>'),
 };
 
+const hits = [];
 const server = http.createServer((req, res) => {
+  hits.push(`${req.method} ${req.url}`);
+  if (req.url === '/.env') { res.writeHead(200, { 'content-type': 'text/plain' }); return res.end('DB_PASSWORD=hunter2\n'); }
   if (req.url === '/robots.txt') return res.end('User-agent: *\nDisallow: /private/\n');
   if (req.url === '/crash') { res.writeHead(500, { 'content-type': 'text/html' }); return res.end('<h1>Internal error</h1>'); }
   const body = routes[req.url];
@@ -57,6 +71,15 @@ const checks = [
   ['404 shows where it is linked from', report.results.find((r) => r.url === base + '/missing')?.linkedFrom?.length > 0],
   ['clean page has no critical issues', !issuesOf('/').some((i) => i.severity === 'critical')],
   ['exit code 1 on critical issues', code === 1],
+  ['deep: page found only via a button was scanned', report.results.some((r) => r.url === base + '/hidden-page')],
+  ['deep: JS error after clicking a button found', issuesOf('/clicky').some((i) => i.type === 'js-error' && /Open menu/.test(i.message))],
+  ['deep: never clicked "Delete account"', !hits.some((h) => h.includes('/api/delete-account'))],
+  ['deep: no POST ever reached the server', !hits.some((h) => h.startsWith('POST'))],
+  ['deep: lazy image below the fold found', issuesOf('/long').some((i) => /lazy-gone/.test(i.detail || ''))],
+  ['deep: link to missing #section found', has('/long', 'broken-anchor')],
+  ['deep: noindex found', issuesOf('/long').some((i) => /noindex/.test(i.message))],
+  ['deep: old jQuery found', has('/long', 'outdated-lib')],
+  ['deep: exposed .env found', report.siteIssues.some((i) => i.type === 'exposed-file' && i.detail.endsWith('/.env'))],
 ];
 let failed = 0;
 for (const [name, ok] of checks) {
