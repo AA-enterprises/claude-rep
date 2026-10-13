@@ -44,6 +44,21 @@ Use `--quick` for the old fast surface scan, `--max-clicks 0` to scan deeply
 without clicking, and `--urls pages.txt` to add pages the bot can't reach by
 itself (one URL per line).
 
+### Pages behind login (portal, dashboard)
+
+```bash
+node bot.js https://yoursite.com --login
+```
+
+A normal browser window opens. Log in yourself (2FA/captcha are fine), then
+press Enter in the terminal. The bot saves the login in `.sessions/` and scans
+the site as a logged-in user, starting from the page you landed on. Next time
+`--login` reuses the saved login; `--relogin` logs in again when it expires.
+
+The bot never follows logout links, never clicks risky buttons and blocks all
+form sends, so it can't change your account. Use a test account if you can.
+`.sessions/` holds your login cookies: don't share or upload that folder.
+
 Every broken page shows **which pages link to it**, and pages with critical
 problems get a screenshot.
 

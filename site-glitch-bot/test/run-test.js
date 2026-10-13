@@ -16,7 +16,8 @@ const routes = {
     <a href="/about">About</a> <a href="/missing">Old link</a> <a href="/js-broken">Deals</a>
     <a href="/wide">Gallery</a> <a href="/crash">Checkout</a> <a href="/leak">Product</a>
     <a href="/files/menu.pdf">Menu PDF</a> <a href="/private/x">Admin</a>
-    <a href="/clicky">Tools</a> <a href="/account">Account</a> <a href="/long">Story</a>`),
+    <a href="/clicky">Tools</a> <a href="/account">Account</a>
+    <a href="/login?next=/portal">Portal</a> <a href="/login?next=/portal/calls">Calls</a> <a href="/long">Story</a>`),
   '/clicky': page('Tools', `<p>Interactive tools page with a few buttons on it.</p>
     <button id="menu" onclick="openMegaMenu()">Open menu</button>
     <button onclick="fetch('/api/save', {method: 'POST', body: 'x'})">Save draft</button>
@@ -25,6 +26,8 @@ const routes = {
   '/account': page('Account', `<p>Account page that checks the login in the background.</p>
     <span class="sr-only" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap">Screen reader label</span>
     <script>fetch('/api/auth/refresh'); fetch('/about?_rsc=abc123')</script>`),
+  '/login': page('Login', '<p>Please log in to reach your portal and settings.</p>'),
+  '/portal': page('Portal', '<p>Your dashboard with all calls and numbers.</p><a href="/portal/broken">Reports</a> <a href="/logout">Log out</a>'),
   '/hidden-page': page('Team', '<p>This page has no normal link, only a button.</p><script>null.boom</script>'),
   '/long': page('Story', `<a href="#pricing">See pricing</a><p>A long story page with lots of text here.</p>
     <div style="height:3000px"></div><img loading="lazy" src="/img/lazy-gone.png" alt="late">
@@ -43,6 +46,9 @@ const server = http.createServer((req, res) => {
   if (req.url === '/.env') { res.writeHead(200, { 'content-type': 'text/plain' }); return res.end('DB_PASSWORD=hunter2\n'); }
   if (req.url === '/api/auth/refresh') { res.writeHead(401); return res.end(); }
   if (req.url.includes('_rsc=')) { res.writeHead(404); return res.end(); }
+  const loggedIn = /sid=ok/.test(req.headers.cookie || '');
+  if (req.url === '/logout') return res.end('logged out');
+  if (req.url.startsWith('/portal') && !loggedIn) { res.writeHead(302, { location: '/login?next=' + req.url }); return res.end(); }
   if (req.url === '/robots.txt') return res.end('User-agent: *\nDisallow: /private/\n');
   if (req.url === '/crash') { res.writeHead(500, { 'content-type': 'text/html' }); return res.end('<h1>Internal error</h1>'); }
   const body = routes[req.url];
@@ -54,11 +60,22 @@ await new Promise((r) => server.listen(0, '127.0.0.1', r));
 const base = `http://127.0.0.1:${server.address().port}`;
 const out = path.join(here, '.out');
 
+// A saved login, as if the owner had logged in with --login before.
+const sessions = path.join(here, '..', '.sessions');
+await fs.mkdir(sessions, { recursive: true });
+await fs.writeFile(path.join(sessions, '127.0.0.1.json'), JSON.stringify({
+  cookies: [{ name: 'sid', value: 'ok', domain: '127.0.0.1', path: '/', expires: -1, httpOnly: false, secure: false, sameSite: 'Lax' }],
+  origins: [],
+}));
+await fs.writeFile(path.join(sessions, '127.0.0.1.meta.json'), JSON.stringify({ landing: base + '/portal' }));
+
 const code = await new Promise((resolve) => {
-  execFile('node', [path.join(here, '..', 'bot.js'), base + '/', '--out', out, '--delay', '0', '--no-sitemap'],
+  execFile('node', [path.join(here, '..', 'bot.js'), base + '/', '--out', out, '--delay', '0', '--no-sitemap', '--login'],
     (err, stdout, stderr) => { process.stdout.write(stderr + stdout); resolve(err ? err.code : 0); });
 });
 server.close();
+await fs.rm(path.join(sessions, '127.0.0.1.json'));
+await fs.rm(path.join(sessions, '127.0.0.1.meta.json'));
 
 const report = JSON.parse(await fs.readFile(path.join(out, 'report.json'), 'utf8'));
 const issuesOf = (p) => report.results.find((r) => r.url === base + p)?.issues ?? [];
@@ -86,6 +103,10 @@ const checks = [
   ['deep: old jQuery found', has('/long', 'outdated-lib')],
   ['logged-out 401 API call is not critical', !issuesOf('/account').some((i) => i.severity === 'critical')],
   ['screen-reader-only text not flagged as cut off', !issuesOf('/account').some((i) => /cut off/.test(i.message))],
+  ['login: page behind login was scanned', report.results.some((r) => r.url === base + '/portal' && r.status === 200)],
+  ['login: broken page inside portal found', has('/portal/broken', 'http-error')],
+  ['login: logout link never followed', !hits.includes('GET /logout')],
+  ['/login?next=... counted as one page', report.results.filter((r) => r.url.includes('/login')).length === 1],
   ['deep: exposed .env found', report.siteIssues.some((i) => i.type === 'exposed-file' && i.detail.endsWith('/.env'))],
 ];
 let failed = 0;

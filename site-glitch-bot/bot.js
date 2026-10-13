@@ -5,6 +5,8 @@ import { chromium } from 'playwright';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import readline from 'node:readline/promises';
+import { fileURLToPath } from 'node:url';
 import { renderHtmlReport } from './report.js';
 import * as deep from './deep.js';
 
@@ -27,6 +29,9 @@ Options:
   --delay <ms>          Pause between page loads per worker (default 250)
   --timeout <ms>        Page load timeout (default 30000)
   --slow <ms>           Flag pages slower than this (default 4000)
+  --login               Scan pages behind login: a browser opens, you log in
+                        once, and the session is remembered for next time
+  --relogin             Forget the saved login and log in again
   --check-external      Also check links that leave your site (HEAD request)
   --no-mobile           Skip the mobile-viewport layout check
   --no-sitemap          Don't seed the crawl from /sitemap.xml
@@ -44,7 +49,7 @@ function parseArgs(argv) {
     maxPages: 200, concurrency: 4, delay: 250, timeout: 30000, slow: 4000,
     checkExternal: false, mobile: true, sitemap: true, robots: true,
     include: null, exclude: null, out: 'glitch-report', failOn: 'critical',
-    quick: false, maxClicks: 25, urls: null,
+    quick: false, maxClicks: 25, urls: null, login: false, relogin: false,
   };
   const rest = [];
   for (let i = 0; i < argv.length; i++) {
@@ -65,6 +70,8 @@ function parseArgs(argv) {
       case '--timeout': opts.timeout = +next(); break;
       case '--slow': opts.slow = +next(); break;
       case '--check-external': opts.checkExternal = true; break;
+      case '--login': opts.login = true; break;
+      case '--relogin': opts.login = true; opts.relogin = true; break;
       case '--no-mobile': opts.mobile = false; break;
       case '--no-sitemap': opts.sitemap = false; break;
       case '--ignore-robots': opts.robots = false; break;
@@ -94,6 +101,8 @@ function normalize(raw, base) {
     // Drop common tracking params so the same page isn't crawled many times.
     for (const k of [...u.searchParams.keys()]) {
       if (/^(utm_|fbclid$|gclid$|mc_)/i.test(k)) u.searchParams.delete(k);
+      // /login?next=/a and /login?next=/b are the same page.
+      if (/^(next|redirect|redirect_?to|return_?to|return_?url|callback_?url|continue)$/i.test(k)) u.searchParams.delete(k);
     }
     return u.toString();
   } catch {
@@ -432,8 +441,10 @@ async function crawl(opts) {
   const origin = new URL(start).origin;
   await fs.mkdir(opts.out, { recursive: true });
 
+  const session = opts.login ? await getLogin(start, opts) : null;
   const browser = await chromium.launch();
   const context = await browser.newContext({
+    storageState: session?.statePath,
     userAgent: 'Mozilla/5.0 (compatible; SiteGlitchBot/1.0; site-owner audit) Chrome/141 Safari/537.36',
     ignoreHTTPSErrors: false,
     viewport: { width: 1366, height: 900 },
@@ -450,6 +461,8 @@ async function crawl(opts) {
   const skipped = { robots: 0, filtered: 0 };
 
   const enqueue = (url) => {
+    // Following a logout link would end the logged-in scan (and is pointless otherwise).
+    if (/log-?out|sign-?out|log-?off/i.test(new URL(url).pathname)) return;
     if (queued.has(url) || queued.size >= opts.maxPages) return;
     if (opts.include && !opts.include.test(url)) { skipped.filtered++; return; }
     if (opts.exclude && opts.exclude.test(url)) { skipped.filtered++; return; }
@@ -457,6 +470,11 @@ async function crawl(opts) {
     queued.add(url);
     queue.push(url);
   };
+
+  if (session?.landing) {
+    const n = normalize(session.landing);
+    if (n && sameSite(n, origin)) enqueue(n);
+  }
 
   if (opts.urls) {
     const lines = (await fs.readFile(opts.urls, 'utf8')).split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
@@ -566,6 +584,36 @@ async function crawl(opts) {
   await browser.close();
   return { start, startedAt: new Date().toISOString(), opts, results, brokenFiles, brokenExternal, duplicateTitles, skipped,
     siteIssues, discovered: [...discovered] };
+}
+
+// Opens a real browser window so the owner can log in by hand (2FA and
+// captchas work); the cookies are saved per site and reused next time.
+async function getLogin(start, opts) {
+  const dir = path.join(path.dirname(fileURLToPath(import.meta.url)), '.sessions');
+  const host = new URL(start).hostname;
+  const statePath = path.join(dir, `${host}.json`);
+  const metaPath = path.join(dir, `${host}.meta.json`);
+  const have = await fs.access(statePath).then(() => true, () => false);
+  if (have && !opts.relogin) {
+    log(`Using saved login for ${host} (use --relogin if it has expired)`);
+    const meta = JSON.parse(await fs.readFile(metaPath, 'utf8').catch(() => '{}'));
+    return { statePath, landing: meta.landing };
+  }
+  await fs.mkdir(dir, { recursive: true });
+  const browser = await chromium.launch({ headless: false });
+  const context = await browser.newContext({ viewport: null });
+  const page = await context.newPage();
+  await page.goto(start).catch(() => {});
+  const rl = readline.createInterface({ input: process.stdin, output: process.stderr });
+  await rl.question('\n  Browser khul gaya hai. Wahan apni website mein LOGIN karein.\n' +
+    '  Login ho jaye (dashboard nazar aaye) to yahan wapas aa kar ENTER dabayein... ');
+  rl.close();
+  const landing = page.url();
+  await context.storageState({ path: statePath });
+  await fs.writeFile(metaPath, JSON.stringify({ landing, savedAt: new Date().toISOString() }));
+  await browser.close();
+  log(`Login saved. Scanning as a logged-in user, starting from ${landing}`);
+  return { statePath, landing };
 }
 
 async function checkUrls(urls, request, refMap, opts) {
