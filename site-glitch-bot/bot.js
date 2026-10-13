@@ -4,6 +4,7 @@
 import { chromium } from 'playwright';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import crypto from 'node:crypto';
 import { renderHtmlReport } from './report.js';
 
 const HELP = `
@@ -322,7 +323,8 @@ async function checkPage(context, url, opts, origin) {
   if (issues.some((i) => i.severity === 'critical')) {
     try {
       await page.setViewportSize({ width: 1366, height: 900 });
-      const file = `shot-${Buffer.from(url).toString('base64url').slice(-40)}.png`;
+      // Hex hash: safe on Windows, where file names are case-insensitive.
+      const file = `shot-${crypto.createHash('sha1').update(url).digest('hex').slice(0, 16)}.png`;
       await page.screenshot({ path: path.join(opts.out, file), timeout: 10000 });
       result.screenshot = file;
     } catch { /* screenshot is best-effort */ }

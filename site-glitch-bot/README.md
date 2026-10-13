@@ -18,7 +18,28 @@ link and reports everything that looks broken.
 Every broken page shows **which pages link to it**, and pages with critical
 problems get a screenshot.
 
-## Setup
+## Windows (PowerShell)
+
+1. Install Node.js LTS from https://nodejs.org (then close and reopen PowerShell).
+2. Open the `site-glitch-bot` folder in PowerShell and run:
+
+```powershell
+.\scan.cmd
+```
+
+It asks for the website link, installs everything on the first run and opens
+the report when it's done. You can also double-click `scan.cmd`, or pass
+options directly:
+
+```powershell
+.\scan.cmd https://yoursite.com --max-pages 2000 --exclude "logout|/cart"
+```
+
+If you run `npm` yourself and PowerShell says *"running scripts is disabled on
+this system"*, use `npm.cmd` / `npx.cmd` instead, or allow scripts once with
+`Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`.
+
+## Setup (Mac / Linux)
 
 ```bash
 cd site-glitch-bot
