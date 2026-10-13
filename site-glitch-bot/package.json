@@ -1,0 +1,15 @@
+{
+  "name": "site-glitch-bot",
+  "version": "1.0.0",
+  "description": "Crawls your own website in a real browser and reports glitches: broken pages/links/images, JS errors, failed requests, mixed content, slow pages, layout overflow and SEO gaps.",
+  "type": "module",
+  "bin": { "glitch-bot": "./bot.js" },
+  "scripts": {
+    "scan": "node bot.js",
+    "test": "node test/run-test.js"
+  },
+  "dependencies": {
+    "playwright": "1.56.1"
+  },
+  "engines": { "node": ">=18" }
+}

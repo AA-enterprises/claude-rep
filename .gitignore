@@ -4,3 +4,8 @@ __pycache__/
 # Licensed Adobe Stock media: keep out of the public repository
 noor-fireworks/assets/hero-gold.*
 noor-fireworks/assets/photos/
+
+# site-glitch-bot output
+site-glitch-bot/node_modules/
+site-glitch-bot/test/.out/
+site-glitch-bot/glitch-report/
