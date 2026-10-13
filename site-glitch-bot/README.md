@@ -18,6 +18,16 @@ link and reports everything that looks broken.
 Every broken page shows **which pages link to it**, and pages with critical
 problems get a screenshot.
 
+## Update
+
+Latest version lene ke liye (bina git, bina ZIP):
+
+```bash
+node update.js
+```
+
+It downloads only the files that changed from GitHub and keeps your reports.
+
 ## Windows (PowerShell)
 
 1. Install Node.js LTS from https://nodejs.org (then close and reopen PowerShell).
