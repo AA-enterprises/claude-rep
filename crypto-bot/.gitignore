@@ -1,0 +1,5 @@
+__pycache__/
+.pytest_cache/
+*.pyc
+crypto-bot/.env
+crypto-bot/secrets.json

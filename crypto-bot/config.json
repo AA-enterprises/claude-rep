@@ -1,0 +1,11 @@
+{
+  "symbol": "BTC/USDT",
+  "grid": {
+    "lower": 54000,
+    "upper": 66000,
+    "grids": 20,
+    "investment": 1000,
+    "fee_rate": 0.001,
+    "stop_loss_pct": 0.10
+  }
+}
