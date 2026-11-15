@@ -59,6 +59,29 @@ def stats_from_csv(path: str) -> dict:
     return {"n": n, "win_rate": wins / n if n else 0.0, "pnl": pnl}
 
 
+def window_stats(path: str, since_ms: int) -> dict:
+    w = {"n": 0, "wins": 0, "losses": 0, "profit": 0.0, "loss": 0.0, "net": 0.0, "best": ("", 0.0), "worst": ("", 0.0)}
+    if not os.path.exists(path):
+        return w
+    for r in csv.DictReader(open(path)):
+        if float(r["closed_ts"]) < since_ms:
+            continue
+        p = float(r["pnl"])
+        w["n"] += 1
+        w["net"] += p
+        if p > 0:
+            w["wins"] += 1
+            w["profit"] += p
+        else:
+            w["losses"] += 1
+            w["loss"] += p
+        if w["n"] == 1 or p > w["best"][1]:
+            w["best"] = (r["symbol"], p)
+        if w["n"] == 1 or p < w["worst"][1]:
+            w["worst"] = (r["symbol"], p)
+    return w
+
+
 class Bot:
     def __init__(self, cfg: ScalpConfig, state_path: str, trades_path: str, tg: TelegramNotifier, ex=None):
         self.cfg, self.tg, self.ex = cfg, tg, ex or make_exchange()
@@ -67,11 +90,13 @@ class Bot:
         self.acct = PaperAccount(cfg)
         self.prices: dict[str, float] = {}
         self.updated, self.last_eq_log = 0.0, 0.0
+        self.last_report = 0.0
         self.equity_path = state_path.replace(".json", "_equity.csv")
         if os.path.exists(state_path):
             st = json.load(open(state_path))
             self.acct = PaperAccount.from_dict(cfg, st["account"])
             self.day, self.day_start = st.get("day", ""), st.get("day_start", self.acct.balance)
+            self.last_report = st.get("last_report", 0.0)
             print(f"State load hua: balance {self.acct.balance:,.2f}, open {len(self.acct.positions)}")
 
     # ---------- helpers ----------
@@ -79,7 +104,7 @@ class Bot:
         tmp = self.state_path + ".tmp"
         with open(tmp, "w") as f:
             json.dump({"account": self.acct.to_dict(), "day": self.day, "day_start": self.day_start,
-                       "prices": self.prices, "updated": self.updated, "start_balance": self.cfg.start_balance}, f)
+                       "prices": self.prices, "updated": self.updated, "last_report": self.last_report, "start_balance": self.cfg.start_balance}, f)
         for _ in range(10):                      # Windows: dashboard file padh raha ho to replace fail ho sakta hai
             try:
                 os.replace(tmp, self.state_path)
@@ -87,9 +112,25 @@ class Bot:
             except PermissionError:
                 time.sleep(0.1)
 
+    def _maybe_report(self, now: float) -> None:
+        """Har `report_hours` ghante mein Telegram report. Pehli baar sirf baseline set hota hai (turant report nahi)."""
+        hrs = self.cfg.report_hours
+        if hrs <= 0:
+            return
+        if not self.last_report:
+            self.last_report = now
+            return
+        if now - self.last_report >= hrs * 3600:
+            since_ms, now_ms = int(self.last_report * 1000), int(now * 1000)
+            unreal = sum(p.unrealized(self.prices.get(sym, p.entry)) for sym, p in self.acct.positions.items())
+            self.tg.send(messages.report(window_stats(self.trades_path, since_ms), since_ms, now_ms, self.acct.balance,
+                                         self.acct.balance + unreal, len(self.acct.positions), unreal))
+            self.last_report = now
+
     def heartbeat(self) -> None:
-        """Har cycle: dashboard ke liye state + (har 60s) equity point."""
+        """Har cycle: dashboard ke liye state + (har 60s) equity point + periodic report."""
         now = time.time()
+        self._maybe_report(now)
         self.updated = now
         if now - self.last_eq_log >= 60:
             self.last_eq_log = now

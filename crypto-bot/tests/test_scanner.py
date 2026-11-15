@@ -125,3 +125,29 @@ def test_stop_moves_silently_and_telegram_has_only_open_and_close(tmp_path):
     assert len(tg.msgs) == 2 and "TRADE CLOSED" in tg.msgs[1] and "Profit booked" in tg.msgs[1]
     bot._roll_day(); bot.day = "2000-01-01"; bot._roll_day()
     assert len(tg.msgs) == 2                                      # daily report bhi Telegram par nahi
+
+
+def test_periodic_telegram_report(tmp_path):
+    import time
+    cfg = ScalpConfig()
+    ex, tg = FakeEx(cfg), Rec()
+    bot = scanner.Bot(cfg, str(tmp_path / "s.json"), str(tmp_path / "t.csv"), tg, ex=ex)
+    bot.heartbeat()
+    assert tg.msgs == [] and bot.last_report > 0                  # pehli baar sirf baseline, report nahi
+    bot.scan()
+    pos = next(iter(bot.acct.positions.values()))
+    ex.price = pos.tp * 1.001
+    ex.now = int(time.time() * 1000)                              # fake exchange ki ghadi = asli time (real Binance jaisa)
+    bot.monitor()                                                 # 1 closed trade (profit)
+    n = len(tg.msgs)
+    bot.heartbeat()
+    assert len(tg.msgs) == n                                      # 12h abhi nahi hue
+    bot.last_report = time.time() - 12.5 * 3600
+    bot.heartbeat()
+    rep = tg.msgs[-1]
+    assert "REPORT" in rep and "Profit booked" in rep and "Trades closed: 1" in rep and "Net:" in rep
+    k = len(tg.msgs)
+    bot.heartbeat()
+    assert len(tg.msgs) == k                                      # dobara turant nahi
+    bot2 = scanner.Bot(cfg, str(tmp_path / "s.json"), str(tmp_path / "t.csv"), Rec(), ex=ex)
+    assert abs(bot2.last_report - bot.last_report) < 1            # restart ke baad bhi yaad

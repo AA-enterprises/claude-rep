@@ -25,6 +25,7 @@ class ScalpConfig:
     slippage_pct: float = 0.0002
     start_balance: float = 10_000.0
     poll_seconds: float = 10.0
+    report_hours: float = 12.0    # Telegram par itne ghante mein ek report (0 = band)
     # --- ATR exit mode (default): stop/target har coin ki volatility ke hisaab se ---
     exit_mode: str = "atr"        # "atr" | "roi" (purana 70%/-20% ROI rule)
     sl_atr: float = 1.5           # stop = entry se 1.5 x ATR door
@@ -48,6 +49,8 @@ class ScalpConfig:
             raise ValueError("sl_roi 0 aur 1 ke beech (liquidation se pehle stop)")
         if self.tp_roi <= 0:
             raise ValueError("tp_roi > 0")
+        if self.report_hours < 0:
+            raise ValueError("report_hours >= 0")
         if self.exit_mode not in ("atr", "roi"):
             raise ValueError("exit_mode: atr/roi")
         if self.exit_mode == "atr" and (self.sl_atr <= 0 or self.tp_atr < 0 or self.trail_atr < 0 or not 0 < self.risk_pct <= 0.05):

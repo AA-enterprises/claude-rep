@@ -72,3 +72,24 @@ def closed(rec: dict, equity: float, stats: dict) -> str:
         utc(rec["closed_ts"]),
     ])
 
+
+
+def report(w: dict, since_ms: int, now_ms: int, balance: float, equity: float, n_open: int, unrealized: float) -> str:
+    hours = (now_ms - since_ms) / 3_600_000
+    lines = [
+        f"📊 {hours:.0f}h REPORT",
+        f"{utc(since_ms)} → {utc(now_ms)}",
+        "──────────────",
+        f"Trades closed: {w['n']} (won {w['wins']} / lost {w['losses']})" + (f" · win rate {w['wins'] / w['n']:.0%}" if w["n"] else ""),
+        f"💰 Profit booked: {w['profit']:+,.2f} USDT",
+        f"Loss: {w['loss']:+,.2f} USDT",
+        f"Net: {w['net']:+,.2f} USDT",
+    ]
+    if w["n"]:
+        lines.append(f"Best: {name(w['best'][0])} {w['best'][1]:+,.2f} · Worst: {name(w['worst'][0])} {w['worst'][1]:+,.2f}")
+    lines += [
+        "──────────────",
+        f"Open positions: {n_open} (unrealized {unrealized:+,.2f} USDT)",
+        f"Balance: ${balance:,.2f} · Equity: ${equity:,.2f}",
+    ]
+    return "\n".join(lines)

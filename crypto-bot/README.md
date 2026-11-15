@@ -35,7 +35,7 @@ range se upar nikal jaye to profit rukta hai aur buy & hold se kam milta hai.
 3. Live karna ho to Binance **testnet** se shuru karo, API key mein **withdrawal permission kabhi mat do**, aur sirf wahi paisa lagao jo khone ka dukh na ho.
 
 ## Telegram notifications
-Telegram par **sirf do tarah ke message** aate hain: trade open (entry, stop, target, size, kaaran) aur trade close (exit, booked profit/loss, equity). Start/stop, stop-loss khiskna, daily report sirf console mein dikhte hain.
+Telegram par **teen tarah ke message** aate hain: trade open (entry, stop, target, size, kaaran), trade close (exit, booked profit/loss, equity), aur **har 12 ghante ki report** (trades, total profit, total loss, net, win rate, open positions, equity; `report_hours` se badlo, 0 = band). Start/stop aur stop-loss khiskna sirf console mein dikhte hain.
 
 1. Telegram par **@BotFather** → `/newbot` → token copy karo.
 2. Apne naye bot ko ek message bhejo, aur chat id **@userinfobot** se lo.
