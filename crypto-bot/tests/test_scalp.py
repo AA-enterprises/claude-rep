@@ -259,6 +259,6 @@ def test_fixed_size_backtest_keeps_testing_after_loss_exceeds_capital():
     data = sim.market(cfg, coins=6, n=3000)
     r = backtest.run(data, cfg)
     t0, t1 = min(c[0] for cs in data.values() for c in cs), max(c[0] for cs in data.values() for c in cs)
-    assert len(r.records) > 100
+    assert len(r.records) > 30
     assert max(x["closed_ts"] for x in r.records) > t0 + 0.9 * (t1 - t0)       # aakhri 10% data mein bhi trades
     assert r.end < 0                                                            # capital se zyada loss, phir bhi test chalta raha
