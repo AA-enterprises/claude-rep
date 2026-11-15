@@ -1,0 +1,14 @@
+{
+  "timeframe": "15m",
+  "leverage": 10,
+  "tp_roi": 0.70,
+  "sl_roi": 0.20,
+  "margin_pct": 0.05,
+  "max_open": 5,
+  "max_new_per_scan": 2,
+  "min_gates": 3,
+  "min_quote_volume": 20000000,
+  "max_hold_hours": 6,
+  "max_daily_loss_pct": 0.05,
+  "start_balance": 10000
+}

@@ -3,3 +3,5 @@ __pycache__/
 *.pyc
 crypto-bot/.env
 crypto-bot/secrets.json
+scalp_state.json
+scalp_trades.csv

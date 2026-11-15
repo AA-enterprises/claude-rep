@@ -46,3 +46,20 @@ export TELEGRAM_CHAT_ID="123456789"
 python main.py paper --symbol SOL/USDT
 ```
 Variables set na hon to bot normal chalta hai, bas notification nahi bhejta. Agar token kahin share ho gaya ho to BotFather mein `/revoke` karo.
+
+## Scalp bot (multi-coin, long + short, paper)
+Binance USDT-M futures ke saare liquid coins ko har 15m candle close par scan karta hai. 4 gates
+(trend, momentum, breakout, volume spike) mein se jis coin par sabse zyada agree kare, wahan LONG ya SHORT paper trade.
+
+- **TP / SL margin ROI par hain:** `tp_roi` 70%, `sl_roi` 20%. 10x leverage par yeh price ka +7% / -2% hota hai.
+- Risk controls: `max_open`, `margin_pct`, `max_hold_hours`, `cooldown_candles`, `max_daily_loss_pct`.
+- Settings: `scalp_config.json`.
+
+```bash
+python main.py scalp-backtest --source binance --coins 30 --limit 1500   # real data par test
+python main.py scalp-paper                                               # live scan, fake money, Telegram alerts
+python main.py scalp-stats                                               # closed trades ka analysis
+```
+`scalp_trades.csv` mein har trade ke gates/volume/ATR save hote hain, taaki review karke settings tune kar sako.
+`scalp_state.json` se restart ke baad open positions wapas aa jaati hain.
+Synthetic backtest (`--source synthetic`) sirf engine check hai, profit ka sabut nahi.

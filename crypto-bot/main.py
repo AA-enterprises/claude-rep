@@ -77,6 +77,44 @@ def cmd_paper(args) -> int:
     return 0
 
 
+def cmd_scalp_backtest(args) -> int:
+    from scalp import backtest as sb, config as sc, scanner, sim
+    cfg = sc.load(args.scalp_config)
+    if args.source == "binance":
+        ex = scanner.make_exchange()
+        syms, _ = scanner.universe(ex, cfg)
+        syms = syms[: args.coins]
+        print(f"{len(syms)} coins ka data le raha hoon...")
+        data_ = {s: scanner.fetch_closed(ex, s, cfg, limit=1500) for s in syms}
+    else:
+        data_ = sim.market(cfg, coins=args.coins, n=args.limit)
+        print("SYNTHETIC data: sirf engine check, asli profit ka sabut nahi")
+    print(sb.run(data_, cfg).summary())
+    return 0
+
+
+def cmd_scalp_paper(args) -> int:
+    from scalp import config as sc, scanner
+    cfg = sc.load(args.scalp_config)
+    scanner.Bot(cfg, args.state, args.trades, TelegramNotifier()).run()
+    return 0
+
+
+def cmd_scalp_stats(args) -> int:
+    import csv
+    rows = list(csv.DictReader(open(args.trades)))
+    if not rows:
+        print("Abhi koi closed trade nahi")
+        return 0
+    for key in ("reason", "side", "score"):
+        print(f"-- by {key}")
+        for v in sorted({r[key] for r in rows}):
+            g = [r for r in rows if r[key] == v]
+            w = sum(float(r["pnl"]) > 0 for r in g)
+            print(f"  {v:8} n={len(g):3} win={w / len(g):.0%} avg_roi={sum(float(r['roi']) for r in g) / len(g):+.1%} pnl={sum(float(r['pnl']) for r in g):+,.2f}")
+    return 0
+
+
 def main() -> int:
     p = argparse.ArgumentParser(description="Grid trading bot (backtest / paper)")
     p.add_argument("--config", default="config.json")
@@ -92,6 +130,19 @@ def main() -> int:
     pp.add_argument("--symbol")
     pp.add_argument("--interval", type=float, default=10.0, help="price poll seconds")
     pp.set_defaults(fn=cmd_paper)
+    p.add_argument("--scalp-config", default="scalp_config.json")
+    sb_ = sub.add_parser("scalp-backtest")
+    sb_.add_argument("--source", choices=["synthetic", "binance"], default="synthetic")
+    sb_.add_argument("--coins", type=int, default=20)
+    sb_.add_argument("--limit", type=int, default=700)
+    sb_.set_defaults(fn=cmd_scalp_backtest)
+    sp_ = sub.add_parser("scalp-paper")
+    sp_.add_argument("--state", default="scalp_state.json")
+    sp_.add_argument("--trades", default="scalp_trades.csv")
+    sp_.set_defaults(fn=cmd_scalp_paper)
+    ss_ = sub.add_parser("scalp-stats")
+    ss_.add_argument("--trades", default="scalp_trades.csv")
+    ss_.set_defaults(fn=cmd_scalp_stats)
     args = p.parse_args()
     return args.fn(args)
 
