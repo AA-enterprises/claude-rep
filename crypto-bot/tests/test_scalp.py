@@ -96,7 +96,7 @@ def test_messages():
     assert "SHORT" in m and "SOLUSDT" in m and "Take Profit" in m and "Stop" in m
     rec = a.close(p, "TP", p.tp, 1_763_176_500_000)
     c = messages.closed(rec, a.balance, {"n": 1, "win_rate": 1.0, "pnl": rec["pnl"]})
-    assert "TAKE PROFIT HIT" in c and "ROI" in c
+    assert "TAKE PROFIT HIT" in c and "Profit booked" in c and "ROI" in c
 
 
 def test_fast_features_match_live_evaluate():
@@ -232,15 +232,6 @@ def test_state_roundtrip_keeps_trailing_fields():
     b = PaperAccount.from_dict(atr_cfg(), a.to_dict())
     q = b.positions["X/USDT:USDT"]
     assert q.sl == p.sl and q.best == p.best and q.trail_dist == p.trail_dist and q.tp == p.tp
-
-
-def test_stop_moved_message():
-    a = PaperAccount(atr_cfg())
-    p = a.open(atr_sig(), 100.0, 0)
-    old = p.sl
-    a.check_exit(p, 102.5, 101.5, 102.4, 1)
-    m = messages.stop_moved(p, old, 102.4)
-    assert "STOP MOVED" in m and "Profit lock" in m
 
 
 def test_atr_backtest_fixed_size_no_compounding():

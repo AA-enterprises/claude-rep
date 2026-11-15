@@ -116,15 +116,14 @@ class Bot:
         if today != self.day:
             if self.day:
                 s = stats_from_csv(self.trades_path)
-                self.tg.send(f"📊 Daily report ({self.day})\nBalance: ${self.acct.balance:,.2f}\n"
-                             f"Total: {s['n']} trades · win rate {s['win_rate']:.0%} · net {s['pnl']:+,.2f} USDT")
+                print(f"Daily report ({self.day}): balance {self.acct.balance:,.2f} | {s['n']} trades | net {s['pnl']:+,.2f} USDT")
             self.day, self.day_start, self.halted_msg = today, self.acct.balance, False
 
     def _entries_allowed(self) -> bool:
         loss = self.acct.balance / self.day_start - 1
         if loss <= -self.cfg.max_daily_loss_pct:
             if not self.halted_msg:
-                self.tg.send(f"⏸ Daily loss limit hit ({loss:.1%}). Naye trades aaj band.")
+                print(f"Daily loss limit hit ({loss:.1%}). Naye trades aaj band.")
                 self.halted_msg = True
             return False
         return True
@@ -142,27 +141,12 @@ class Bot:
             if not last:
                 continue
             res = self.acct.check_exit(pos, last, last, last, now, live=True)
-            if not res:
-                self._maybe_notify_stop(pos, last)
             if res:
                 rec = self.acct.close(pos, res[0], res[1], now)
                 self.log_trade(rec)
                 print(f"CLOSE {sym} {rec['reason']} roi {rec['roi']:+.1%}")
                 self.tg.send(messages.closed(rec, self.acct.balance, stats_from_csv(self.trades_path)))
                 self.save()
-
-    def _maybe_notify_stop(self, pos, last: float) -> None:
-        """Stop ne ~0.5R ka step liya ya break-even cross kiya, tab Telegram (har chhote move par spam nahi)."""
-        if pos.risk <= 0 or pos.sl == pos.notified_sl:
-            return
-        moved = abs(pos.sl - pos.notified_sl) * pos.qty
-        was_safe = pos.d * (pos.notified_sl - pos.entry) >= 0
-        now_safe = pos.d * (pos.sl - pos.entry) >= 0
-        if moved >= 0.5 * pos.risk or was_safe != now_safe:
-            old, pos.notified_sl = pos.notified_sl, pos.sl
-            print(f"STOP MOVED {pos.symbol} {old} -> {pos.sl}")
-            self.tg.send(messages.stop_moved(pos, old, last))
-            self.save()
 
     def scan(self) -> None:
         self._roll_day()
@@ -206,10 +190,7 @@ class Bot:
         self.save()
 
     def run(self) -> None:
-        self.tg.send(f"🤖 Scalp bot started (Paper) · {self.cfg.leverage:g}x · "
-                     + (f"ATR exits (SL {self.cfg.sl_atr}x, TP {self.cfg.tp_atr}x, trail {self.cfg.trail_atr}x), risk {self.cfg.risk_pct:.1%}/trade"
-                        if self.cfg.exit_mode == "atr" else f"TP +{self.cfg.tp_roi:.0%} / SL -{self.cfg.sl_roi:.0%} ROI")
-                     + f" · max {self.cfg.max_open} positions · balance ${self.acct.balance:,.2f}")
+        print(f"Scalp bot started (Paper) | balance {self.acct.balance:,.2f} | Telegram: {'ON (sirf trade open/close)' if self.tg.enabled else 'OFF'}")
         tf = self.cfg.tf_ms / 1000
         next_scan = 0.0
         try:
@@ -228,4 +209,4 @@ class Bot:
                 time.sleep(self.cfg.poll_seconds)
         except KeyboardInterrupt:
             self.save()
-            self.tg.send(f"⏹ Scalp bot stopped. Balance ${self.acct.balance:,.2f}, open positions: {len(self.acct.positions)}")
+            print(f"Bot stopped. Balance {self.acct.balance:,.2f}, open positions: {len(self.acct.positions)}")

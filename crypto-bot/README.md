@@ -35,7 +35,7 @@ range se upar nikal jaye to profit rukta hai aur buy & hold se kam milta hai.
 3. Live karna ho to Binance **testnet** se shuru karo, API key mein **withdrawal permission kabhi mat do**, aur sirf wahi paisa lagao jo khone ka dukh na ho.
 
 ## Telegram notifications
-Bot har trade open/close par message bhejta hai (entry, take-profit, size, exit, profit, account equity), plus start/stop par.
+Telegram par **sirf do tarah ke message** aate hain: trade open (entry, stop, target, size, kaaran) aur trade close (exit, booked profit/loss, equity). Start/stop, stop-loss khiskna, daily report sirf console mein dikhte hain.
 
 1. Telegram par **@BotFather** → `/newbot` → token copy karo.
 2. Apne naye bot ko ek message bhejo, aur chat id **@userinfobot** se lo.
@@ -99,7 +99,7 @@ Dashboard mein **Aaj ka Profit / Loss / Net** (closed trades) cards ke roop mein
 Purana 70% / -20% ROI rule backtest mein fail hua (6 saal, profit factor 0.90). Ab default `exit_mode = "atr"`:
 - **Stop** = entry se `sl_atr` x ATR door (har coin ki apni volatility). **Target** = `tp_atr` x ATR (0 = koi fixed target nahi, sirf trailing).
 - **Trailing stop:** profit `trail_start_atr` x ATR ho jaye to bot stop-loss ko khud aage khiskata hai (long mein upar, short mein neeche). Stop sirf profit ki disha mein khiskata hai, kabhi peeche nahi.
-  Telegram par "STOP MOVED" message aata hai (har ~0.5R step par ya break-even cross hone par), dashboard mein naya SL dikhta hai.
+  Yeh sab backend mein chupchap hota hai (Telegram par message nahi), dashboard mein naya SL dikhta rehta hai.
 - **Position size:** har trade mein start balance ka `risk_pct` (1%) risk, yani stop lagne par ~1R loss. `margin_pct` size ki upar limit hai.
 - Backtest ab fixed-size hai (`compound: false`), aur har trade ka **R-multiple** dikhata hai (`Avg per trade: +0.1 R` = edge).
 

@@ -108,13 +108,20 @@ def test_dashboard_daily_totals(tmp_path):
     assert len(out["daily"]) == 2 and out["daily"][0]["day"] == t["day"]
 
 
-def test_stop_move_notifies_telegram(tmp_path):
+def test_stop_moves_silently_and_telegram_has_only_open_and_close(tmp_path):
     cfg = ScalpConfig()
     ex, tg = FakeEx(cfg), Rec()
     bot = scanner.Bot(cfg, str(tmp_path / "s.json"), str(tmp_path / "t.csv"), tg, ex=ex)
     bot.scan()
     pos = next(iter(bot.acct.positions.values()))
-    n0 = len(tg.msgs)
+    sl0 = pos.sl
     ex.price = pos.entry + 2.4 * pos.entry * pos.atr_pct          # ~2.4 ATR profit: trailing chalu
     bot.monitor()
-    assert pos.sl > pos.entry * 0.0 and any("STOP MOVED" in m for m in tg.msgs[n0:])
+    bot.monitor()
+    assert pos.sl > sl0                                           # stop khisak gaya
+    assert len(tg.msgs) == 1 and "TRADE OPENED" in tg.msgs[0]     # par Telegram par kuch nahi aaya
+    ex.price = pos.sl * 0.999
+    bot.monitor()
+    assert len(tg.msgs) == 2 and "TRADE CLOSED" in tg.msgs[1] and "Profit booked" in tg.msgs[1]
+    bot._roll_day(); bot.day = "2000-01-01"; bot._roll_day()
+    assert len(tg.msgs) == 2                                      # daily report bhi Telegram par nahi

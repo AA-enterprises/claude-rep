@@ -50,7 +50,7 @@ def opened(pos: Position, cfg: ScalpConfig, equity: float) -> str:
         f"Size: {pos.qty:,.4f} ≈ ${pos.qty * pos.entry:,.2f} (margin ${pos.margin:,.2f})",
         f"Max hold: until {utc(pos.opened_ts + pos.max_hold_ms)}",
         f"Why: {pos.score}/4 gates — " + "; ".join(pos.gates),
-        f"Open positions: see /status · equity ${equity:,.2f}",
+        f"Account equity: ${equity:,.2f}",
         "──────────────",
         utc(pos.opened_ts),
     ])
@@ -64,7 +64,7 @@ def closed(rec: dict, equity: float, stats: dict) -> str:
         f"{name(rec['symbol'])} · Scalp · Paper · {rec['side']}",
         "──────────────",
         f"Entry: {fp(rec['entry'])} → Exit: {fp(rec['exit'])}",
-        f"Result: {rec['pnl']:+,.2f} USDT (after fees) · {rec['roi']:+.1%} ROI" + (f" · {rec['r']:+.2f}R" if rec.get("r") else ""),
+        (f"💰 Profit booked: {rec['pnl']:+,.2f} USDT" if rec["pnl"] > 0 else f"Loss: {rec['pnl']:+,.2f} USDT") + f" (after fees) · {rec['roi']:+.1%} ROI" + (f" · {rec['r']:+.2f}R" if rec.get("r") else ""),
         f"Held: {dur(rec['held_min'])}",
         f"Equity: ${equity:,.2f}",
         f"Total: {stats['n']} trades · win rate {stats['win_rate']:.0%} · net {stats['pnl']:+,.2f} USDT",
@@ -72,15 +72,3 @@ def closed(rec: dict, equity: float, stats: dict) -> str:
         utc(rec["closed_ts"]),
     ])
 
-
-def stop_moved(pos: Position, old_sl: float, last: float) -> str:
-    locked = pos.d * (pos.sl - pos.entry) * pos.qty
-    lock_txt = (f"Profit lock: ~{locked:+,.2f} USDT" + (f" ({locked / pos.risk:+.2f}R)" if pos.risk else "")
-                if locked > 0 else f"Abhi bhi risk mein: {locked:+,.2f} USDT")
-    return "\n".join([
-        f"🔧 STOP MOVED — {name(pos.symbol)} · {pos.side}",
-        "──────────────",
-        f"New stop: {fp(pos.sl)} (pehle {fp(old_sl)})",
-        f"Price abhi: {fp(last)} · Entry: {fp(pos.entry)}",
-        lock_txt,
-    ])
