@@ -44,3 +44,42 @@ def test_full_cycle(tmp_path):
     assert scanner.stats_from_csv(str(tmp_path / "t.csv"))["n"] == 1
     bot2 = scanner.Bot(cfg, str(tmp_path / "s.json"), str(tmp_path / "t.csv"), Rec(), ex=ex)  # state reload
     assert bot2.acct.balance == bot.acct.balance
+
+
+def test_dashboard_state_reflects_open_and_closed(tmp_path):
+    import json
+    import urllib.request
+    import threading
+    from http.server import ThreadingHTTPServer
+    from scalp import dashboard
+
+    cfg = ScalpConfig()
+    ex, tg = FakeEx(cfg), Rec()
+    sp, tp = str(tmp_path / "s.json"), str(tmp_path / "t.csv")
+    bot = scanner.Bot(cfg, sp, tp, tg, ex=ex)
+    bot.scan()
+    pos = next(iter(bot.acct.positions.values()))
+    ex.price = pos.entry * 1.01
+    bot.monitor()
+    bot.heartbeat()
+    st = dashboard.build_state(sp, tp, sp.replace(".json", "_equity.csv"))
+    assert st["status"] == "running" and len(st["positions"]) == 1
+    p = st["positions"][0]
+    assert p["pnl"] > 0 and p["mark"] == ex.price and p["roi"] > 0.05      # +1% price x10 = ~+10% ROI
+    ex.price = pos.tp * 1.001
+    bot.monitor()
+    bot.heartbeat()
+    st = dashboard.build_state(sp, tp, sp.replace(".json", "_equity.csv"))
+    assert st["positions"] == [] and st["stats"]["n"] == 1 and st["trades"][0]["reason"] == "TP"
+
+    srv = ThreadingHTTPServer(("127.0.0.1", 0), dashboard.make_handler(sp, tp, sp.replace(".json", "_equity.csv")))
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    base = f"http://127.0.0.1:{srv.server_address[1]}"
+    assert json.load(urllib.request.urlopen(base + "/api/state"))["stats"]["n"] == 1
+    assert b"Scalp Bot" in urllib.request.urlopen(base + "/").read()
+    srv.shutdown()
+
+
+def test_dashboard_no_state(tmp_path):
+    from scalp import dashboard
+    assert dashboard.build_state(str(tmp_path / "x.json"), "t.csv", "e.csv")["status"] == "no_state"

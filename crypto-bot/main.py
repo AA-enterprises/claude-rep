@@ -129,6 +129,12 @@ def cmd_scalp_sweep(args) -> int:
     return 0
 
 
+def cmd_scalp_dashboard(args) -> int:
+    from scalp import dashboard
+    dashboard.serve(args.state, args.trades, args.port, not args.no_browser)
+    return 0
+
+
 def cmd_scalp_paper(args) -> int:
     from scalp import config as sc, scanner
     cfg = sc.load(args.scalp_config)
@@ -186,6 +192,12 @@ def main() -> int:
     sw_.add_argument("--quick", action="store_true")
     sw_.add_argument("--out", default="sweep_results.csv")
     sw_.set_defaults(fn=cmd_scalp_sweep)
+    dd_ = sub.add_parser("scalp-dashboard")
+    dd_.add_argument("--state", default="scalp_state.json")
+    dd_.add_argument("--trades", default="scalp_trades.csv")
+    dd_.add_argument("--port", type=int, default=8050)
+    dd_.add_argument("--no-browser", action="store_true")
+    dd_.set_defaults(fn=cmd_scalp_dashboard)
     sp_ = sub.add_parser("scalp-paper")
     sp_.add_argument("--state", default="scalp_state.json")
     sp_.add_argument("--trades", default="scalp_trades.csv")

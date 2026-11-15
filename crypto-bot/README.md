@@ -80,3 +80,15 @@ Limits (zaroor padho):
 - Aaj ke top coins ka hi data hota hai; jo coins delist ho gaye woh nahi hain, isliye result thoda zyada achha dikhta hai (survivorship bias).
 - Bahut saare combos test karne par koi na koi "lucky" nikal sakta hai. PASS ko guarantee mat samjho; paper mode mein alag se confirm karo.
 - `btc_filter`: BTC up ho to sirf LONG, down ho to sirf SHORT.
+
+## Local dashboard
+Do alag PowerShell windows kholo (dono `crypto-bot` folder mein):
+```powershell
+python main.py scalp-paper
+```
+```powershell
+python main.py scalp-dashboard
+```
+Browser mein `http://127.0.0.1:8050` khulega (sirf aapke PC par). Open positions (symbol, side, leverage, size, entry, mark price, TP/SL, live PnL + ROI%, kitni der se open),
+trade history, equity chart, win rate. Har 3 second mein refresh. Dashboard sirf `scalp_state.json` aur `scalp_trades.csv` padhta hai, bot ko chhuta nahi.
+Mark price bot ke monitor se aata hai (har `poll_seconds`), isliye bot band ho to dashboard "Bot ruka hua" dikhayega.

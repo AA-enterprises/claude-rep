@@ -65,6 +65,9 @@ class Bot:
         self.state_path, self.trades_path = state_path, trades_path
         self.day, self.day_start, self.halted_msg = "", cfg.start_balance, False
         self.acct = PaperAccount(cfg)
+        self.prices: dict[str, float] = {}
+        self.updated, self.last_eq_log = 0.0, 0.0
+        self.equity_path = state_path.replace(".json", "_equity.csv")
         if os.path.exists(state_path):
             st = json.load(open(state_path))
             self.acct = PaperAccount.from_dict(cfg, st["account"])
@@ -74,8 +77,28 @@ class Bot:
     # ---------- helpers ----------
     def save(self) -> None:
         tmp = self.state_path + ".tmp"
-        json.dump({"account": self.acct.to_dict(), "day": self.day, "day_start": self.day_start}, open(tmp, "w"))
-        os.replace(tmp, self.state_path)
+        with open(tmp, "w") as f:
+            json.dump({"account": self.acct.to_dict(), "day": self.day, "day_start": self.day_start,
+                       "prices": self.prices, "updated": self.updated, "start_balance": self.cfg.start_balance}, f)
+        for _ in range(10):                      # Windows: dashboard file padh raha ho to replace fail ho sakta hai
+            try:
+                os.replace(tmp, self.state_path)
+                return
+            except PermissionError:
+                time.sleep(0.1)
+
+    def heartbeat(self) -> None:
+        """Har cycle: dashboard ke liye state + (har 60s) equity point."""
+        now = time.time()
+        self.updated = now
+        if now - self.last_eq_log >= 60:
+            self.last_eq_log = now
+            new = not os.path.exists(self.equity_path)
+            with open(self.equity_path, "a", newline="") as f:
+                if new:
+                    f.write("ts,balance,equity\n")
+                f.write(f"{int(now * 1000)},{self.acct.balance:.4f},{self.acct.equity(self.prices):.4f}\n")
+        self.save()
 
     def log_trade(self, rec: dict) -> None:
         new = not os.path.exists(self.trades_path)
@@ -113,6 +136,7 @@ class Bot:
         tick = self.ex.fetch_tickers(list(self.acct.positions))
         now = self.ex.milliseconds()
         prices = {s: (tick.get(s) or {}).get("last") for s in self.acct.positions}
+        self.prices.update({k: v for k, v in prices.items() if v})
         for sym, pos in list(self.acct.positions.items()):
             last = prices[sym]
             if not last:
@@ -178,6 +202,7 @@ class Bot:
                         self.scan()
                         next_scan = (int(time.time() / tf) + 1) * tf + 5
                     self.monitor()
+                    self.heartbeat()
                 except KeyboardInterrupt:
                     raise
                 except Exception as e:  # noqa: BLE001  network glitch pe bot band nahi hona chahiye

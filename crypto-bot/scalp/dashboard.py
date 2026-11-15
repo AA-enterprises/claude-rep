@@ -1,0 +1,173 @@
+"""Local dashboard (sirf aapke PC par): open positions live PnL ke saath, trade history, equity chart."""
+from __future__ import annotations
+
+import csv
+import json
+import os
+import time
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+
+def _read_json(path: str):
+    for _ in range(5):
+        try:
+            with open(path) as f:
+                return json.load(f)
+        except FileNotFoundError:
+            return None
+        except (PermissionError, json.JSONDecodeError):
+            time.sleep(0.1)
+    return None
+
+
+def _read_csv(path: str) -> list[dict]:
+    try:
+        with open(path, newline="") as f:
+            return list(csv.DictReader(f))
+    except (FileNotFoundError, PermissionError):
+        return []
+
+
+def build_state(state_path: str, trades_path: str, equity_path: str, now: float | None = None) -> dict:
+    now = time.time() if now is None else now
+    st = _read_json(state_path)
+    if not st:
+        return {"status": "no_state"}
+    acct, prices = st["account"], st.get("prices", {})
+    positions, unreal = [], 0.0
+    for p in acct["positions"]:
+        mark = prices.get(p["symbol"], p["entry"])
+        d = 1 if p["side"] == "LONG" else -1
+        pnl = d * (mark - p["entry"]) * p["qty"]
+        unreal += pnl
+        positions.append({
+            "symbol": p["symbol"], "side": p["side"], "leverage": p["leverage"], "qty": p["qty"],
+            "notional": p["qty"] * p["entry"], "margin": p["margin"], "entry": p["entry"], "mark": mark,
+            "tp": p["tp"], "sl": p["sl"], "pnl": pnl, "roi": pnl / p["margin"] if p["margin"] else 0.0,
+            "held_min": (now * 1000 - p["opened_ts"]) / 60000, "score": p.get("score", 0),
+            "max_hold_min": p["max_hold_ms"] / 60000,
+        })
+    positions.sort(key=lambda x: x["held_min"])   # nayi trade upar
+    rows = _read_csv(trades_path)
+    wins = sum(float(r["pnl"]) > 0 for r in rows)
+    total = sum(float(r["pnl"]) for r in rows)
+    trades = [{**r, "pnl": float(r["pnl"]), "roi": float(r["roi"]), "entry": float(r["entry"]),
+               "exit": float(r["exit"]), "held_min": float(r["held_min"]), "closed_ts": int(float(r["closed_ts"]))}
+              for r in rows[-100:]][::-1]
+    eq = [[int(r["ts"]), float(r["equity"])] for r in _read_csv(equity_path)[-1500:]]
+    start = st.get("start_balance", acct["balance"])
+    equity = acct["balance"] + unreal
+    age = now - st.get("updated", 0)
+    return {
+        "status": "running" if age < 60 else "stale", "age_sec": age,
+        "balance": acct["balance"], "equity": equity, "unrealized": unreal, "start_balance": start,
+        "return_pct": equity / start - 1 if start else 0.0,
+        "positions": positions, "trades": trades, "equity_series": eq,
+        "stats": {"n": len(rows), "wins": int(wins), "win_rate": wins / len(rows) if rows else 0.0, "pnl": total},
+    }
+
+
+PAGE = r"""<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Scalp Bot Dashboard</title><style>
+:root{--bg:#0b0e11;--panel:#181a20;--line:#2b3139;--tx:#eaecef;--mut:#848e9c;--up:#0ecb81;--dn:#f6465d;--acc:#fcd535}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--tx);font:14px/1.45 -apple-system,Segoe UI,Roboto,sans-serif}
+header{display:flex;align-items:center;gap:12px;padding:14px 20px;border-bottom:1px solid var(--line)}
+h1{font-size:17px;margin:0;font-weight:600}.pill{padding:2px 10px;border-radius:999px;font-size:12px;border:1px solid var(--line);color:var(--mut)}
+.dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;background:var(--mut)}
+.run .dot{background:var(--up)}.stale .dot{background:var(--dn)}
+main{padding:16px 20px;max-width:1300px;margin:auto}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 14px}
+.card .k{color:var(--mut);font-size:12px}.card .v{font-size:20px;font-weight:600;margin-top:2px;font-variant-numeric:tabular-nums}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;margin-top:14px}
+.tabs{display:flex;gap:4px;padding:8px 12px 0;border-bottom:1px solid var(--line)}
+.tab{padding:8px 14px;color:var(--mut);cursor:pointer;border-bottom:2px solid transparent;background:none;border-top:0;border-left:0;border-right:0;font:inherit}
+.tab.on{color:var(--tx);border-bottom-color:var(--acc)}
+.tw{overflow-x:auto}table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+th{color:var(--mut);font-weight:400;font-size:12px;text-align:right;padding:10px 12px;white-space:nowrap}td{padding:10px 12px;text-align:right;border-top:1px solid var(--line);white-space:nowrap}
+th:first-child,td:first-child{text-align:left}.up{color:var(--up)}.dn{color:var(--dn)}.mut{color:var(--mut)}
+.tag{font-size:11px;padding:1px 6px;border-radius:4px;margin-left:6px}.tag.LONG{background:#0ecb8122;color:var(--up)}.tag.SHORT{background:#f6465d22;color:var(--dn)}
+.empty{padding:28px;text-align:center;color:var(--mut)}canvas{width:100%;height:200px;display:block}
+</style></head><body>
+<header><h1>Scalp Bot</h1><span class="pill">Paper</span><span id="st" class="pill"><span class="dot"></span><span id="stt">...</span></span><span class="mut" id="upd"></span></header>
+<main>
+<div class="cards" id="cards"></div>
+<div class="panel"><div class="tabs"><button class="tab on" data-t="pos">Open Positions (<span id="np">0</span>)</button><button class="tab" data-t="hist">Trade History</button><button class="tab" data-t="eq">Equity</button></div>
+<div id="pos" class="tw"></div><div id="hist" class="tw" hidden></div><div id="eq" hidden style="padding:12px"><canvas id="cv" width="1200" height="400"></canvas></div></div>
+</main><script>
+const $=id=>document.getElementById(id);
+const fp=p=>p>=100?p.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}):p>=1?p.toFixed(4):p.toFixed(6);
+const fm=(x,d=2)=>(x>=0?"+":"")+x.toLocaleString(undefined,{minimumFractionDigits:d,maximumFractionDigits:d});
+const nm=s=>s.split(":")[0].replace("/","");
+const dur=m=>{m=Math.floor(m);return m>=60?Math.floor(m/60)+"h "+(m%60)+"m":m+"m"};
+const cls=x=>x>0?"up":x<0?"dn":"";
+function el(t,c,x){const e=document.createElement(t);if(c)e.className=c;if(x!==undefined)e.textContent=x;return e}
+function card(k,v,c){const d=el("div","card");d.append(el("div","k",k),el("div","v "+(c||""),v));return d}
+function table(head,rows){const t=el("table"),h=el("tr");head.forEach(x=>h.append(el("th","",x)));t.append(h);
+ rows.forEach(r=>{const tr=el("tr");r.forEach(c=>{const td=el("td",c.c||"");if(c.n){const s=el("span","",c.t);td.append(s,el("span","tag "+c.n,c.n))}else td.textContent=c.t??c;tr.append(td)});t.append(tr)});return t}
+document.querySelectorAll(".tab").forEach(b=>b.onclick=()=>{document.querySelectorAll(".tab").forEach(x=>x.classList.toggle("on",x===b));
+ ["pos","hist","eq"].forEach(i=>$(i).hidden=i!==b.dataset.t);draw()});
+let S=null;
+function chart(){const cv=$("cv"),c=cv.getContext("2d"),w=cv.width,h=cv.height;c.clearRect(0,0,w,h);
+ const d=S&&S.equity_series;if(!d||d.length<2){c.fillStyle="#848e9c";c.font="20px sans-serif";c.fillText("Equity data thodi der mein aayega (har 60s ek point)",20,40);return}
+ const ys=d.map(p=>p[1]),mn=Math.min(...ys),mx=Math.max(...ys),pad=(mx-mn)*.1||1,lo=mn-pad,hi=mx+pad,t0=d[0][0],t1=d[d.length-1][0]||1;
+ const X=t=>40+(t-t0)/(t1-t0||1)*(w-60),Y=v=>h-30-(v-lo)/(hi-lo)*(h-50);
+ c.strokeStyle="#2b3139";c.fillStyle="#848e9c";c.font="16px sans-serif";c.lineWidth=1;
+ for(let i=0;i<=4;i++){const v=lo+(hi-lo)*i/4,y=Y(v);c.beginPath();c.moveTo(40,y);c.lineTo(w-20,y);c.stroke();c.fillText(v.toFixed(0),2,y-3)}
+ c.strokeStyle=ys[ys.length-1]>=ys[0]?"#0ecb81":"#f6465d";c.lineWidth=2.5;c.beginPath();d.forEach((p,i)=>i?c.lineTo(X(p[0]),Y(p[1])):c.moveTo(X(p[0]),Y(p[1])));c.stroke()}
+function draw(){if(!S)return;if(!$("eq").hidden)chart()}
+function render(s){S=s;const st=$("st");
+ if(s.status==="no_state"){$("stt").textContent="Bot ne abhi state file nahi banayi";$("cards").replaceChildren();$("pos").replaceChildren(el("div","empty","Pehle bot chalao: python main.py scalp-paper"));return}
+ st.className="pill "+(s.status==="running"?"run":"stale");$("stt").textContent=s.status==="running"?"Bot running":"Bot ruka hua / data purana";
+ $("upd").textContent="update "+Math.round(s.age_sec)+"s pehle";
+ const c=$("cards");c.replaceChildren(card("Equity (USDT)",s.equity.toLocaleString(undefined,{maximumFractionDigits:2}),cls(s.return_pct)),
+  card("Return",fm(s.return_pct*100)+"%",cls(s.return_pct)),card("Unrealized PnL",fm(s.unrealized),cls(s.unrealized)),
+  card("Balance",s.balance.toLocaleString(undefined,{maximumFractionDigits:2})),card("Closed PnL",fm(s.stats.pnl),cls(s.stats.pnl)),
+  card("Win rate",s.stats.n?(s.stats.win_rate*100).toFixed(0)+"% ("+s.stats.wins+"/"+s.stats.n+")":"-"));
+ $("np").textContent=s.positions.length;
+ $("pos").replaceChildren(s.positions.length?table(["Symbol","Size (USDT)","Margin","Entry","Mark","TP","SL","PnL (ROI%)","Held"],
+  s.positions.map(p=>[{t:nm(p.symbol)+" "+p.leverage+"x",n:p.side},fp(p.notional).replace(/\.\d+$/,""),p.margin.toFixed(2),fp(p.entry),fp(p.mark),{t:fp(p.tp),c:"up"},{t:fp(p.sl),c:"dn"},
+   {t:fm(p.pnl)+" ("+fm(p.roi*100,1)+"%)",c:cls(p.pnl)},dur(p.held_min)+" / "+dur(p.max_hold_min)])):el("div","empty","Abhi koi open trade nahi"));
+ $("hist").replaceChildren(s.trades.length?table(["Symbol","Entry","Exit","Result","PnL (ROI%)","Held","Closed (UTC)"],
+  s.trades.map(t=>[{t:nm(t.symbol),n:t.side},fp(t.entry),fp(t.exit),{t:t.reason,c:t.reason==="TP"?"up":t.reason==="SL"?"dn":"mut"},
+   {t:fm(t.pnl)+" ("+fm(t.roi*100,1)+"%)",c:cls(t.pnl)},dur(t.held_min),new Date(t.closed_ts).toISOString().slice(0,16).replace("T"," ")])):el("div","empty","Abhi koi closed trade nahi"));
+ draw()}
+async function tick(){try{const r=await fetch("/api/state");render(await r.json())}catch(e){$("stt").textContent="Dashboard server se connection nahi"}}
+tick();setInterval(tick,3000);
+</script></body></html>"""
+
+
+def make_handler(state_path: str, trades_path: str, equity_path: str):
+    class H(BaseHTTPRequestHandler):
+        def do_GET(self):  # noqa: N802
+            if self.path.split("?")[0] == "/api/state":
+                body, ctype = json.dumps(build_state(state_path, trades_path, equity_path)).encode(), "application/json"
+            elif self.path.split("?")[0] == "/":
+                body, ctype = PAGE.encode("utf-8"), "text/html; charset=utf-8"
+            else:
+                self.send_error(404)
+                return
+            self.send_response(200)
+            self.send_header("Content-Type", ctype)
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, *a):  # console shaant
+            pass
+    return H
+
+
+def serve(state_path: str, trades_path: str, port: int = 8050, open_browser: bool = True) -> None:
+    equity_path = state_path.replace(".json", "_equity.csv")
+    srv = ThreadingHTTPServer(("127.0.0.1", port), make_handler(state_path, trades_path, equity_path))
+    url = f"http://127.0.0.1:{port}"
+    print(f"Dashboard: {url}  (sirf aapke PC par; band karne ke liye Ctrl+C)")
+    if open_browser:
+        import webbrowser
+        webbrowser.open(url)
+    try:
+        srv.serve_forever()
+    except KeyboardInterrupt:
+        pass
