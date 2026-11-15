@@ -10,7 +10,7 @@ from scalp.account import PaperAccount
 from scalp.config import ScalpConfig
 from scalp.signals import Signal, evaluate
 
-CFG = ScalpConfig(fee_rate=0.0, slippage_pct=0.0)
+CFG = ScalpConfig(fee_rate=0.0, slippage_pct=0.0, exit_mode="roi")
 
 
 def sig(side="LONG", sym="X/USDT:USDT"):
@@ -51,7 +51,7 @@ def test_sl_wins_when_both_touched_and_timeout():
 
 
 def test_fees_reduce_profit_and_limits():
-    cfg = ScalpConfig(slippage_pct=0.0)
+    cfg = ScalpConfig(slippage_pct=0.0, exit_mode="roi")
     a = PaperAccount(cfg)
     p = a.open(sig(), 100.0, 0)
     rec = a.close(p, "TP", p.tp, 1)
@@ -86,11 +86,11 @@ def test_backtest_books_balance_and_closes_everything():
     cfg = ScalpConfig()
     r = backtest.run(sim.market(cfg, coins=5, n=500), cfg)
     assert r.end == pytest.approx(cfg.start_balance + sum(x["pnl"] for x in r.records), rel=1e-9)
-    assert all(x["reason"] in ("TP", "SL", "TIMEOUT", "END") for x in r.records)
+    assert all(x["reason"] in ("TP", "TRAIL", "SL", "TIMEOUT", "END") for x in r.records)
 
 
 def test_messages():
-    a = PaperAccount(ScalpConfig())
+    a = PaperAccount(ScalpConfig(exit_mode="roi"))
     p = a.open(sig("SHORT", "SOL/USDT:USDT"), 70.03, 1_763_172_900_000)
     m = messages.opened(p, a.cfg, a.balance)
     assert "SHORT" in m and "SOLUSDT" in m and "Take Profit" in m and "Stop" in m
@@ -171,3 +171,81 @@ def test_backtest_finds_trades_and_split_is_grid_aligned():
     assert len(backtest.run(ds, cfg).records) > 0
     odd = ds.tmin + 123_457            # candle grid par nahi
     assert len(backtest.run(ds, cfg, odd, ds.tmax + 1).records) > 0
+
+
+def atr_cfg(**kw):
+    base = dict(fee_rate=0.0, slippage_pct=0.0, exit_mode="atr", sl_atr=1.5, tp_atr=3.0,
+                trail_start_atr=1.5, trail_atr=1.5, risk_pct=0.01, margin_pct=0.10)
+    base.update(kw)
+    return ScalpConfig(**base)
+
+
+def atr_sig(side="LONG"):
+    return Signal("X/USDT:USDT", side, 3, ["a", "b", "c"], 2.0, 0.01, 100.0)     # ATR = 1.0
+
+
+def test_atr_stop_target_and_risk_sizing():
+    a = PaperAccount(atr_cfg())
+    p = a.open(atr_sig("LONG"), 100.0, 0)
+    assert p.sl == pytest.approx(98.5) and p.tp == pytest.approx(103.0)          # 1.5 ATR / 3 ATR
+    assert p.risk == pytest.approx(100.0)                                         # 1% of 10,000
+    assert a.close(p, "SL", p.sl, 1)["pnl"] == pytest.approx(-100.0)              # stop = ~1R loss
+    capped = PaperAccount(atr_cfg(margin_pct=0.05)).open(atr_sig("LONG"), 100.0, 0)
+    assert capped.margin == pytest.approx(500.0) and capped.risk == pytest.approx(75.0)   # margin cap risk ko chhota kar deta hai
+    b = PaperAccount(atr_cfg())
+    s = b.open(atr_sig("SHORT"), 100.0, 0)
+    assert s.sl == pytest.approx(101.5) and s.tp == pytest.approx(97.0)
+
+
+def test_trailing_stop_ratchets_only_in_profit_direction():
+    a = PaperAccount(atr_cfg())
+    p = a.open(atr_sig("LONG"), 100.0, 0)
+    assert a.check_exit(p, 101.0, 100.5, 101.0, 1) is None and p.sl == pytest.approx(98.5)   # profit < 1.5 ATR: stop wahin
+    assert a.check_exit(p, 102.5, 101.5, 102.4, 2) is None
+    assert p.sl == pytest.approx(101.0)                                           # best 102.5 - 1.5
+    assert a.check_exit(p, 102.0, 101.6, 101.8, 3) is None and p.sl == pytest.approx(101.0)   # kabhi peeche nahi
+    reason, px = a.check_exit(p, 101.7, 100.9, 101.0, 4)
+    assert reason == "TRAIL" and px == pytest.approx(101.0)
+    assert a.close(p, reason, px, 4)["pnl"] > 0                                   # profit lock hua
+
+
+def test_trailing_short_and_no_fixed_target():
+    a = PaperAccount(atr_cfg(tp_atr=0.0))
+    p = a.open(atr_sig("SHORT"), 100.0, 0)
+    assert p.tp is None
+    a.check_exit(p, 99.0, 96.0, 96.5, 1)
+    assert p.sl == pytest.approx(97.5)                                            # best 96 + 1.5
+    a.check_exit(p, 98.0, 97.0, 97.2, 2)
+    assert p.sl == pytest.approx(97.5)
+    assert a.check_exit(p, 97.6, 97.0, 97.5, 3)[0] == "TRAIL"
+
+
+def test_atr_rejects_stop_too_close_to_liquidation():
+    a = PaperAccount(atr_cfg(leverage=50))
+    assert a.open(Signal("X", "LONG", 3, [], 2.0, 0.05, 100.0), 100.0, 0) is None  # 7.5% stop x 50 = liquidation
+
+
+def test_state_roundtrip_keeps_trailing_fields():
+    a = PaperAccount(atr_cfg())
+    p = a.open(atr_sig(), 100.0, 0)
+    a.check_exit(p, 102.5, 101.5, 102.4, 1)
+    b = PaperAccount.from_dict(atr_cfg(), a.to_dict())
+    q = b.positions["X/USDT:USDT"]
+    assert q.sl == p.sl and q.best == p.best and q.trail_dist == p.trail_dist and q.tp == p.tp
+
+
+def test_stop_moved_message():
+    a = PaperAccount(atr_cfg())
+    p = a.open(atr_sig(), 100.0, 0)
+    old = p.sl
+    a.check_exit(p, 102.5, 101.5, 102.4, 1)
+    m = messages.stop_moved(p, old, 102.4)
+    assert "STOP MOVED" in m and "Profit lock" in m
+
+
+def test_atr_backtest_fixed_size_no_compounding():
+    cfg = ScalpConfig()
+    r = backtest.run(sim.market(cfg, coins=6, n=1200), cfg)
+    assert r.records and all(abs(x["pnl"]) < cfg.start_balance * 0.05 for x in r.records)   # koi trade 5% se bada nahi
+    assert r.end == pytest.approx(cfg.start_balance + sum(x["pnl"] for x in r.records), rel=1e-9)
+    assert abs(r.avg_r) < 5

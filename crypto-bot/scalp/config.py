@@ -25,6 +25,14 @@ class ScalpConfig:
     slippage_pct: float = 0.0002
     start_balance: float = 10_000.0
     poll_seconds: float = 10.0
+    # --- ATR exit mode (default): stop/target har coin ki volatility ke hisaab se ---
+    exit_mode: str = "atr"        # "atr" | "roi" (purana 70%/-20% ROI rule)
+    sl_atr: float = 1.5           # stop = entry se 1.5 x ATR door
+    tp_atr: float = 3.0           # target = 3 x ATR (risk:reward 1:2). 0 = koi fixed target nahi
+    trail_start_atr: float = 1.5  # itna profit hone par trailing shuru
+    trail_atr: float = 1.5        # stop best price se itni ATR peeche. 0 = trailing band
+    risk_pct: float = 0.01        # har trade mein start balance ka 1% risk (stop lagne par itna loss)
+    compound: bool = False        # False: size start_balance se (backtest fair rahe), True: current balance se
     sides: str = "both"           # "both" | "long" | "short"
     btc_filter: bool = False      # True: BTC trend ke saath hi trade (up -> long, down -> short)
 
@@ -40,6 +48,10 @@ class ScalpConfig:
             raise ValueError("sl_roi 0 aur 1 ke beech (liquidation se pehle stop)")
         if self.tp_roi <= 0:
             raise ValueError("tp_roi > 0")
+        if self.exit_mode not in ("atr", "roi"):
+            raise ValueError("exit_mode: atr/roi")
+        if self.exit_mode == "atr" and (self.sl_atr <= 0 or self.tp_atr < 0 or self.trail_atr < 0 or not 0 < self.risk_pct <= 0.05):
+            raise ValueError("atr settings galat: sl_atr>0, tp_atr>=0, trail_atr>=0, 0<risk_pct<=0.05")
         if self.sides not in ("both", "long", "short"):
             raise ValueError("sides: both/long/short")
         if self.min_atr_pct < 0.002:

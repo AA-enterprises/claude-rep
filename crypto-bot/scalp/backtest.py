@@ -63,6 +63,10 @@ class Result:
         l = -sum(x["pnl"] for x in self.records if x["pnl"] < 0)
         return g / l if l > 0 else (float("inf") if g > 0 else 0.0)
 
+    @property
+    def avg_r(self) -> float:
+        return sum(x.get("r", 0.0) for x in self.records) / len(self.records) if self.records else 0.0
+
     def yearly(self) -> dict[int, tuple[int, float, float]]:
         out: dict[int, list] = {}
         for x in self.records:
@@ -76,7 +80,7 @@ class Result:
     def summary(self) -> str:
         r = self.records
         n = len(r)
-        by = {k: sum(1 for x in r if x["reason"] == k) for k in ("TP", "SL", "TIMEOUT", "END")}
+        by = {k: sum(1 for x in r if x["reason"] == k) for k in ("TP", "TRAIL", "SL", "TIMEOUT", "END")}
         longs = [x for x in r if x["side"] == "LONG"]
         shorts = [x for x in r if x["side"] == "SHORT"]
 
@@ -86,7 +90,8 @@ class Result:
             f"Start / End balance : {self.start:,.2f} -> {self.end:,.2f} USDT ({self.ret:+.2%})",
             f"Max drawdown        : {self.max_dd:.2%}",
             f"Trades              : {n} | win rate {self.win_rate:.0%} | profit factor {self.profit_factor:.2f}" if n else "Trades              : 0",
-            f"Exits               : TP {by['TP']} | SL {by['SL']} | TIMEOUT {by['TIMEOUT']} | END {by['END']}",
+            f"Exits               : TP {by['TP']} | TRAIL {by['TRAIL']} | SL {by['SL']} | TIMEOUT {by['TIMEOUT']} | END {by['END']}",
+            f"Avg per trade      : {self.avg_r:+.3f} R (1R = stop lagne par loss; positive = edge)" if n else "",
             f"Long / Short        : {len(longs)} (win {wr(longs)}) / {len(shorts)} (win {wr(shorts)})",
         ]
         if n:

@@ -106,3 +106,15 @@ def test_dashboard_daily_totals(tmp_path):
     assert (t["n"], t["wins"], t["losses"]) == (3, 1, 2)
     assert t["profit"] == 30.0 and t["loss"] == -15.0 and t["net"] == 15.0
     assert len(out["daily"]) == 2 and out["daily"][0]["day"] == t["day"]
+
+
+def test_stop_move_notifies_telegram(tmp_path):
+    cfg = ScalpConfig()
+    ex, tg = FakeEx(cfg), Rec()
+    bot = scanner.Bot(cfg, str(tmp_path / "s.json"), str(tmp_path / "t.csv"), tg, ex=ex)
+    bot.scan()
+    pos = next(iter(bot.acct.positions.values()))
+    n0 = len(tg.msgs)
+    ex.price = pos.entry + 2.4 * pos.entry * pos.atr_pct          # ~2.4 ATR profit: trailing chalu
+    bot.monitor()
+    assert pos.sl > pos.entry * 0.0 and any("STOP MOVED" in m for m in tg.msgs[n0:])

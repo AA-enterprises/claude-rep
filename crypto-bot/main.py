@@ -124,7 +124,9 @@ def cmd_scalp_sweep(args) -> int:
             print("Cache khali hai. Pehle: python main.py scalp-download")
             return 1
         ds = sb.Dataset(series, cfg.tf_ms)
-    rows = sweep.sweep(ds, cfg, sweep.QUICK if args.quick else sweep.FULL, out_csv=args.out)
+    from dataclasses import replace
+    grid, over = sweep.grid_for(args.mode, args.quick)
+    rows = sweep.sweep(ds, replace(cfg, **over), grid, out_csv=args.out)
     print(sweep.report(rows))
     return 0
 
@@ -190,6 +192,7 @@ def main() -> int:
     sw_.add_argument("--coins", type=int, default=30)
     sw_.add_argument("--limit", type=int, default=3000)
     sw_.add_argument("--quick", action="store_true")
+    sw_.add_argument("--mode", choices=["atr", "roi"], default="atr", help="atr: ATR stop/target + trailing, roi: purana 70/-20 rule")
     sw_.add_argument("--out", default="sweep_results.csv")
     sw_.set_defaults(fn=cmd_scalp_sweep)
     dd_ = sub.add_parser("scalp-dashboard")

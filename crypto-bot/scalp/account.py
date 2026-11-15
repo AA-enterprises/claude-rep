@@ -1,4 +1,4 @@
-"""Paper futures account: leverage, fees, slippage, TP/SL/timeout."""
+"""Paper futures account: leverage, fees, slippage, SL/TP/trailing/timeout."""
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
@@ -15,7 +15,7 @@ class Position:
     qty: float
     margin: float
     leverage: float
-    tp: float
+    tp: float | None
     sl: float
     opened_ts: int
     max_hold_ms: int
@@ -24,6 +24,11 @@ class Position:
     gates: list[str] = field(default_factory=list)
     vol_ratio: float = 0.0
     atr_pct: float = 0.0
+    trail_start: float = 0.0     # price distance (absolute); 0 = trailing off
+    trail_dist: float = 0.0
+    best: float = 0.0            # favourable extreme abhi tak
+    risk: float = 0.0            # stop lagne par (fees se pehle) USDT loss = 1R
+    notified_sl: float = 0.0     # Telegram par jis stop ki khabar di gayi
 
     @property
     def d(self) -> int:
@@ -48,40 +53,71 @@ class PaperAccount:
 
     def open(self, sig: Signal, price: float, ts: int) -> Position | None:
         cfg = self.cfg
-        if sig.symbol in self.positions or len(self.positions) >= cfg.max_open:
+        if sig.symbol in self.positions or len(self.positions) >= cfg.max_open or self.balance <= 0:
             return None
-        margin = self.balance * cfg.margin_pct
-        if margin <= 0 or margin > self.free_margin():
-            return None
+        base = self.balance if cfg.compound else cfg.start_balance
         d = 1 if sig.side == "LONG" else -1
         entry = price * (1 + d * cfg.slippage_pct)
-        notional = margin * cfg.leverage
+        trail_start = trail_dist = 0.0
+        if cfg.exit_mode == "atr":
+            atr_abs = sig.atr_pct * (sig.price or price)
+            sl_dist = cfg.sl_atr * atr_abs
+            sl_frac = sl_dist / entry
+            if sl_frac <= 0 or sl_frac * cfg.leverage > 0.8:      # liquidation stop se pehle aa jayegi
+                return None
+            notional = min(base * cfg.risk_pct / sl_frac, base * cfg.margin_pct * cfg.leverage)
+            margin = notional / cfg.leverage
+            qty = notional / entry
+            sl = entry - d * sl_dist
+            tp = entry + d * cfg.tp_atr * atr_abs if cfg.tp_atr > 0 else None
+            risk = qty * sl_dist
+            if cfg.trail_atr > 0:
+                trail_start, trail_dist = cfg.trail_start_atr * atr_abs, cfg.trail_atr * atr_abs
+        else:
+            margin = base * cfg.margin_pct
+            notional = margin * cfg.leverage
+            qty = notional / entry
+            tp = entry * (1 + d * cfg.tp_roi / cfg.leverage)
+            sl = entry * (1 - d * cfg.sl_roi / cfg.leverage)
+            risk = margin * cfg.sl_roi
+        if margin <= 0 or margin > self.free_margin():
+            return None
         fee = notional * cfg.fee_rate
         self.balance -= fee
         pos = Position(
-            sig.symbol, sig.side, entry, notional / entry, margin, cfg.leverage,
-            tp=entry * (1 + d * cfg.tp_roi / cfg.leverage),
-            sl=entry * (1 - d * cfg.sl_roi / cfg.leverage),
+            sig.symbol, sig.side, entry, qty, margin, cfg.leverage, tp=tp, sl=sl,
             opened_ts=ts, max_hold_ms=int(cfg.max_hold_hours * 3_600_000), entry_fee=fee,
             score=sig.score, gates=list(sig.gates), vol_ratio=sig.vol_ratio, atr_pct=sig.atr_pct,
+            trail_start=trail_start, trail_dist=trail_dist, best=entry, risk=risk, notified_sl=sl,
         )
         self.positions[sig.symbol] = pos
         return pos
 
     def check_exit(self, pos: Position, hi: float, lo: float, last: float, ts: int,
                    live: bool = False) -> tuple[str, float] | None:
-        """SL pehle check hota hai (conservative: ek candle mein dono touch hon to SL maana jata hai)."""
+        """SL pehle check hota hai (conservative: ek candle mein dono touch hon to SL maana jata hai).
+        Trailing stop agli candle se lagu hota hai (isi candle ki high/low se nahi)."""
         s = self.cfg.slippage_pct
         d = pos.d
         if (d == 1 and lo <= pos.sl) or (d == -1 and hi >= pos.sl):
             px = pos.sl * (1 - d * s)
             if live and ((d == 1 and last < px) or (d == -1 and last > px)):
                 px = last              # gap: stop se bhi bura price
-            return "SL", px
-        if (d == 1 and hi >= pos.tp) or (d == -1 and lo <= pos.tp):
+            trailed = (d == 1 and pos.sl > pos.entry) or (d == -1 and pos.sl < pos.entry)
+            return ("TRAIL" if trailed else "SL"), px
+        if pos.tp is not None and ((d == 1 and hi >= pos.tp) or (d == -1 and lo <= pos.tp)):
             return "TP", pos.tp
         if ts - pos.opened_ts >= pos.max_hold_ms:
             return "TIMEOUT", last * (1 - d * s)
+        if pos.trail_dist > 0:                                   # ratchet: stop sirf favourable disha mein khiske
+            if d == 1:
+                pos.best = max(pos.best, hi)
+                if pos.best - pos.entry >= pos.trail_start:
+                    pos.sl = max(pos.sl, pos.best - pos.trail_dist)
+            else:
+                pos.best = min(pos.best, lo)
+                if pos.entry - pos.best >= pos.trail_start:
+                    pos.sl = min(pos.sl, pos.best + pos.trail_dist)
         return None
 
     def close(self, pos: Position, reason: str, px: float, ts: int) -> dict:
@@ -93,7 +129,7 @@ class PaperAccount:
         self.cooldown_until[pos.symbol] = ts + self.cfg.cooldown_candles * self.cfg.tf_ms
         return {
             "closed_ts": ts, "symbol": pos.symbol, "side": pos.side, "entry": pos.entry, "exit": px,
-            "reason": reason, "roi": net / pos.margin, "pnl": net,
+            "reason": reason, "roi": net / pos.margin, "pnl": net, "r": net / pos.risk if pos.risk else 0.0,
             "held_min": (ts - pos.opened_ts) / 60_000, "score": pos.score,
             "gates": "|".join(pos.gates), "vol_ratio": pos.vol_ratio, "atr_pct": pos.atr_pct,
         }

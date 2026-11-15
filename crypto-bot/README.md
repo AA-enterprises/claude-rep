@@ -94,3 +94,18 @@ trade history, equity chart, win rate. Har 3 second mein refresh. Dashboard sirf
 Mark price bot ke monitor se aata hai (har `poll_seconds`), isliye bot band ho to dashboard "Bot ruka hua" dikhayega.
 
 Dashboard mein **Aaj ka Profit / Loss / Net** (closed trades) cards ke roop mein, aur **Daily P&L** tab mein din-ba-din table (trades, won/lost, profit, loss, net) dikhta hai. "Aaj" aapke PC ke local time ke hisaab se hai. (Bot ka daily loss limit aur Telegram daily report UTC din par chalte hain.)
+
+## ATR exits + trailing stop (default ab yahi hai)
+Purana 70% / -20% ROI rule backtest mein fail hua (6 saal, profit factor 0.90). Ab default `exit_mode = "atr"`:
+- **Stop** = entry se `sl_atr` x ATR door (har coin ki apni volatility). **Target** = `tp_atr` x ATR (0 = koi fixed target nahi, sirf trailing).
+- **Trailing stop:** profit `trail_start_atr` x ATR ho jaye to bot stop-loss ko khud aage khiskata hai (long mein upar, short mein neeche). Stop sirf profit ki disha mein khiskata hai, kabhi peeche nahi.
+  Telegram par "STOP MOVED" message aata hai (har ~0.5R step par ya break-even cross hone par), dashboard mein naya SL dikhta hai.
+- **Position size:** har trade mein start balance ka `risk_pct` (1%) risk, yani stop lagne par ~1R loss. `margin_pct` size ki upar limit hai.
+- Backtest ab fixed-size hai (`compound: false`), aur har trade ka **R-multiple** dikhata hai (`Avg per trade: +0.1 R` = edge).
+
+```powershell
+python main.py scalp-sweep --quick               # ATR mode, 16 combos
+python main.py scalp-sweep                       # ATR mode, 144 combos
+python main.py scalp-sweep --mode roi --quick    # purana ROI rule
+python main.py scalp-backtest --source cache --coins 30
+```

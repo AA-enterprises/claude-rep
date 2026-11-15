@@ -14,8 +14,20 @@ QUICK = dict(leverage=[10, 20], tp_roi=[0.70], sl_roi=[0.20], min_gates=[3, 4],
              max_hold_hours=[6], sides=["both"], btc_filter=[False, True])
 
 
+ATR_FULL = dict(sl_atr=[1.0, 1.5, 2.5], tp_atr=[0.0, 2.0, 3.0, 5.0], trail_atr=[0.0, 1.5, 2.5],
+                min_gates=[3, 4], max_hold_hours=[6, 24], btc_filter=[False, True])
+ATR_QUICK = dict(sl_atr=[1.5], tp_atr=[0.0, 3.0], trail_atr=[0.0, 1.5], min_gates=[3, 4], btc_filter=[False, True])
+
+
+def grid_for(mode: str, quick: bool):
+    """-> (grid, base overrides)"""
+    if mode == "roi":
+        return (QUICK if quick else FULL), {"exit_mode": "roi"}
+    return (ATR_QUICK if quick else ATR_FULL), {"exit_mode": "atr"}
+
+
 def passes(train: Result, test: Result) -> bool:
-    return (len(train.records) >= 100 and len(test.records) >= 50 and train.ret > 0 and test.ret > 0
+    return (len(train.records) >= 100 and len(test.records) >= 50 and train.ret > 0 and test.ret > 0 and test.avg_r > 0.05
             and test.profit_factor > 1.1 and test.max_dd < 0.35 and train.max_dd < 0.35)
 
 

@@ -146,10 +146,10 @@ function render(s){S=s;const st=$("st");
   s.daily.map(d=>[d.day+(d.day===T.day?"  (aaj)":""),d.n,d.wins+" / "+d.losses,{t:fm(d.profit),c:d.profit>0?"up":""},{t:fm(d.loss),c:d.loss<0?"dn":""},{t:fm(d.net),c:cls(d.net)}])):el("div","empty","Abhi koi closed trade nahi"));
  $("np").textContent=s.positions.length;
  $("pos").replaceChildren(s.positions.length?table(["Symbol","Size (USDT)","Margin","Entry","Mark","TP","SL","PnL (ROI%)","Held"],
-  s.positions.map(p=>[{t:nm(p.symbol)+" "+p.leverage+"x",n:p.side},fp(p.notional).replace(/\.\d+$/,""),p.margin.toFixed(2),fp(p.entry),fp(p.mark),{t:fp(p.tp),c:"up"},{t:fp(p.sl),c:"dn"},
+  s.positions.map(p=>[{t:nm(p.symbol)+" "+p.leverage+"x",n:p.side},fp(p.notional).replace(/\.\d+$/,""),p.margin.toFixed(2),fp(p.entry),fp(p.mark),{t:p.tp==null?"trail":fp(p.tp),c:"up"},{t:fp(p.sl),c:"dn"},
    {t:fm(p.pnl)+" ("+fm(p.roi*100,1)+"%)",c:cls(p.pnl)},dur(p.held_min)+" / "+dur(p.max_hold_min)])):el("div","empty","Abhi koi open trade nahi"));
  $("hist").replaceChildren(s.trades.length?table(["Symbol","Entry","Exit","Result","PnL (ROI%)","Held","Closed (UTC)"],
-  s.trades.map(t=>[{t:nm(t.symbol),n:t.side},fp(t.entry),fp(t.exit),{t:t.reason,c:t.reason==="TP"?"up":t.reason==="SL"?"dn":"mut"},
+  s.trades.map(t=>[{t:nm(t.symbol),n:t.side},fp(t.entry),fp(t.exit),{t:t.reason,c:(t.reason==="TP"||t.reason==="TRAIL")?"up":t.reason==="SL"?"dn":"mut"},
    {t:fm(t.pnl)+" ("+fm(t.roi*100,1)+"%)",c:cls(t.pnl)},dur(t.held_min),new Date(t.closed_ts).toISOString().slice(0,16).replace("T"," ")])):el("div","empty","Abhi koi closed trade nahi"));
  draw()}
 async function tick(){try{const r=await fetch("/api/state");render(await r.json())}catch(e){$("stt").textContent="Dashboard server se connection nahi"}}
