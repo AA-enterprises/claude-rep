@@ -93,3 +93,27 @@ def load_cache(cache_dir: str, tf: str, max_coins: int | None = None) -> dict[st
         rest = sorted((k for k in out if k not in btc), key=lambda k: -len(out[k].ts))[: max_coins - len(btc)]
         out = {k: out[k] for k in btc + rest}
     return out
+
+
+def resample(s: Series, base_ms: int, new_ms: int) -> Series:
+    """15m candles se 1h/4h candles (sirf poore, aur bina gap wale groups)."""
+    if new_ms == base_ms:
+        return s
+    k = new_ms // base_ms
+    ts, h, l, c, v = array("q"), array("d"), array("d"), array("d"), array("d")
+    cur, cnt, H, L, C, V = None, 0, 0.0, 0.0, 0.0, 0.0
+    for i in range(len(s.ts)):
+        b = s.ts[i] - s.ts[i] % new_ms
+        if b != cur:
+            if cur is not None and cnt == k:
+                ts.append(cur); h.append(H); l.append(L); c.append(C); v.append(V)
+            cur, cnt, H, L, V = b, 0, s.h[i], s.l[i], 0.0
+        H, L, C, V, cnt = max(H, s.h[i]), min(L, s.l[i]), s.c[i], V + s.v[i], cnt + 1
+    if cur is not None and cnt == k:
+        ts.append(cur); h.append(H); l.append(L); c.append(C); v.append(V)
+    return Series(ts, h, l, c, v)
+
+
+def load_resampled(cache_dir: str, cfg, max_coins: int | None = None, base_tf: str = "15m", base_ms: int = 900_000):
+    """Cache hamesha 15m mein hota hai; cfg.timeframe (15m/1h/4h) ke hisaab se resample."""
+    return {k: resample(v, base_ms, cfg.tf_ms) for k, v in load_cache(cache_dir, base_tf, max_coins).items()}

@@ -240,3 +240,25 @@ def test_atr_backtest_fixed_size_no_compounding():
     assert r.records and all(abs(x["pnl"]) < cfg.start_balance * 0.05 for x in r.records)   # koi trade 5% se bada nahi
     assert r.end == pytest.approx(cfg.start_balance + sum(x["pnl"] for x in r.records), rel=1e-9)
     assert abs(r.avg_r) < 5
+
+
+def test_resample_15m_to_1h_and_drops_incomplete_groups():
+    from scalp import history
+    from scalp.features import Series
+    t0 = 3_600_000 * 1000                                        # 1h boundary par
+    cs = [(t0 + i * 900_000, 0, 10 + i, 5 - i * 0.1, 7 + i * 0.5, 100.0) for i in range(10)]
+    r = history.resample(Series.from_candles(cs), 900_000, 3_600_000)
+    assert len(r.ts) == 2                                       # 10 candles: 2 poore ghante, aakhri adhoora drop
+    assert r.ts[0] == t0 and r.h[0] == 13 and r.l[0] == pytest.approx(5 - 0.3) and r.c[0] == pytest.approx(7 + 1.5) and r.v[0] == 400.0
+    gap = cs[:2] + cs[3:8]                                       # beech ki candle missing -> woh ghanta nahi banega
+    assert len(history.resample(Series.from_candles(gap), 900_000, 3_600_000).ts) == 1
+
+
+def test_fixed_size_backtest_keeps_testing_after_loss_exceeds_capital():
+    cfg = ScalpConfig(start_balance=100.0, risk_pct=0.05, margin_pct=0.5, sl_atr=0.5, tp_atr=50.0, trail_atr=0.0, fee_rate=0.01)
+    data = sim.market(cfg, coins=6, n=3000)
+    r = backtest.run(data, cfg)
+    t0, t1 = min(c[0] for cs in data.values() for c in cs), max(c[0] for cs in data.values() for c in cs)
+    assert len(r.records) > 100
+    assert max(x["closed_ts"] for x in r.records) > t0 + 0.9 * (t1 - t0)       # aakhri 10% data mein bhi trades
+    assert r.end < 0                                                            # capital se zyada loss, phir bhi test chalta raha

@@ -87,7 +87,7 @@ class Result:
         def wr(a):
             return f"{sum(1 for x in a if x['pnl'] > 0) / len(a):.0%}" if a else "-"
         lines = [
-            f"Start / End balance : {self.start:,.2f} -> {self.end:,.2f} USDT ({self.ret:+.2%})",
+            f"Start / End balance : {self.start:,.2f} -> {self.end:,.2f} USDT ({self.ret:+.2%})  [fixed-size: -100% se zyada loss = poori history mein yeh size chalta to]",
             f"Max drawdown        : {self.max_dd:.2%}",
             f"Trades              : {n} | win rate {self.win_rate:.0%} | profit factor {self.profit_factor:.2f}" if n else "Trades              : 0",
             f"Exits               : TP {by['TP']} | TRAIL {by['TRAIL']} | SL {by['SL']} | TIMEOUT {by['TIMEOUT']} | END {by['END']}",
@@ -104,7 +104,7 @@ def run(data, cfg: ScalpConfig, t0: int | None = None, t1: int | None = None) ->
     t0 = ds.tmin if t0 is None else t0
     t1 = ds.tmax + 1 if t1 is None else t1
     t0 = ds.tmin + -(-(t0 - ds.tmin) // cfg.tf_ms) * cfg.tf_ms      # dataset ki apni grid par align (ceil)
-    acct = PaperAccount(cfg)
+    acct = PaperAccount(cfg, unlimited=not cfg.compound)
     res = Result(cfg.start_balance, cfg.start_balance)
     peak = cfg.start_balance
     day, day_start, last_t = None, cfg.start_balance, t0
@@ -122,7 +122,7 @@ def run(data, cfg: ScalpConfig, t0: int | None = None, t1: int | None = None) ->
         if ev:
             if t // DAY != day:
                 day, day_start = t // DAY, acct.balance
-            if acct.balance / day_start - 1 > -cfg.max_daily_loss_pct and len(acct.positions) < cfg.max_open:
+            if (acct.balance - day_start) / cfg.start_balance > -cfg.max_daily_loss_pct and len(acct.positions) < cfg.max_open:
                 reg = ds.regime(t)
                 sigs = [g for sym, f in ev
                         if sym not in acct.positions and t >= acct.cooldown_until.get(sym, 0)
@@ -138,7 +138,7 @@ def run(data, cfg: ScalpConfig, t0: int | None = None, t1: int | None = None) ->
         else:
             eq = acct.balance
         peak = max(peak, eq)
-        res.max_dd = max(res.max_dd, (peak - eq) / peak)
+        res.max_dd = max(res.max_dd, (peak - eq) / (peak if cfg.compound else cfg.start_balance))
     for sym, pos in list(acct.positions.items()):
         s = ds.s[sym]
         i = max(0, bisect_left(s.ts, last_t + 1) - 1)

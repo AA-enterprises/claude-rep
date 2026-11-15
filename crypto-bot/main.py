@@ -78,11 +78,15 @@ def cmd_paper(args) -> int:
 
 
 def cmd_scalp_backtest(args) -> int:
+    from dataclasses import replace
     from scalp import backtest as sb, config as sc, scanner, sim
     cfg = sc.load(args.scalp_config)
+    if args.timeframe:
+        cfg = replace(cfg, timeframe=args.timeframe)
+        print(f"Timeframe: {cfg.timeframe} (15m cache se resample)")
     if args.source == "cache":
         from scalp import history
-        series = history.load_cache(args.cache_dir, cfg.timeframe, args.coins)
+        series = history.load_resampled(args.cache_dir, cfg, args.coins)
         if not series:
             print("Cache khali hai. Pehle: python main.py scalp-download")
             return 1
@@ -114,18 +118,22 @@ def cmd_scalp_download(args) -> int:
 
 
 def cmd_scalp_sweep(args) -> int:
+    from dataclasses import replace
     from scalp import backtest as sb, config as sc, history, sim, sweep
     cfg = sc.load(args.scalp_config)
+    if args.timeframe:
+        cfg = replace(cfg, timeframe=args.timeframe)
+        print(f"Timeframe: {cfg.timeframe} (15m cache se resample)")
     if args.source == "synthetic":
         ds = sb.Dataset.from_candles(sim.market(cfg, coins=args.coins, n=args.limit), cfg.tf_ms)
     else:
-        series = history.load_cache(args.cache_dir, cfg.timeframe, args.coins)
+        series = history.load_resampled(args.cache_dir, cfg, args.coins)
         if not series:
             print("Cache khali hai. Pehle: python main.py scalp-download")
             return 1
         ds = sb.Dataset(series, cfg.tf_ms)
     from dataclasses import replace
-    grid, over = sweep.grid_for(args.mode, args.quick)
+    grid, over = sweep.grid_for(args.mode, args.quick, slow=cfg.timeframe != "15m")
     rows = sweep.sweep(ds, replace(cfg, **over), grid, out_csv=args.out)
     print(sweep.report(rows))
     return 0
@@ -178,6 +186,7 @@ def main() -> int:
     sb_ = sub.add_parser("scalp-backtest")
     sb_.add_argument("--source", choices=["synthetic", "binance", "cache"], default="synthetic")
     sb_.add_argument("--cache-dir", default="data_cache")
+    sb_.add_argument("--timeframe", choices=["15m", "1h", "4h"], help="cache 15m se resample hota hai")
     sb_.add_argument("--coins", type=int, default=20)
     sb_.add_argument("--limit", type=int, default=700)
     sb_.set_defaults(fn=cmd_scalp_backtest)
@@ -192,6 +201,7 @@ def main() -> int:
     sw_.add_argument("--coins", type=int, default=30)
     sw_.add_argument("--limit", type=int, default=3000)
     sw_.add_argument("--quick", action="store_true")
+    sw_.add_argument("--timeframe", choices=["15m", "1h", "4h"], help="cache 15m se resample hota hai")
     sw_.add_argument("--mode", choices=["atr", "roi"], default="atr", help="atr: ATR stop/target + trailing, roi: purana 70/-20 rule")
     sw_.add_argument("--out", default="sweep_results.csv")
     sw_.set_defaults(fn=cmd_scalp_sweep)

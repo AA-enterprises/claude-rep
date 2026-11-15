@@ -39,7 +39,8 @@ class Position:
 
 
 class PaperAccount:
-    def __init__(self, cfg: ScalpConfig, balance: float | None = None):
+    def __init__(self, cfg: ScalpConfig, balance: float | None = None, unlimited: bool = False):
+        self.unlimited = unlimited      # sirf backtest: balance khatam hone par bhi sab saal test hote rahein
         self.cfg = cfg
         self.balance = cfg.start_balance if balance is None else balance
         self.positions: dict[str, Position] = {}
@@ -53,7 +54,7 @@ class PaperAccount:
 
     def open(self, sig: Signal, price: float, ts: int) -> Position | None:
         cfg = self.cfg
-        if sig.symbol in self.positions or len(self.positions) >= cfg.max_open or self.balance <= 0:
+        if sig.symbol in self.positions or len(self.positions) >= cfg.max_open or (self.balance <= 0 and not self.unlimited):
             return None
         base = self.balance if cfg.compound else cfg.start_balance
         d = 1 if sig.side == "LONG" else -1
@@ -80,7 +81,7 @@ class PaperAccount:
             tp = entry * (1 + d * cfg.tp_roi / cfg.leverage)
             sl = entry * (1 - d * cfg.sl_roi / cfg.leverage)
             risk = margin * cfg.sl_roi
-        if margin <= 0 or margin > self.free_margin():
+        if margin <= 0 or (margin > self.free_margin() and not self.unlimited):
             return None
         fee = notional * cfg.fee_rate
         self.balance -= fee

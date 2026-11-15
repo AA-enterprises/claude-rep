@@ -19,8 +19,16 @@ ATR_FULL = dict(sl_atr=[1.0, 1.5, 2.5], tp_atr=[0.0, 2.0, 3.0, 5.0], trail_atr=[
 ATR_QUICK = dict(sl_atr=[1.5], tp_atr=[0.0, 3.0], trail_atr=[0.0, 1.5], min_gates=[3, 4], btc_filter=[False, True])
 
 
-def grid_for(mode: str, quick: bool):
+ATR_SLOW = dict(sl_atr=[1.5, 2.5], tp_atr=[0.0, 3.0, 5.0], trail_atr=[0.0, 2.5], min_gates=[3, 4],
+                max_hold_hours=[24, 96], btc_filter=[False, True])
+ATR_SLOW_QUICK = dict(sl_atr=[2.0], tp_atr=[0.0, 4.0], trail_atr=[0.0, 2.5], min_gates=[3, 4],
+                      max_hold_hours=[48], btc_filter=[False, True])
+
+
+def grid_for(mode: str, quick: bool, slow: bool = False):
     """-> (grid, base overrides)"""
+    if slow and mode == "atr":
+        return (ATR_SLOW_QUICK if quick else ATR_SLOW), {"exit_mode": "atr"}
     if mode == "roi":
         return (QUICK if quick else FULL), {"exit_mode": "roi"}
     return (ATR_QUICK if quick else ATR_FULL), {"exit_mode": "atr"}

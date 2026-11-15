@@ -109,3 +109,13 @@ python main.py scalp-sweep                       # ATR mode, 144 combos
 python main.py scalp-sweep --mode roi --quick    # purana ROI rule
 python main.py scalp-backtest --source cache --coins 30
 ```
+
+## Slower timeframe test (1h / 4h)
+15m par ATR strategy fail hui (6 saal ke data mein -0.12 R/trade). Slower candles par kam trades hoti hain, to fees ka bojh kam padta hai.
+Download dobara nahi karna, 15m cache se 1h/4h candles khud ban jaati hain:
+```powershell
+python main.py scalp-backtest --source cache --coins 30 --timeframe 1h
+python main.py scalp-sweep --quick --timeframe 1h
+python main.py scalp-sweep --quick --timeframe 4h
+```
+Backtest ab fixed-size hai aur account zero hone par ruka nahi, to poori history (har saal) test hoti hai. "-100% se zyada loss" ka matlab hai ki poore data mein is size par chalte to capital se zyada kho dete.
