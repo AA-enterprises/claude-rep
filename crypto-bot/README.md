@@ -119,3 +119,12 @@ python main.py scalp-sweep --quick --timeframe 1h
 python main.py scalp-sweep --quick --timeframe 4h
 ```
 Backtest ab fixed-size hai aur account zero hone par ruka nahi, to poori history (har saal) test hoti hai. "-100% se zyada loss" ka matlab hai ki poore data mein is size par chalte to capital se zyada kho dete.
+
+## Validation (kya edge asli hai?)
+Sweep ka PASS ab risk-normalized hai (drawdown position size se scale hota hai, isliye sirf absolute dd par fail nahi karte): dono hisson mein profit, R/trade > 0, profit factor > 1.1, return/drawdown >= 1.
+PASS ke baad **zaroor** validate chalao:
+```powershell
+python main.py scalp-validate                       # default: sweep ka best 4h candidate
+python main.py scalp-validate --set sl_atr=2.5 --set min_gates=4 --set timeframe=4h
+```
+Checks: har saal ka PnL, kya sirf top-3 coins ne kamaya, sirf BTC+ETH par result (survivorship bias kam), parameters hilane par result barkarar rehta hai, aur Monte Carlo (worst-case drawdown + suggested risk_pct).

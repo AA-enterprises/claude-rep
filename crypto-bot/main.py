@@ -145,6 +145,25 @@ def cmd_scalp_dashboard(args) -> int:
     return 0
 
 
+def cmd_scalp_validate(args) -> int:
+    from dataclasses import replace
+    from scalp import backtest as sb, config as sc, history, validate
+    cfg = sc.load(args.scalp_config)
+    # default: sweep ka sabse achha 4h candidate
+    cand = {"timeframe": "4h", "sl_atr": 2.0, "tp_atr": 0.0, "trail_atr": 2.5, "min_gates": 3, "max_hold_hours": 48.0, "btc_filter": False}
+    cand.update(validate.parse_overrides(args.set))
+    cfg = replace(cfg, **cand)
+    cfg.validate()
+    print("Config:", {k: getattr(cfg, k) for k in cand})
+    series = history.load_resampled(args.cache_dir, cfg, args.coins)
+    if not series:
+        print("Cache khali hai. Pehle: python main.py scalp-download")
+        return 1
+    print(f"{len(series)} coins, timeframe {cfg.timeframe}")
+    validate.validate(sb.Dataset(series, cfg.tf_ms), cfg)
+    return 0
+
+
 def cmd_scalp_paper(args) -> int:
     from scalp import config as sc, scanner
     cfg = sc.load(args.scalp_config)
@@ -211,6 +230,11 @@ def main() -> int:
     dd_.add_argument("--port", type=int, default=8050)
     dd_.add_argument("--no-browser", action="store_true")
     dd_.set_defaults(fn=cmd_scalp_dashboard)
+    sv_ = sub.add_parser("scalp-validate")
+    sv_.add_argument("--cache-dir", default="data_cache")
+    sv_.add_argument("--coins", type=int, default=30)
+    sv_.add_argument("--set", action="append", default=[], metavar="KEY=VALUE", help="config override, jaise --set sl_atr=2.5 (kayi baar de sakte ho)")
+    sv_.set_defaults(fn=cmd_scalp_validate)
     sp_ = sub.add_parser("scalp-paper")
     sp_.add_argument("--state", default="scalp_state.json")
     sp_.add_argument("--trades", default="scalp_trades.csv")

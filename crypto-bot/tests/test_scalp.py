@@ -262,3 +262,30 @@ def test_fixed_size_backtest_keeps_testing_after_loss_exceeds_capital():
     assert len(r.records) > 30
     assert max(x["closed_ts"] for x in r.records) > t0 + 0.9 * (t1 - t0)       # aakhri 10% data mein bhi trades
     assert r.end < 0                                                            # capital se zyada loss, phir bhi test chalta raha
+
+
+def test_pass_rule_is_risk_normalized_and_suggests_risk():
+    from scalp import sweep
+    mk = lambda ret, dd, avg_r, pf, n=200: backtest.Result(1000.0, 1000.0 * (1 + ret), [
+        {"pnl": 1.0 if i % 2 else -0.5, "r": avg_r, "closed_ts": 0, "symbol": "X", "side": "LONG", "reason": "TP"} for i in range(n)], dd)
+    tr, te = mk(1.7, 0.28, 0.10, 1.2), mk(0.58, 0.36, 0.08, 1.2)      # 4h candidate: dd 36% ho to bhi pass
+    assert sweep.passes(tr, te)
+    assert not sweep.passes(tr, mk(0.05, 0.50, 0.08, 1.2))              # return/dd < 1
+    assert sweep.suggested_risk(0.01, tr, te) == pytest.approx(0.01 * 0.2 / 0.36, abs=1e-4)
+
+
+def test_subset_and_validate_run_end_to_end():
+    from dataclasses import replace
+    from scalp import validate
+    cfg = replace(ScalpConfig(), timeframe="1h")
+    ds = backtest.Dataset.from_candles(
+        {k: v for k, v in sim.market(ScalpConfig(), coins=6, n=4000).items()}, ScalpConfig().tf_ms)
+    sub = ds.subset(list(ds.s)[:2])
+    assert len(sub.s) == 2 and all(sym in sub.s for ev in sub.events.values() for sym, _ in ev)
+    lines = []
+    validate.validate(ds, ScalpConfig(), log=lines.append)
+    text = "\n".join(lines)
+    assert "VERDICT" in text and "Monte Carlo" in text and "coin concentration" in text.lower()
+    assert validate.parse_overrides(["sl_atr=2.5", "btc_filter=true", "min_gates=4"]) == {"sl_atr": 2.5, "btc_filter": True, "min_gates": 4}
+    b = validate.bootstrap([1.0, -1.0, 2.0, -1.0], 0.01, sims=200)
+    assert 0 <= b["p_profit"] <= 1 and b["dd95"] >= b["dd50"] >= 0

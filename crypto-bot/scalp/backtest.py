@@ -30,6 +30,21 @@ class Dataset:
     def from_candles(cls, data: dict[str, list[tuple]], tf_ms: int) -> "Dataset":
         return cls({k: Series.from_candles(v) for k, v in data.items()}, tf_ms)
 
+    def subset(self, syms) -> "Dataset":
+        """Kuch coins hata ke/chun ke naya dataset (features dobara nahi nikalte). BTC regime original rehta hai."""
+        keep = set(syms)
+        new = object.__new__(Dataset)
+        new.s, new.tf = {k: v for k, v in self.s.items() if k in keep}, self.tf
+        new.events = {}
+        for t, ev in self.events.items():
+            e = [x for x in ev if x[0] in keep]
+            if e:
+                new.events[t] = e
+        new.tmin = min(s.ts[0] for s in new.s.values())
+        new.tmax = max(s.ts[-1] for s in new.s.values())
+        new.btc_ts, new.btc_reg = self.btc_ts, self.btc_reg
+        return new
+
     def at(self, sym: str, t: int) -> int | None:
         ts = self.s[sym].ts
         i = bisect_left(ts, t)
