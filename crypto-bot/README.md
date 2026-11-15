@@ -63,3 +63,20 @@ python main.py scalp-stats                                               # close
 `scalp_trades.csv` mein har trade ke gates/volume/ATR save hote hain, taaki review karke settings tune kar sako.
 `scalp_state.json` se restart ke baad open positions wapas aa jaati hain.
 Synthetic backtest (`--source synthetic`) sirf engine check hai, profit ka sabut nahi.
+
+## Lamba history backtest + settings sweep (walk-forward)
+Binance USDT-M futures ka data Sept 2019 se hai (BTC/ETH ~6 saal). Naye coins ka kam. Download ek baar hota hai aur `data_cache/` mein save rehta hai.
+
+```powershell
+python main.py scalp-download --coins 30 --years 10        # shuru mein lamba time lagega, beech mein ruk ke dobara chala sakte ho
+python main.py scalp-backtest --source cache --coins 30    # saal-ba-saal PnL dikhata hai
+python main.py scalp-sweep --quick                         # 8 combos (jaldi)
+python main.py scalp-sweep                                 # 432 combos (kaafi der lagega)
+```
+Sweep data ko do hisson mein baantta hai: pehle ~70% par settings tune hoti hain, baaki ~30% (jo tune mein dekha hi nahi) par check. Sirf wahi settings **PASS** hoti hain jo dono hisson mein profitable hon
+(test hisse mein profit factor > 1.1, drawdown < 35%, kam se kam 50 trades). Sab results `sweep_results.csv` mein.
+
+Limits (zaroor padho):
+- Aaj ke top coins ka hi data hota hai; jo coins delist ho gaye woh nahi hain, isliye result thoda zyada achha dikhta hai (survivorship bias).
+- Bahut saare combos test karne par koi na koi "lucky" nikal sakta hai. PASS ko guarantee mat samjho; paper mode mein alag se confirm karo.
+- `btc_filter`: BTC up ho to sirf LONG, down ho to sirf SHORT.

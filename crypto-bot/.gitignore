@@ -5,3 +5,5 @@ crypto-bot/.env
 crypto-bot/secrets.json
 scalp_state.json
 scalp_trades.csv
+data_cache/
+sweep_results.csv

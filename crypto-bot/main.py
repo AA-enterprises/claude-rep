@@ -80,16 +80,52 @@ def cmd_paper(args) -> int:
 def cmd_scalp_backtest(args) -> int:
     from scalp import backtest as sb, config as sc, scanner, sim
     cfg = sc.load(args.scalp_config)
-    if args.source == "binance":
+    if args.source == "cache":
+        from scalp import history
+        series = history.load_cache(args.cache_dir, cfg.timeframe, args.coins)
+        if not series:
+            print("Cache khali hai. Pehle: python main.py scalp-download")
+            return 1
+        print(f"{len(series)} coins cache se load hue")
+        data_ = sb.Dataset(series, cfg.tf_ms)
+    elif args.source == "binance":
         ex = scanner.make_exchange()
         syms, _ = scanner.universe(ex, cfg)
         syms = syms[: args.coins]
         print(f"{len(syms)} coins ka data le raha hoon...")
-        data_ = {s: scanner.fetch_closed(ex, s, cfg, limit=1500) for s in syms}
+        data_ = {s: scanner.fetch_closed(ex, s, cfg, limit=1000) for s in syms}
     else:
         data_ = sim.market(cfg, coins=args.coins, n=args.limit)
         print("SYNTHETIC data: sirf engine check, asli profit ka sabut nahi")
     print(sb.run(data_, cfg).summary())
+    return 0
+
+
+def cmd_scalp_download(args) -> int:
+    from scalp import config as sc, history, scanner
+    cfg = sc.load(args.scalp_config)
+    ex = scanner.make_exchange()
+    syms, _ = scanner.universe(ex, cfg)
+    syms = ["BTC/USDT:USDT"] + [x for x in syms if not x.startswith("BTC/")][: args.coins - 1]
+    print(f"{len(syms)} coins, {args.years} saal tak (jitna Binance par available ho). Beech mein ruk sakte ho, dobara chalane par wahin se aage badhega.")
+    for sym in syms:
+        history.download(ex, sym, cfg.timeframe, cfg.tf_ms, args.years, args.cache_dir)
+    return 0
+
+
+def cmd_scalp_sweep(args) -> int:
+    from scalp import backtest as sb, config as sc, history, sim, sweep
+    cfg = sc.load(args.scalp_config)
+    if args.source == "synthetic":
+        ds = sb.Dataset.from_candles(sim.market(cfg, coins=args.coins, n=args.limit), cfg.tf_ms)
+    else:
+        series = history.load_cache(args.cache_dir, cfg.timeframe, args.coins)
+        if not series:
+            print("Cache khali hai. Pehle: python main.py scalp-download")
+            return 1
+        ds = sb.Dataset(series, cfg.tf_ms)
+    rows = sweep.sweep(ds, cfg, sweep.QUICK if args.quick else sweep.FULL, out_csv=args.out)
+    print(sweep.report(rows))
     return 0
 
 
@@ -132,10 +168,24 @@ def main() -> int:
     pp.set_defaults(fn=cmd_paper)
     p.add_argument("--scalp-config", default="scalp_config.json")
     sb_ = sub.add_parser("scalp-backtest")
-    sb_.add_argument("--source", choices=["synthetic", "binance"], default="synthetic")
+    sb_.add_argument("--source", choices=["synthetic", "binance", "cache"], default="synthetic")
+    sb_.add_argument("--cache-dir", default="data_cache")
     sb_.add_argument("--coins", type=int, default=20)
     sb_.add_argument("--limit", type=int, default=700)
     sb_.set_defaults(fn=cmd_scalp_backtest)
+    sd_ = sub.add_parser("scalp-download")
+    sd_.add_argument("--coins", type=int, default=30)
+    sd_.add_argument("--years", type=float, default=10)
+    sd_.add_argument("--cache-dir", default="data_cache")
+    sd_.set_defaults(fn=cmd_scalp_download)
+    sw_ = sub.add_parser("scalp-sweep")
+    sw_.add_argument("--source", choices=["synthetic", "cache"], default="cache")
+    sw_.add_argument("--cache-dir", default="data_cache")
+    sw_.add_argument("--coins", type=int, default=30)
+    sw_.add_argument("--limit", type=int, default=3000)
+    sw_.add_argument("--quick", action="store_true")
+    sw_.add_argument("--out", default="sweep_results.csv")
+    sw_.set_defaults(fn=cmd_scalp_sweep)
     sp_ = sub.add_parser("scalp-paper")
     sp_.add_argument("--state", default="scalp_state.json")
     sp_.add_argument("--trades", default="scalp_trades.csv")

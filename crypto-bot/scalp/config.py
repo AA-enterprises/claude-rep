@@ -25,6 +25,8 @@ class ScalpConfig:
     slippage_pct: float = 0.0002
     start_balance: float = 10_000.0
     poll_seconds: float = 10.0
+    sides: str = "both"           # "both" | "long" | "short"
+    btc_filter: bool = False      # True: BTC trend ke saath hi trade (up -> long, down -> short)
 
     @property
     def tf_ms(self) -> int:
@@ -38,6 +40,10 @@ class ScalpConfig:
             raise ValueError("sl_roi 0 aur 1 ke beech (liquidation se pehle stop)")
         if self.tp_roi <= 0:
             raise ValueError("tp_roi > 0")
+        if self.sides not in ("both", "long", "short"):
+            raise ValueError("sides: both/long/short")
+        if self.min_atr_pct < 0.002:
+            raise ValueError("min_atr_pct >= 0.002")
         if self.margin_pct * self.max_open > 1:
             raise ValueError("margin_pct x max_open 100% se zyada hai")
 

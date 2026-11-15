@@ -11,7 +11,8 @@ from gridbot.notify import TelegramNotifier
 from . import messages
 from .account import PaperAccount
 from .config import ScalpConfig
-from .signals import MIN_CANDLES, evaluate
+from .features import MIN_CANDLES, regime_series
+from .signals import LIVE_CANDLES, evaluate
 
 TRADE_FIELDS = ["closed_ts", "symbol", "side", "entry", "exit", "reason", "roi", "pnl", "held_min",
                 "score", "gates", "vol_ratio", "atr_pct"]
@@ -41,7 +42,7 @@ def universe(ex, cfg: ScalpConfig) -> tuple[list[str], dict]:
     return [s for _, s in out], tickers
 
 
-def fetch_closed(ex, sym: str, cfg: ScalpConfig, limit: int = 250) -> list[tuple]:
+def fetch_closed(ex, sym: str, cfg: ScalpConfig, limit: int = LIVE_CANDLES) -> list[tuple]:
     now = ex.milliseconds()
     return [tuple(r[:6]) for r in ex.fetch_ohlcv(sym, cfg.timeframe, limit=limit) if r[0] + cfg.tf_ms <= now]
 
@@ -129,14 +130,20 @@ class Bot:
         syms, tickers = universe(self.ex, self.cfg)
         print(f"{time.strftime('%H:%M:%S')} scan: {len(syms)} coins")
         now = self.ex.milliseconds()
-        sigs, errors = [], 0
+        sigs, errors, reg = [], 0, None
+        if self.cfg.btc_filter:
+            try:
+                reg = regime_series([c[4] for c in fetch_closed(self.ex, "BTC/USDT:USDT", self.cfg)])[-1]
+                print(f"  BTC regime: {'UP' if reg > 0 else 'DOWN' if reg < 0 else 'n/a'}")
+            except Exception as e:  # noqa: BLE001
+                print(f"  BTC regime fetch fail: {type(e).__name__} (filter skip)")
         for sym in syms:
             if sym in self.acct.positions or now < self.acct.cooldown_until.get(sym, 0):
                 continue
             try:
                 cs = fetch_closed(self.ex, sym, self.cfg)
                 if len(cs) >= MIN_CANDLES:
-                    s = evaluate(sym, cs, self.cfg)
+                    s = evaluate(sym, cs, self.cfg, reg)
                     if s:
                         sigs.append(s)
             except Exception as e:  # noqa: BLE001

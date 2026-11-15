@@ -97,3 +97,77 @@ def test_messages():
     rec = a.close(p, "TP", p.tp, 1_763_176_500_000)
     c = messages.closed(rec, a.balance, {"n": 1, "win_rate": 1.0, "pnl": rec["pnl"]})
     assert "TAKE PROFIT HIT" in c and "ROI" in c
+
+
+def test_fast_features_match_live_evaluate():
+    from scalp.features import Series, compute
+    from scalp.signals import decide, evaluate
+    cfg = ScalpConfig(min_gates=2, min_atr_pct=0.002)
+    cs = sim.coin(1500, 50, 7, cfg.tf_ms)
+    s = Series.from_candles(cs)
+    feats = compute(s.h, s.l, s.c, s.v)
+    agree = total = 0
+    for i in range(600, 1500, 7):
+        a = decide("X", feats[i], cfg) if i in feats else None
+        b = evaluate("X", cs[: i + 1], cfg)
+        total += 1
+        agree += (a.side if a else None) == (b.side if b else None)
+    assert agree / total >= 0.95
+
+
+def test_fast_backtest_matches_paper_logic_and_accounts():
+    cfg = ScalpConfig()
+    data = sim.market(cfg, coins=4, n=800)
+    r = backtest.run(data, cfg)
+    assert r.end == pytest.approx(cfg.start_balance + sum(x["pnl"] for x in r.records), rel=1e-9)
+    ds = backtest.Dataset.from_candles(data, cfg.tf_ms)
+    mid = ds.tmin + (ds.tmax - ds.tmin) // 2
+    a, b = backtest.run(ds, cfg, ds.tmin, mid), backtest.run(ds, cfg, mid, ds.tmax + 1)
+    assert a.start == b.start == cfg.start_balance
+
+
+def test_sides_and_btc_filter():
+    from scalp.features import Feat
+    from scalp.signals import decide
+    f = Feat(100.0, 0.01, 2.0, 3, 0, (True, True, True, False), (False,) * 4)
+    assert decide("X", f, ScalpConfig(sides="short")) is None
+    assert decide("X", f, ScalpConfig(btc_filter=True), regime=-1) is None
+    assert decide("X", f, ScalpConfig(btc_filter=True), regime=1).side == "LONG"
+
+
+def test_sweep_runs_and_reports(tmp_path):
+    from scalp import sweep
+    cfg = ScalpConfig()
+    ds = backtest.Dataset.from_candles(sim.market(cfg, coins=5, n=1500), cfg.tf_ms)
+    rows = sweep.sweep(ds, cfg, sweep.QUICK, out_csv=str(tmp_path / "o.csv"), log=lambda *_: None)
+    assert len(rows) == 8 and "VERDICT" in sweep.report(rows)
+    assert (tmp_path / "o.csv").exists()
+
+
+def test_download_resume_and_cache(tmp_path):
+    from scalp import history
+    cfg = ScalpConfig()
+    allc = sim.coin(2500, 100, 3, cfg.tf_ms)
+    now = allc[-1][0] + cfg.tf_ms + 1
+
+    class Ex:
+        def __init__(self, upto): self.upto = upto
+        def milliseconds(self): return self.upto[-1][0] + cfg.tf_ms
+        def fetch_ohlcv(self, s, tf, since=None, limit=1000):
+            return [list(c) for c in self.upto if c[0] >= since][:limit]
+
+    sym = "BTC/USDT:USDT"
+    history.download(Ex(allc[:1500]), sym, "15m", cfg.tf_ms, 1, str(tmp_path), log=lambda *_: None)
+    history.download(Ex(allc), sym, "15m", cfg.tf_ms, 1, str(tmp_path), log=lambda *_: None)   # resume
+    series = history.load_cache(str(tmp_path), "15m")
+    assert list(series) == [sym]
+    assert len(series[sym].ts) == 2500      # resume ke baad na duplicate, na gap
+    assert all(b - a == cfg.tf_ms for a, b in zip(series[sym].ts, series[sym].ts[1:]))
+
+
+def test_backtest_finds_trades_and_split_is_grid_aligned():
+    cfg = ScalpConfig()
+    ds = backtest.Dataset.from_candles(sim.market(cfg, coins=6, n=2000), cfg.tf_ms)
+    assert len(backtest.run(ds, cfg).records) > 0
+    odd = ds.tmin + 123_457            # candle grid par nahi
+    assert len(backtest.run(ds, cfg, odd, ds.tmax + 1).records) > 0
