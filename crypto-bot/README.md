@@ -92,3 +92,5 @@ python main.py scalp-dashboard
 Browser mein `http://127.0.0.1:8050` khulega (sirf aapke PC par). Open positions (symbol, side, leverage, size, entry, mark price, TP/SL, live PnL + ROI%, kitni der se open),
 trade history, equity chart, win rate. Har 3 second mein refresh. Dashboard sirf `scalp_state.json` aur `scalp_trades.csv` padhta hai, bot ko chhuta nahi.
 Mark price bot ke monitor se aata hai (har `poll_seconds`), isliye bot band ho to dashboard "Bot ruka hua" dikhayega.
+
+Dashboard mein **Aaj ka Profit / Loss / Net** (closed trades) cards ke roop mein, aur **Daily P&L** tab mein din-ba-din table (trades, won/lost, profit, loss, net) dikhta hai. "Aaj" aapke PC ke local time ke hisaab se hai. (Bot ka daily loss limit aur Telegram daily report UTC din par chalte hain.)

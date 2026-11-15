@@ -54,6 +54,22 @@ def build_state(state_path: str, trades_path: str, equity_path: str, now: float 
     trades = [{**r, "pnl": float(r["pnl"]), "roi": float(r["roi"]), "entry": float(r["entry"]),
                "exit": float(r["exit"]), "held_min": float(r["held_min"]), "closed_ts": int(float(r["closed_ts"]))}
               for r in rows[-100:]][::-1]
+    days: dict[str, dict] = {}
+    for r in rows:
+        pnl = float(r["pnl"])
+        day = time.strftime("%Y-%m-%d", time.localtime(float(r["closed_ts"]) / 1000))
+        d = days.setdefault(day, {"day": day, "n": 0, "wins": 0, "losses": 0, "profit": 0.0, "loss": 0.0, "net": 0.0})
+        d["n"] += 1
+        d["net"] += pnl
+        if pnl > 0:
+            d["wins"] += 1
+            d["profit"] += pnl
+        else:
+            d["losses"] += 1
+            d["loss"] += pnl
+    today_key = time.strftime("%Y-%m-%d", time.localtime(now))
+    today = days.get(today_key, {"day": today_key, "n": 0, "wins": 0, "losses": 0, "profit": 0.0, "loss": 0.0, "net": 0.0})
+    daily = sorted(days.values(), key=lambda d: d["day"], reverse=True)[:60]
     eq = [[int(r["ts"]), float(r["equity"])] for r in _read_csv(equity_path)[-1500:]]
     start = st.get("start_balance", acct["balance"])
     equity = acct["balance"] + unreal
@@ -62,7 +78,7 @@ def build_state(state_path: str, trades_path: str, equity_path: str, now: float 
         "status": "running" if age < 60 else "stale", "age_sec": age,
         "balance": acct["balance"], "equity": equity, "unrealized": unreal, "start_balance": start,
         "return_pct": equity / start - 1 if start else 0.0,
-        "positions": positions, "trades": trades, "equity_series": eq,
+        "today": today, "daily": daily, "positions": positions, "trades": trades, "equity_series": eq,
         "stats": {"n": len(rows), "wins": int(wins), "win_rate": wins / len(rows) if rows else 0.0, "pnl": total},
     }
 
@@ -92,8 +108,8 @@ th:first-child,td:first-child{text-align:left}.up{color:var(--up)}.dn{color:var(
 <header><h1>Scalp Bot</h1><span class="pill">Paper</span><span id="st" class="pill"><span class="dot"></span><span id="stt">...</span></span><span class="mut" id="upd"></span></header>
 <main>
 <div class="cards" id="cards"></div>
-<div class="panel"><div class="tabs"><button class="tab on" data-t="pos">Open Positions (<span id="np">0</span>)</button><button class="tab" data-t="hist">Trade History</button><button class="tab" data-t="eq">Equity</button></div>
-<div id="pos" class="tw"></div><div id="hist" class="tw" hidden></div><div id="eq" hidden style="padding:12px"><canvas id="cv" width="1200" height="400"></canvas></div></div>
+<div class="panel"><div class="tabs"><button class="tab on" data-t="pos">Open Positions (<span id="np">0</span>)</button><button class="tab" data-t="daily">Daily P&amp;L</button><button class="tab" data-t="hist">Trade History</button><button class="tab" data-t="eq">Equity</button></div>
+<div id="pos" class="tw"></div><div id="daily" class="tw" hidden></div><div id="hist" class="tw" hidden></div><div id="eq" hidden style="padding:12px"><canvas id="cv" width="1200" height="400"></canvas></div></div>
 </main><script>
 const $=id=>document.getElementById(id);
 const fp=p=>p>=100?p.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}):p>=1?p.toFixed(4):p.toFixed(6);
@@ -106,7 +122,7 @@ function card(k,v,c){const d=el("div","card");d.append(el("div","k",k),el("div",
 function table(head,rows){const t=el("table"),h=el("tr");head.forEach(x=>h.append(el("th","",x)));t.append(h);
  rows.forEach(r=>{const tr=el("tr");r.forEach(c=>{const td=el("td",c.c||"");if(c.n){const s=el("span","",c.t);td.append(s,el("span","tag "+c.n,c.n))}else td.textContent=c.t??c;tr.append(td)});t.append(tr)});return t}
 document.querySelectorAll(".tab").forEach(b=>b.onclick=()=>{document.querySelectorAll(".tab").forEach(x=>x.classList.toggle("on",x===b));
- ["pos","hist","eq"].forEach(i=>$(i).hidden=i!==b.dataset.t);draw()});
+ ["pos","daily","hist","eq"].forEach(i=>$(i).hidden=i!==b.dataset.t);draw()});
 let S=null;
 function chart(){const cv=$("cv"),c=cv.getContext("2d"),w=cv.width,h=cv.height;c.clearRect(0,0,w,h);
  const d=S&&S.equity_series;if(!d||d.length<2){c.fillStyle="#848e9c";c.font="20px sans-serif";c.fillText("Equity data thodi der mein aayega (har 60s ek point)",20,40);return}
@@ -120,10 +136,14 @@ function render(s){S=s;const st=$("st");
  if(s.status==="no_state"){$("stt").textContent="Bot ne abhi state file nahi banayi";$("cards").replaceChildren();$("pos").replaceChildren(el("div","empty","Pehle bot chalao: python main.py scalp-paper"));return}
  st.className="pill "+(s.status==="running"?"run":"stale");$("stt").textContent=s.status==="running"?"Bot running":"Bot ruka hua / data purana";
  $("upd").textContent="update "+Math.round(s.age_sec)+"s pehle";
- const c=$("cards");c.replaceChildren(card("Equity (USDT)",s.equity.toLocaleString(undefined,{maximumFractionDigits:2}),cls(s.return_pct)),
-  card("Return",fm(s.return_pct*100)+"%",cls(s.return_pct)),card("Unrealized PnL",fm(s.unrealized),cls(s.unrealized)),
-  card("Balance",s.balance.toLocaleString(undefined,{maximumFractionDigits:2})),card("Closed PnL",fm(s.stats.pnl),cls(s.stats.pnl)),
-  card("Win rate",s.stats.n?(s.stats.win_rate*100).toFixed(0)+"% ("+s.stats.wins+"/"+s.stats.n+")":"-"));
+ const T=s.today,c=$("cards");c.replaceChildren(
+  card("Aaj ka Profit ("+T.wins+" trades)",fm(T.profit),T.profit>0?"up":""),card("Aaj ka Loss ("+T.losses+" trades)",fm(T.loss),T.loss<0?"dn":""),
+  card("Aaj ka Net (closed)",fm(T.net),cls(T.net)),card("Unrealized PnL",fm(s.unrealized),cls(s.unrealized)),
+  card("Equity (USDT)",s.equity.toLocaleString(undefined,{maximumFractionDigits:2}),cls(s.return_pct)),
+  card("Total Return",fm(s.return_pct*100)+"%",cls(s.return_pct)),card("All-time Closed PnL",fm(s.stats.pnl),cls(s.stats.pnl)),
+  card("Win rate (all-time)",s.stats.n?(s.stats.win_rate*100).toFixed(0)+"% ("+s.stats.wins+"/"+s.stats.n+")":"-"));
+ $("daily").replaceChildren(s.daily.length?table(["Date","Trades","Won / Lost","Profit","Loss","Net PnL"],
+  s.daily.map(d=>[d.day+(d.day===T.day?"  (aaj)":""),d.n,d.wins+" / "+d.losses,{t:fm(d.profit),c:d.profit>0?"up":""},{t:fm(d.loss),c:d.loss<0?"dn":""},{t:fm(d.net),c:cls(d.net)}])):el("div","empty","Abhi koi closed trade nahi"));
  $("np").textContent=s.positions.length;
  $("pos").replaceChildren(s.positions.length?table(["Symbol","Size (USDT)","Margin","Entry","Mark","TP","SL","PnL (ROI%)","Held"],
   s.positions.map(p=>[{t:nm(p.symbol)+" "+p.leverage+"x",n:p.side},fp(p.notional).replace(/\.\d+$/,""),p.margin.toFixed(2),fp(p.entry),fp(p.mark),{t:fp(p.tp),c:"up"},{t:fp(p.sl),c:"dn"},

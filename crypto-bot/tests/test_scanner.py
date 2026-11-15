@@ -83,3 +83,26 @@ def test_dashboard_state_reflects_open_and_closed(tmp_path):
 def test_dashboard_no_state(tmp_path):
     from scalp import dashboard
     assert dashboard.build_state(str(tmp_path / "x.json"), "t.csv", "e.csv")["status"] == "no_state"
+
+
+def test_dashboard_daily_totals(tmp_path):
+    import csv
+    import time
+    from scalp import dashboard
+    from scalp.scanner import TRADE_FIELDS
+
+    st = tmp_path / "s.json"
+    st.write_text('{"account": {"balance": 1000, "positions": [], "cooldown_until": {}}, "prices": {}, "updated": %s}' % time.time())
+    now = time.time()
+    rows = [(now, 30.0), (now - 60, -10.0), (now - 120, -5.0), (now - 86400 * 2, 100.0)]
+    with open(tmp_path / "t.csv", "w", newline="") as f:
+        w = csv.DictWriter(f, TRADE_FIELDS)
+        w.writeheader()
+        for ts, pnl in rows:
+            w.writerow(dict(closed_ts=int(ts * 1000), symbol="X/USDT:USDT", side="LONG", entry=1, exit=1, reason="TP",
+                            roi=0.1, pnl=pnl, held_min=5, score=3, gates="g", vol_ratio=1, atr_pct=0.01))
+    out = dashboard.build_state(str(st), str(tmp_path / "t.csv"), "none.csv", now=now)
+    t = out["today"]
+    assert (t["n"], t["wins"], t["losses"]) == (3, 1, 2)
+    assert t["profit"] == 30.0 and t["loss"] == -15.0 and t["net"] == 15.0
+    assert len(out["daily"]) == 2 and out["daily"][0]["day"] == t["day"]
