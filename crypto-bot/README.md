@@ -33,3 +33,16 @@ range se upar nikal jaye to profit rukta hai aur buy & hold se kam milta hai.
 1. Kam se kam kuch hafte paper trading chalao, aur alag alag market periods par backtest karo.
 2. Backtest assumptions: orders level price par fill ho jate hain, slippage nahi hai.
 3. Live karna ho to Binance **testnet** se shuru karo, API key mein **withdrawal permission kabhi mat do**, aur sirf wahi paisa lagao jo khone ka dukh na ho.
+
+## Telegram notifications
+Bot har trade open/close par message bhejta hai (entry, take-profit, size, exit, profit, account equity), plus start/stop par.
+
+1. Telegram par **@BotFather** → `/newbot` → token copy karo.
+2. Apne naye bot ko ek message bhejo, aur chat id **@userinfobot** se lo.
+3. Environment variables set karo (inhe config ya git mein kabhi mat daalo):
+```bash
+export TELEGRAM_BOT_TOKEN="123456:ABC..."
+export TELEGRAM_CHAT_ID="123456789"
+python main.py paper --symbol SOL/USDT
+```
+Variables set na hon to bot normal chalta hai, bas notification nahi bhejta. Agar token kahin share ho gaya ho to BotFather mein `/revoke` karo.

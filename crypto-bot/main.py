@@ -14,6 +14,7 @@ import time
 
 from gridbot import backtest, data
 from gridbot.broker import PaperBroker
+from gridbot.notify import TelegramNotifier, format_close, format_open
 from gridbot.strategy import GridConfig, GridStrategy
 
 
@@ -52,18 +53,27 @@ def cmd_paper(args) -> int:
     symbol = args.symbol or raw.get("symbol", "BTC/USDT")
     ex = ccxt.binance({"enableRateLimit": True})
     broker, strat = PaperBroker(cfg.investment, cfg.fee_rate), GridStrategy(cfg)
-    print(f"PAPER mode (fake money) | {symbol} | Ctrl+C se band")
+    tg = TelegramNotifier()
+    print(f"PAPER mode (fake money) | {symbol} | Telegram: {'ON' if tg.enabled else 'OFF (env vars set nahi)'} | Ctrl+C se band")
+    tg.send(f"🤖 Grid bot started · {symbol} · Paper\nRange {cfg.lower:,.0f} - {cfg.upper:,.0f} · {cfg.grids} grids · {cfg.investment:,.0f} USDT")
+    price = None
     try:
         while not strat.halted:
             price = ex.fetch_ticker(symbol)["last"]
             for t in strat.on_price(int(time.time() * 1000), price, broker):
-                print(f"{time.strftime('%H:%M:%S')} {t.side.upper():4} {t.qty:.6f} @ {t.price:,.2f}"
+                print(f"\n{time.strftime('%H:%M:%S')} {t.side.upper():4} {t.qty:.6f} @ {t.price:,.2f}"
                       + (f"  pnl {t.pnl:+.2f}" if t.side == "sell" else ""))
+                if t.side == "buy":
+                    tg.send(format_open(t, symbol, strat))
+                else:
+                    tg.send(format_close(t, symbol, broker.equity(price), cfg.investment))
             print(f"\r price {price:,.2f} | equity {broker.equity(price):,.2f}", end="", flush=True)
             time.sleep(args.interval)
     except KeyboardInterrupt:
         pass
-    print(f"\nFinal equity: {broker.equity(price):,.2f} USDT")
+    if price is not None:
+        print(f"\nFinal equity: {broker.equity(price):,.2f} USDT")
+        tg.send(f"⏹ Grid bot stopped · {symbol}\nFinal equity: {broker.equity(price):,.2f} USDT ({broker.equity(price) / cfg.investment - 1:+.2%})")
     return 0
 
 

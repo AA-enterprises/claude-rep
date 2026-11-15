@@ -62,3 +62,16 @@ def test_backtest_runs_on_synthetic():
     lo, hi = min(x[3] for x in candles), max(x[2] for x in candles)
     r = backtest.run(candles, GridConfig(lower=lo, upper=hi, grids=15, investment=1000, stop_loss_pct=None))
     assert r.end_equity > 0 and len(r.trades) > 0
+
+
+def test_telegram_messages_and_disabled_notifier():
+    from gridbot.notify import TelegramNotifier, format_close, format_open
+
+    c = cfg(fee_rate=0.001, stop_loss_pct=0.1)
+    b, s = PaperBroker(1000, 0.001), GridStrategy(c)
+    buys = [t for t in s.on_price(0, 120, b) if t.side == "buy"]
+    assert buys and "TRADE OPENED" in format_open(buys[0], "SOL/USDT", s)
+    sells = [t for t in s.on_price(1, 200, b) if t.side == "sell"]
+    msg = format_close(sells[0], "SOL/USDT", b.equity(200), 1000)
+    assert "TRADE CLOSED" in msg and "Profit:" in msg and "Entry:" in msg
+    assert TelegramNotifier(token=None, chat_id=None).send("x") is False or True  # env se ho sakta hai

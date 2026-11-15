@@ -41,6 +41,8 @@ class Trade:
     qty: float
     fee: float
     pnl: float = 0.0   # sirf sell par: realised profit (fees ke baad)
+    entry: float = 0.0  # sirf sell par: jis price par kharida tha
+    reason: str = ""    # "target" | "stop-loss"
 
 
 @dataclass
@@ -68,7 +70,7 @@ class GridStrategy:
         sl = self.cfg.stop_loss_pct
         if sl is not None and price < self.cfg.lower * (1 - sl):
             for i in sorted(self.holdings):
-                trades.append(self._sell(ts, i, price, broker))
+                trades.append(self._sell(ts, i, price, broker, "stop-loss"))
             self.holdings.clear()
             self.halted = True
             return trades
@@ -90,9 +92,9 @@ class GridStrategy:
                     trades.append(Trade(ts, "buy", lvl, qty, fee))
         return trades
 
-    def _sell(self, ts: int, i: int, price: float, broker) -> Trade:
+    def _sell(self, ts: int, i: int, price: float, broker, reason: str = "target") -> Trade:
         qty = self.holdings[i]
         broker.sell(price, qty)
         fee = price * qty * self.cfg.fee_rate
         pnl = price * qty - fee - self.buy_cost.pop(i)
-        return Trade(ts, "sell", price, qty, fee, pnl)
+        return Trade(ts, "sell", price, qty, fee, pnl, entry=self.levels[i], reason=reason)
