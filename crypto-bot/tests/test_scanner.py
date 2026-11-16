@@ -443,3 +443,23 @@ def test_report_shows_bot_is_alive_with_scan_stats_even_without_trades(tmp_path)
     assert "REPORT" in rep and "FREQ" in rep and "Bot zinda: 1 scans" in rep and "skip" in rep and "Aakhri skip: UP" in rep
     assert "Trades closed: 0" in rep
     assert bot.scan_stats["scans"] == 0                                # report ke baad counters reset
+
+
+def test_network_error_while_opening_or_manually_closing_does_not_lose_signal_or_command(tmp_path):
+    import json
+
+    class NoTicker(FakeEx):
+        def fetch_ticker(self, s):
+            raise Exception("NetworkError: ticker")
+
+    cfg = ScalpConfig()
+    ex, tg = NoTicker(cfg), Rec()
+    sp, tp = str(tmp_path / "s.json"), str(tmp_path / "t.csv")
+    bot = scanner.Bot(cfg, sp, tp, tg, ex=ex)
+    bot.scan()                                                              # ticker fail, par signal ki price se trade khuli
+    assert len(bot.acct.positions) == 1 and "TRADE OPENED" in tg.msgs[0]
+    sym = next(iter(bot.acct.positions))
+    with open(sp.replace(".json", "_commands.jsonl"), "w") as f:
+        f.write(json.dumps({"action": "close", "symbol": sym}) + "\n")
+    bot.heartbeat()                                                         # CLOSE command, ticker fail: phir bhi band
+    assert not bot.acct.positions and "MANUAL CLOSE" in tg.msgs[-1]

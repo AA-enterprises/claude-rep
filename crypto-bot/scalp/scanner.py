@@ -172,7 +172,11 @@ class Bot:
             pos = self.acct.positions.get(cmd.get("symbol", "")) if cmd.get("action") == "close" else None
             if not pos:
                 continue
-            px = (self.ex.fetch_ticker(pos.symbol) or {}).get("last") or self.prices.get(pos.symbol) or pos.entry
+            try:
+                px = (self.ex.fetch_ticker(pos.symbol) or {}).get("last")
+            except Exception:  # noqa: BLE001
+                px = None
+            px = px or self.prices.get(pos.symbol) or pos.entry
             px = px * (1 - pos.d * self.cfg.slippage_pct)          # market exit: slippage jaisa baaki exits mein
             rec = self.acct.close(pos, "MANUAL", px, self.ex.milliseconds())
             self.log_trade(rec)
@@ -340,7 +344,10 @@ class Bot:
         for s in sigs:
             if opened >= self.cfg.max_new_per_scan or len(self.acct.positions) >= self.cfg.max_open:
                 break
-            px = (self.ex.fetch_ticker(s.symbol) or {}).get("last") or s.price
+            try:
+                px = (self.ex.fetch_ticker(s.symbol) or {}).get("last") or s.price
+            except Exception:  # noqa: BLE001  network glitch: signal ki apni price se trade kholo, signal mat khoo
+                px = s.price
             pos = self.acct.open(s, px, self.ex.milliseconds())
             if not pos:
                 why = self.acct.reject_reason(s, px) or "margin/risk limit"
