@@ -238,3 +238,5 @@ PC chalu hote hi apne aap shuru karne ke liye: `Win+R` -> `shell:startup` -> us 
 Flags: `--no-dashboard` (band), `--dashboard-port 8060`, `--open` (browser khol do).
 
 Browser tab: `--open` ya `start_bot.bat` har baar naya tab **nahi** kholta. Bot shuru hone ke 5 second baad check hota hai ki koi dashboard tab pehle se khula aur refresh ho raha hai ya nahi; khula ho to naya tab nahi khulta (purana tab bot restart ke baad khud jud kar update ho jata hai). Dashboard tab ko ek baar kholkar pin/khula rakho.
+
+**80/69 coins ka validate (intrabar, 4h):** +0.064 R/trade, profit factor 1.15, +163%, drawdown 26%, 2023 negative; 30 coins par +0.095 R, pf 1.24, +204%, dd 20%, 8/8 saal. Naye ~39 coins ne ~-0.07 R/trade diya (kul ~-$4,000), trades sirf +25% badhi. Isliye default `max_coins` wapas 30.
