@@ -39,7 +39,12 @@ Telegram par **teen tarah ke message** aate hain: trade open (entry, stop, targe
 
 1. Telegram par **@BotFather** → `/newbot` → token copy karo.
 2. Apne naye bot ko ek message bhejo, aur chat id **@userinfobot** se lo.
-3. Environment variables set karo (inhe config ya git mein kabhi mat daalo):
+3. **Sabse aasan tareeka (Windows):** `crypto-bot` folder mein `notepad .env` chalao, "Yes" (create new file) dabao, 2 lines likho aur save karo:
+```
+TELEGRAM_BOT_TOKEN=aapka_token
+TELEGRAM_CHAT_ID=aapka_numeric_chat_id
+```
+Phir `python main.py telegram-test` se check karo. `.env` git mein nahi jaati. (Ya environment variables set karo:)
 ```bash
 export TELEGRAM_BOT_TOKEN="123456:ABC..."
 export TELEGRAM_CHAT_ID="123456789"

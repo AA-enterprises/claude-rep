@@ -164,6 +164,14 @@ def cmd_scalp_validate(args) -> int:
     return 0
 
 
+def cmd_telegram_test(args) -> int:
+    ok, detail = TelegramNotifier().check()
+    print("Telegram OK, aapko test message mil gaya hoga." if ok else f"Telegram FAIL: {detail}")
+    if not ok and "set nahi" in detail:
+        print("crypto-bot folder mein .env file banao (notepad .env) aur 2 lines likho:\n  TELEGRAM_BOT_TOKEN=...\n  TELEGRAM_CHAT_ID=...")
+    return 0 if ok else 1
+
+
 def cmd_scalp_paper(args) -> int:
     from scalp import config as sc, scanner
     cfg = sc.load(args.scalp_config)
@@ -235,6 +243,7 @@ def main() -> int:
     sv_.add_argument("--coins", type=int, default=30)
     sv_.add_argument("--set", action="append", default=[], metavar="KEY=VALUE", help="config override, jaise --set sl_atr=2.5 (kayi baar de sakte ho)")
     sv_.set_defaults(fn=cmd_scalp_validate)
+    sub.add_parser("telegram-test").set_defaults(fn=cmd_telegram_test)
     sp_ = sub.add_parser("scalp-paper")
     sp_.add_argument("--state", default="scalp_state.json")
     sp_.add_argument("--trades", default="scalp_trades.csv")

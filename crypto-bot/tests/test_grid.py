@@ -75,3 +75,20 @@ def test_telegram_messages_and_disabled_notifier():
     msg = format_close(sells[0], "SOL/USDT", b.equity(200), 1000)
     assert "TRADE CLOSED" in msg and "Profit:" in msg and "Entry:" in msg
     assert TelegramNotifier(token=None, chat_id=None).send("x") is False or True  # env se ho sakta hai
+
+
+def test_dotenv_telegram_credentials(tmp_path, monkeypatch):
+    from gridbot.notify import TelegramNotifier, load_dotenv
+    monkeypatch.delenv("TELEGRAM_BOT_TOKEN", raising=False)
+    monkeypatch.delenv("TELEGRAM_CHAT_ID", raising=False)
+    f = tmp_path / ".env"
+    f.write_text('\ufeff# comment\nTELEGRAM_BOT_TOKEN = "123:abc"\nTELEGRAM_CHAT_ID=987654\n', encoding="utf-8")
+    assert load_dotenv(str(f)) == {"TELEGRAM_BOT_TOKEN": "123:abc", "TELEGRAM_CHAT_ID": "987654"}
+    t = TelegramNotifier(env_file=str(f))
+    assert t.enabled and t.token == "123:abc" and t.chat_id == "987654"
+    monkeypatch.setenv("TELEGRAM_CHAT_ID", "555")                       # env var .env se upar
+    assert TelegramNotifier(env_file=str(f)).chat_id == "555"
+    monkeypatch.delenv("TELEGRAM_CHAT_ID")
+    off = TelegramNotifier(env_file=str(tmp_path / "missing.env"))
+    ok, why = off.check()
+    assert not off.enabled and ok is False and "set nahi" in why

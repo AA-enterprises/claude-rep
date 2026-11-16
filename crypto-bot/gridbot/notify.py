@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import os
 import time
+import urllib.error
 import urllib.request
 
 from .strategy import GridStrategy, Trade
@@ -58,14 +59,55 @@ def format_close(t: Trade, symbol: str, equity: float, start_equity: float, mode
     return "\n".join(lines)
 
 
+def load_dotenv(path: str = ".env") -> dict:
+    """Simple .env reader: KEY=VALUE lines (# comments ok, quotes optional). File na ho to khali."""
+    vals: dict = {}
+    try:
+        with open(path, encoding="utf-8-sig") as f:       # Notepad BOM bhi chalega
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith("#") and "=" in line:
+                    k, v = line.split("=", 1)
+                    vals[k.strip()] = v.strip().strip("\"'").strip()
+    except FileNotFoundError:
+        pass
+    return vals
+
+
 class TelegramNotifier:
-    def __init__(self, token: str | None = None, chat_id: str | None = None):
-        self.token = token or os.environ.get("TELEGRAM_BOT_TOKEN")
-        self.chat_id = chat_id or os.environ.get("TELEGRAM_CHAT_ID")
+    """Token/chat id ka order: argument > environment variable > .env file (crypto-bot folder mein)."""
+
+    def __init__(self, token: str | None = None, chat_id: str | None = None, env_file: str = ".env"):
+        file_vals = load_dotenv(env_file)
+        self.token = token or os.environ.get("TELEGRAM_BOT_TOKEN") or file_vals.get("TELEGRAM_BOT_TOKEN")
+        self.chat_id = chat_id or os.environ.get("TELEGRAM_CHAT_ID") or file_vals.get("TELEGRAM_CHAT_ID")
 
     @property
     def enabled(self) -> bool:
         return bool(self.token and self.chat_id)
+
+    def check(self) -> tuple[bool, str]:
+        """Test message bhej ke saaf wajah batata hai (error text mein token kabhi nahi hota)."""
+        if not self.enabled:
+            return False, "token ya chat id set nahi hai"
+        req = urllib.request.Request(
+            f"https://api.telegram.org/bot{self.token}/sendMessage",
+            data=json.dumps({"chat_id": self.chat_id, "text": "✅ Telegram test: bot connected"}).encode(),
+            headers={"Content-Type": "application/json"},
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=10) as r:
+                return r.status == 200, "ok"
+        except urllib.error.HTTPError as e:
+            try:
+                desc = json.loads(e.read().decode()).get("description", "")
+            except Exception:  # noqa: BLE001
+                desc = ""
+            hint = {401: "token galat ya revoke ho chuka", 400: "chat id galat ya aapne bot ko /start nahi bheja",
+                    403: "aapne bot ko block kiya hai ya /start nahi bheja", 404: "token galat"}.get(e.code, "")
+            return False, f"HTTP {e.code}: {desc} ({hint})" if hint else f"HTTP {e.code}: {desc}"
+        except Exception as e:  # noqa: BLE001
+            return False, f"network error: {type(e).__name__}"
 
     def send(self, text: str) -> bool:
         """Kabhi exception nahi uthata: notification fail hone se bot band nahi hona chahiye."""

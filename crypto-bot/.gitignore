@@ -8,3 +8,5 @@ scalp_trades.csv
 data_cache/
 sweep_results.csv
 scalp_state_equity.csv
+.env
+*.env
