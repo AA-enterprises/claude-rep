@@ -153,3 +153,7 @@ Password wali proxy: `socks5h://user:password@host:port`. **Sirf SOCKS5 ya HTTP(
 
 `python main.py telegram-test` ab step-by-step bata deta hai kya galat hai (file mili ya nahi, token ka format, token valid hai ya nahi, chat id, test message). `.env` ki value environment variable se upar rakhi jati hai.
 Agar pehle PowerShell mein `$env:TELEGRAM_BOT_TOKEN=...` chalaya tha to wo us window mein bachi rehti hai. Saaf karne ke liye: `Remove-Item Env:TELEGRAM_BOT_TOKEN, Env:TELEGRAM_CHAT_ID -ErrorAction SilentlyContinue`.
+
+## Scan speed
+Bot har coin ki closed candles memory mein yaad rakhta hai. Pehli scan mein poori history aati hai, uske baad har scan mein sirf **nayi candle** mangta hai. Coins ke requests parallel (`fetch_workers`, default 5) chalte hain. Har scan ke baad console mein `scan X.Xs` dikhta hai.
+Agar bot lamba band raha ho to gap milne par wo apne aap poori history dobara le leta hai. Agar scan par rate-limit/ban jaisa error aaye to `fetch_workers` kam kar do (jaise 3).

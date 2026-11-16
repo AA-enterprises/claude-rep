@@ -5,6 +5,7 @@ import csv
 import json
 import os
 import time
+from concurrent.futures import ThreadPoolExecutor
 
 from gridbot.notify import TelegramNotifier
 
@@ -94,6 +95,7 @@ class Bot:
         self.prices: dict[str, float] = {}
         self.updated, self.last_eq_log = 0.0, 0.0
         self.last_report = 0.0
+        self.candles: dict[str, list[tuple]] = {}     # har coin ki closed candles yaad (memory mein)
         self.equity_path = state_path.replace(".json", "_equity.csv")
         if os.path.exists(state_path):
             st = json.load(open(state_path))
@@ -192,33 +194,66 @@ class Bot:
                 self.tg.send(messages.closed(rec, self.acct.balance, stats_from_csv(self.trades_path)))
                 self.save()
 
+    def _update_candles(self, sym: str) -> bool:
+        """Cache mein sirf nayi closed candles jodta hai (pehli baar poori history). True = nayi candle mili."""
+        cfg, tf = self.cfg, self.cfg.tf_ms
+        cs = self.candles.get(sym)
+        if cs:
+            since = cs[-1][0] + tf
+            if since + tf > self.ex.milliseconds():          # agli candle abhi band nahi hui
+                return False
+            rows = self.ex.fetch_ohlcv(sym, cfg.timeframe, since=since, limit=100)
+            now = self.ex.milliseconds()
+            new = [tuple(r[:6]) for r in rows if r[0] >= since and r[0] + tf <= now]
+            if not new:
+                return False
+            if new[0][0] == since and len(rows) < 100:       # bina gap ke: bas jod do
+                cs.extend(new)
+                del cs[:-LIVE_CANDLES]
+                return True
+            # gap (bot bahut der band raha) ya data khisak gaya: poori history dobara
+        full = fetch_closed(self.ex, sym, cfg)
+        self.candles[sym] = full
+        return bool(full)
+
     def scan(self) -> None:
+        t0 = time.time()
         self._roll_day()
         syms, tickers = universe(self.ex, self.cfg)
         print(f"{time.strftime('%H:%M:%S')} scan: {len(syms)} coins")
         now = self.ex.milliseconds()
         sigs, errors, reg = [], 0, None
+        todo = [s for s in syms if s not in self.acct.positions and now >= self.acct.cooldown_until.get(s, 0)]
+        if self.cfg.btc_filter and "BTC/USDT:USDT" not in todo:
+            todo.append("BTC/USDT:USDT")
+
+        def work(sym: str):
+            try:
+                return sym, self._update_candles(sym), None
+            except Exception as e:  # noqa: BLE001
+                return sym, False, e
+        with ThreadPoolExecutor(max_workers=max(1, self.cfg.fetch_workers)) as pool:
+            results = list(pool.map(work, todo))
         if self.cfg.btc_filter:
-            try:
-                reg = regime_series([c[4] for c in fetch_closed(self.ex, "BTC/USDT:USDT", self.cfg)])[-1]
+            btc = self.candles.get("BTC/USDT:USDT")
+            if btc:
+                reg = regime_series([c[4] for c in btc])[-1]
                 print(f"  BTC regime: {'UP' if reg > 0 else 'DOWN' if reg < 0 else 'n/a'}")
-            except Exception as e:  # noqa: BLE001
-                print(f"  BTC regime fetch fail: {type(e).__name__} (filter skip)")
-        for sym in syms:
-            if sym in self.acct.positions or now < self.acct.cooldown_until.get(sym, 0):
-                continue
-            try:
-                cs = fetch_closed(self.ex, sym, self.cfg)
-                if len(cs) >= MIN_CANDLES:
-                    s = evaluate(sym, cs, self.cfg, reg)
-                    if s:
-                        sigs.append(s)
-            except Exception as e:  # noqa: BLE001
+            else:
+                print("  BTC regime: data nahi mila (filter skip)")
+        for sym, fresh, err in results:
+            if err is not None:
                 errors += 1
                 if errors <= 3:
-                    print(f"  {sym}: {type(e).__name__}")
+                    print(f"  {sym}: {type(err).__name__}")
+                continue
+            cs = self.candles.get(sym) or []
+            if fresh and sym in syms and len(cs) >= MIN_CANDLES:      # sirf nayi candle par signal dekho
+                s = evaluate(sym, cs, self.cfg, reg)
+                if s:
+                    sigs.append(s)
         sigs.sort(key=lambda s: (s.score, s.vol_ratio), reverse=True)
-        print(f"  signals: {len(sigs)} (errors {errors})")
+        print(f"  signals: {len(sigs)} (errors {errors}) | scan {time.time() - t0:.1f}s")
         if not self._entries_allowed():
             return
         opened = 0

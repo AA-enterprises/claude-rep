@@ -22,7 +22,10 @@ class FakeEx:
     def milliseconds(self): return self.now
     def fetch_tickers(self, syms=None): return {"UP/USDT:USDT": {"last": self.price, "quoteVolume": 5e9}}
     def fetch_ticker(self, s): return {"last": self.price}
-    def fetch_ohlcv(self, s, tf, limit=250): return [list(c) for c in self.cs[-limit:]]
+    def fetch_ohlcv(self, s, tf, since=None, limit=250):
+        self.calls = getattr(self, "calls", []) + [(since, limit)]
+        rows = [list(c) for c in self.cs if since is None or c[0] >= since]
+        return rows[-limit:] if since is None else rows[:limit]
 
 
 class Rec:
@@ -163,3 +166,40 @@ def test_universe_caps_to_top_coins_by_volume():
     syms, _ = scanner.universe(Ex(), cfg)
     assert syms == ["C3/USDT:USDT", "C2/USDT:USDT"]
     assert len(scanner.universe(Ex(), cfg, limit=0)[0]) == 4
+
+
+def test_candle_cache_fetches_only_new_candles_and_handles_gaps(tmp_path):
+    cfg = ScalpConfig()
+    ex = FakeEx(cfg)
+    bot = scanner.Bot(cfg, str(tmp_path / "s.json"), str(tmp_path / "t.csv"), Rec(), ex=ex)
+    sym = "UP/USDT:USDT"
+    assert bot._update_candles(sym) and len(bot.candles[sym]) == 260 and ex.calls[-1][0] is None      # pehli baar: poori history
+    assert bot._update_candles(sym) is False                                                         # naya candle nahi: koi call nahi
+    n_calls = len(ex.calls)
+    last = ex.cs[-1]
+    ex.cs.append((last[0] + cfg.tf_ms, last[4], last[4] * 1.01, last[4] * 0.99, last[4] * 1.005, 150.0))
+    ex.now += cfg.tf_ms
+    assert bot._update_candles(sym) and len(bot.candles[sym]) == 261
+    since, limit = ex.calls[-1]
+    assert since == last[0] + cfg.tf_ms and limit == 100 and len(ex.calls) == n_calls + 1             # sirf naye candle ki request
+    assert bot.candles[sym][-1][0] == ex.cs[-1][0]
+    for k in range(150):                                                                              # bot lamba band raha: gap
+        c = ex.cs[-1]
+        ex.cs.append((c[0] + cfg.tf_ms, c[4], c[4] * 1.01, c[4] * 0.99, c[4], 100.0))
+    ex.now += 150 * cfg.tf_ms
+    assert bot._update_candles(sym) and ex.calls[-1][0] is None                                       # poori history dobara
+    ts = [c[0] for c in bot.candles[sym]]
+    assert all(b - a == cfg.tf_ms for a, b in zip(ts, ts[1:])) and ts[-1] == ex.cs[-1][0]
+
+
+def test_second_scan_only_evaluates_symbols_with_a_new_candle(tmp_path):
+    cfg = ScalpConfig()
+    ex, tg = FakeEx(cfg), Rec()
+    bot = scanner.Bot(cfg, str(tmp_path / "s.json"), str(tmp_path / "t.csv"), tg, ex=ex)
+    bot.scan()
+    assert len(bot.acct.positions) == 1
+    calls_after_first = len(ex.calls)
+    bot.acct.positions.clear()                     # position band maan lo, naya candle nahi aaya
+    bot.scan()
+    assert len(ex.calls) == calls_after_first      # candle cache hit: network par koi nayi candle request nahi
+    assert len(bot.acct.positions) == 0            # purani candle par dobara signal/trade nahi

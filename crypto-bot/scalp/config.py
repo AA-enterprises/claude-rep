@@ -26,6 +26,7 @@ class ScalpConfig:
     slippage_pct: float = 0.0002
     start_balance: float = 10_000.0
     poll_seconds: float = 10.0
+    fetch_workers: int = 5        # candles parallel mein itne coins ek saath mangta hai
     report_hours: float = 12.0    # Telegram par itne ghante mein ek report (0 = band)
     # --- ATR exit mode (default): stop/target har coin ki volatility ke hisaab se ---
     exit_mode: str = "atr"        # "atr" | "roi" (purana 70%/-20% ROI rule)
