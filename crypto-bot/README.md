@@ -169,3 +169,11 @@ python main.py scalp-paper --symbols BTC,ETH                                # ya
 python main.py scalp-download --symbols BTC,ETH,SOL,BNB                     # data cache mein nahi hai to
 ```
 Dhyan: 4 coins par trades kam hongi (hafte mein ~1-2) aur coins aapas mein correlated hain (BTC girta hai to baaki bhi), isliye `max_open` kam rakhna behtar hai.
+
+
+## Test trade (pipeline dekhne ke liye)
+Asli signal ka intezaar kiye bina ek nakli paper trade kholo (Telegram open/close message aur dashboard dekhne ke liye). Alag files mein chalti hai (`scalp_test_*`), asli paper test ke numbers mein nahi judti:
+```powershell
+python main.py scalp-test-trade --symbol BTC --side long --minutes 3
+python main.py scalp-dashboard --state scalp_test_state.json --trades scalp_test_trades.csv --port 8051   # test trade dashboard par
+```

@@ -236,3 +236,19 @@ def test_cache_loader_can_select_only_given_symbols(tmp_path, capsys):
     got = history.load_cache(str(tmp_path), "15m", only=["BTC/USDT:USDT", "SOL/USDT:USDT", "ETH/USDT:USDT"])
     assert list(got) == ["BTC/USDT:USDT", "ETH/USDT:USDT"]
     assert "SOL/USDT:USDT" in capsys.readouterr().out                                         # missing coin ki chetavni
+
+
+def test_manual_test_trade_opens_and_closes_in_separate_files(tmp_path):
+    cfg = ScalpConfig()
+    ex, tg = FakeEx(cfg), Rec()
+    sp, tp = str(tmp_path / "test_state.json"), str(tmp_path / "test_trades.csv")
+    ok = scanner.run_test_trade(cfg, "UP/USDT:USDT", "SHORT", 0, sp, tp, tg, ex=ex, sleep=lambda s: None)
+    assert ok
+    assert "TRADE OPENED" in tg.msgs[0] and "SHORT" in tg.msgs[0] and "manual TEST" in tg.msgs[0]
+    assert "TEST TRADE CLOSED" in tg.msgs[-1]
+    rows = open(tp).read().strip().splitlines()
+    assert len(rows) == 2 and ",TEST," in rows[1]                                  # header + 1 trade
+    import json
+    st = json.load(open(sp))
+    assert st["account"]["positions"] == []
+    assert not (tmp_path / "scalp_trades.csv").exists()                             # asli files nahi chhui

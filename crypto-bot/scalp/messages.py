@@ -57,8 +57,8 @@ def opened(pos: Position, cfg: ScalpConfig, equity: float) -> str:
 
 
 def closed(rec: dict, equity: float, stats: dict) -> str:
-    icon = {"TP": "✅", "TRAIL": "✅", "SL": "🛑", "TIMEOUT": "⏱"}.get(rec["reason"], "ℹ️")
-    label = {"TP": "TAKE PROFIT HIT", "TRAIL": "TRAILING STOP HIT", "SL": "STOP-LOSS HIT", "TIMEOUT": "MAX HOLD TIME"}.get(rec["reason"], rec["reason"])
+    icon = {"TP": "✅", "TRAIL": "✅", "SL": "🛑", "TIMEOUT": "⏱", "TEST": "🧪"}.get(rec["reason"], "ℹ️")
+    label = {"TP": "TAKE PROFIT HIT", "TRAIL": "TRAILING STOP HIT", "SL": "STOP-LOSS HIT", "TIMEOUT": "MAX HOLD TIME", "TEST": "TEST TRADE CLOSED"}.get(rec["reason"], rec["reason"])
     return "\n".join([
         f"{icon} TRADE CLOSED — {label} @ {fp(rec['exit'])}",
         f"{name(rec['symbol'])} · Scalp · Paper · {rec['side']}",

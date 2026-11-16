@@ -12,8 +12,8 @@ from gridbot.notify import TelegramNotifier
 from . import messages
 from .account import PaperAccount
 from .config import ScalpConfig
-from .features import MIN_CANDLES, regime_series
-from .signals import LIVE_CANDLES, evaluate
+from .features import MIN_CANDLES, atr_series, regime_series
+from .signals import LIVE_CANDLES, Signal, evaluate
 
 TRADE_FIELDS = ["closed_ts", "symbol", "side", "entry", "exit", "reason", "roi", "pnl", "r", "held_min",
                 "score", "gates", "vol_ratio", "atr_pct"]
@@ -295,3 +295,42 @@ class Bot:
         except KeyboardInterrupt:
             self.save()
             print(f"Bot stopped. Balance {self.acct.balance:,.2f}, open positions: {len(self.acct.positions)}")
+
+
+def run_test_trade(cfg: ScalpConfig, symbol: str, side: str, close_after_min: float, state_path: str, trades_path: str,
+                   tg: TelegramNotifier, ex=None, sleep=time.sleep) -> bool:
+    """Manual TEST paper trade (alag state file): pipeline dekhne ke liye (Telegram open/close, dashboard, stop khiskna).
+    Normal stop/trailing chalta hai, aur `close_after_min` baad market par band (reason TEST)."""
+    bot = Bot(cfg, state_path, trades_path, tg, ex=ex)
+    if symbol not in bot.acct.positions:
+        if not bot._update_candles(symbol) or len(bot.candles[symbol]) < 50:
+            print(f"{symbol}: candles nahi mile")
+            return False
+        cs = bot.candles[symbol]
+        atr = atr_series([c[2] for c in cs], [c[3] for c in cs], [c[4] for c in cs])[-1]
+        price = (bot.ex.fetch_ticker(symbol) or {}).get("last") or cs[-1][4]
+        sig = Signal(symbol, side.upper(), 0, ["manual TEST trade (asli signal nahi)"], 0.0, atr / price, price)
+        pos = bot.acct.open(sig, price, bot.ex.milliseconds())
+        if not pos:
+            print("Trade khul nahi payi (risk/limit check)")
+            return False
+        print(f"TEST OPEN {pos.side} {symbol} @ {price} | stop {pos.sl:.4f} | {close_after_min:g} minute baad band hogi")
+        tg.send(messages.opened(pos, cfg, bot.acct.balance))
+        bot.save()
+    deadline = time.time() + close_after_min * 60
+    while bot.acct.positions:
+        bot.monitor()
+        bot.heartbeat()
+        if not bot.acct.positions:
+            break                                           # stop/trailing se khud band ho gayi
+        if time.time() >= deadline:
+            pos = next(iter(bot.acct.positions.values()))
+            px = (bot.ex.fetch_ticker(pos.symbol) or {}).get("last") or pos.entry
+            rec = bot.acct.close(pos, "TEST", px, bot.ex.milliseconds())
+            bot.log_trade(rec)
+            print(f"TEST CLOSE {pos.symbol} roi {rec['roi']:+.2%} pnl {rec['pnl']:+.2f} USDT")
+            tg.send(messages.closed(rec, bot.acct.balance, stats_from_csv(trades_path)))
+            bot.heartbeat()
+            break
+        sleep(cfg.poll_seconds)
+    return True

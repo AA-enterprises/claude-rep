@@ -10,3 +10,4 @@ sweep_results.csv
 scalp_state_equity.csv
 .env
 *.env
+scalp_test_*
