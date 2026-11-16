@@ -217,3 +217,13 @@ Har open trade ke saamne `CLOSE` button hai. Dabane par (confirm ke baad) dashbo
 - Safety: dashboard sirf aapke PC (127.0.0.1) par chalta hai; dusri website se bheji gayi request reject hoti hai (Host/Origin/custom header check).
 
 Default `max_coins` ab 80 hai (volume ke hisaab se top 80, kam se kam 20M USDT 24h volume). Backtest top-30 par validate hua tha; baaki coins par paper mein dekha ja raha hai. 30 par wapas jaane ke liye `scalp_config.json` mein `"max_coins": 30`.
+
+## Discord alerts (Telegram ke saath ya akele)
+1. Discord mein apna server kholo (nahi hai to "Add a Server" -> "Create My Own"). Jis channel mein alerts chahiye: channel ke naam ke saath gear icon -> **Integrations** -> **Webhooks** -> **New Webhook** -> **Copy Webhook URL**.
+2. `notepad .env` mein ek line jodo (URL ek secret hai: kisi ko mat dena, chat/screenshot mein mat bhejna):
+   ```
+   DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/...
+   ```
+   (Discord block ho to: `DISCORD_PROXY=socks5h://127.0.0.1:PORT`.)
+3. `python main.py discord-test` -> channel mein "✅ Discord test" aana chahiye.
+4. Bot restart karo: ab trade open/close, 12-hour report Telegram aur Discord dono par jayenge. Ek band ho to doosra chalta rahta hai (aur jo message nahi gaye wo baad mein "der se" bheje jaate hain).

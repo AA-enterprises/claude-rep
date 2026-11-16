@@ -342,7 +342,7 @@ class Bot:
 
     def run(self) -> None:
         intrabar = self.cfg.entry_mode == "intrabar"
-        print(f"Scalp bot started (Paper) | balance {self.acct.balance:,.2f} | Telegram: {'ON (sirf trade open/close)' if self.tg.enabled else 'OFF'}"
+        print(f"Scalp bot started (Paper) | balance {self.acct.balance:,.2f} | Alerts: {('ON (' + getattr(self.tg, 'names', 'Telegram') + ', sirf trade open/close)') if self.tg.enabled else 'OFF'}"
               f" | entry: {'INTRABAR (har 15 min)' if intrabar else f'candle close ({self.cfg.timeframe})'}")
         tf = 900.0 if intrabar else self.cfg.tf_ms / 1000                 # intrabar: har 15m candle ke close par
         next_scan = 0.0

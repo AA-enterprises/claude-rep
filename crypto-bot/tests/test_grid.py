@@ -1,3 +1,4 @@
+import json
 import os
 import sys
 
@@ -284,3 +285,45 @@ def test_failed_messages_are_kept_and_delivered_late_in_order(monkeypatch):
     assert t.flush() is True and t._outbox == []
     assert sent[0].endswith("OPENED A") and sent[1].endswith("CLOSED A") and "der se" in sent[0]      # order theek, 'der se' likha
     assert t.send("NEW") is True and sent[-1] == "NEW"                       # taaza message par prefix nahi
+
+
+def test_discord_webhook_posts_hides_secret_and_multi_notifier_survives_one_failure(tmp_path, monkeypatch):
+    import urllib.error
+    import urllib.request
+    from gridbot.notify import DiscordNotifier, MultiNotifier, TelegramNotifier, make_notifier
+
+    hook = "https://discord.com/api/webhooks/123456/SECRETWEBHOOKTOKEN"
+    f = tmp_path / ".env"
+    f.write_text(f"DISCORD_WEBHOOK_URL={hook}\nTELEGRAM_BOT_TOKEN=1:" + "A" * 35 + "\nTELEGRAM_CHAT_ID=5\n")
+    for k in ("DISCORD_WEBHOOK_URL", "DISCORD_PROXY", "TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID", "TELEGRAM_PROXY"):
+        monkeypatch.delenv(k, raising=False)
+    seen = []
+
+    class R:
+        status = 204
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+        def read(self): return b""
+
+    def fake_urlopen(req, timeout=None):
+        seen.append((req.full_url, json.loads(req.data)))
+        if "telegram" in req.full_url:
+            raise OSError("telegram blocked")                     # Telegram band hai
+        return R()
+    monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
+    d = DiscordNotifier(env_file=str(f))
+    assert d.enabled and d.send("TRADE OPENED x") is True
+    assert seen[-1][0] == hook and seen[-1][1] == {"content": "TRADE OPENED x"}
+    assert d.check() == (True, "ok")
+    assert not DiscordNotifier(env_file=str(tmp_path / "none.env")).enabled
+    assert not DiscordNotifier(webhook="http://evil/x", env_file="none.env").enabled                   # sirf discord webhook URL
+    m = make_notifier(str(f))
+    assert isinstance(m, MultiNotifier) and m.names == "Telegram, Discord"
+    assert m.send("hello") is True                                                                       # Telegram fail, Discord pahunch gaya
+    assert any(u == hook and b == {"content": "hello"} for u, b in seen)
+
+    def boom(req, timeout=None):
+        raise OSError(f"cannot reach {hook}")
+    monkeypatch.setattr(urllib.request, "urlopen", boom)
+    ok, why = DiscordNotifier(env_file=str(f)).check()
+    assert not ok and "SECRETWEBHOOKTOKEN" not in why

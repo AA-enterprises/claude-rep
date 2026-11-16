@@ -14,7 +14,7 @@ import time
 
 from gridbot import backtest, data
 from gridbot.broker import PaperBroker
-from gridbot.notify import TelegramNotifier, format_close, format_open
+from gridbot.notify import DiscordNotifier, TelegramNotifier, format_close, format_open, make_notifier
 from gridbot.strategy import GridConfig, GridStrategy
 
 
@@ -194,7 +194,7 @@ def cmd_scalp_test_trade(args) -> int:
     sym = None if args.symbol.lower() == "auto" else sc.normalize_symbols(args.symbol)[0]
     print("TEST trade (nakli paisa, alag file: scalp_test_*). Asli paper test ke numbers mein nahi judegi.")
     ok = scanner.run_test_trade(cfg, sym, args.side, args.minutes, "scalp_test_state.json", "scalp_test_trades.csv",
-                                TelegramNotifier())
+                                make_notifier())
     return 0 if ok else 1
 
 
@@ -218,6 +218,14 @@ def cmd_scalp_watch(args) -> int:
     return 0
 
 
+def cmd_discord_test(args) -> int:
+    ok, detail = DiscordNotifier().check()
+    print("Discord OK, channel mein test message aaya hoga." if ok else f"Discord FAIL: {detail}")
+    if not ok and "set nahi" in detail:
+        print("notepad .env mein ek line jodo: DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/...")
+    return 0 if ok else 1
+
+
 def cmd_scalp_paper(args) -> int:
     from scalp import config as sc, scanner
     cfg = sc.load(args.scalp_config)
@@ -227,7 +235,7 @@ def cmd_scalp_paper(args) -> int:
         cfg.validate()
     if cfg.symbols:
         print("Sirf in coins par:", ", ".join(x.split("/")[0] for x in cfg.symbols))
-    scanner.Bot(cfg, args.state, args.trades, TelegramNotifier()).run()
+    scanner.Bot(cfg, args.state, args.trades, make_notifier()).run()
     return 0
 
 
@@ -311,6 +319,7 @@ def main() -> int:
     sx_ = sub.add_parser("scalp-watch")
     sx_.add_argument("--top", type=int, default=15, help="kitne coins dikhane hain")
     sx_.set_defaults(fn=cmd_scalp_watch)
+    sub.add_parser("discord-test").set_defaults(fn=cmd_discord_test)
     sp_ = sub.add_parser("scalp-paper")
     sp_.add_argument("--state", default="scalp_state.json")
     sp_.add_argument("--trades", default="scalp_trades.csv")

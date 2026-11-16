@@ -109,6 +109,7 @@ class TelegramNotifier:
     """
 
     API = "https://api.telegram.org"
+    NAME = "telegram"
 
     def __init__(self, token: str | None = None, chat_id: str | None = None, env_file: str = ".env",
                  proxy: str | None = None):
@@ -249,7 +250,7 @@ class TelegramNotifier:
         try:
             return self._post(text)[0] == 200
         except Exception as e:  # noqa: BLE001
-            print("[telegram] send failed: " + explain_network_error(e, self.token))  # token print nahi karte
+            print(f"[{self.NAME}] send failed: " + explain_network_error(e, self.token))  # token/webhook print nahi karte
             return False
 
     def flush(self) -> bool:
@@ -263,7 +264,7 @@ class TelegramNotifier:
                 self._fails += 1
                 if self._fails >= 3:
                     self._fails, self._pause_until = 0, time.time() + 600
-                    print(f"[telegram] 3 baar fail: 10 minute ke liye ruk raha hoon. {len(self._outbox)} message pending hain, "
+                    print(f"[{self.NAME}] 3 baar fail: 10 minute ke liye ruk raha hoon. {len(self._outbox)} message pending hain, "
                           "network theek hote hi bhej diye jayenge (bot chalta rahega)")
                 return False
             self._outbox.pop(0)
@@ -277,3 +278,102 @@ class TelegramNotifier:
         self._outbox.append((time.time(), text))
         del self._outbox[:-50]                          # sabse purane 50 se zyada nahi rakhte
         return self.flush()
+
+
+class DiscordNotifier(TelegramNotifier):
+    """Discord webhook se alerts. .env mein: DISCORD_WEBHOOK_URL=... (aur zarurat ho to DISCORD_PROXY=...).
+    Outbox / retry / pause wahi Telegram wala hai. Webhook URL secret hai (kabhi print nahi hota)."""
+
+    NAME = "discord"
+
+    def __init__(self, webhook: str | None = None, env_file: str = ".env", proxy: str | None = None):
+        f = load_dotenv(env_file)
+        self.env_file = env_file
+        self.src = {}
+        self.webhook = webhook or f.get("DISCORD_WEBHOOK_URL") or os.environ.get("DISCORD_WEBHOOK_URL") or None
+        self.token, self.chat_id = self.webhook, "discord"          # explain_network_error webhook ko chhupa de
+        raw = proxy or f.get("DISCORD_PROXY") or os.environ.get("DISCORD_PROXY") or ""
+        self.proxies = [x for x in re.split(r"[,;\s]+", raw) if x]
+        self.proxy = self.proxies[0] if self.proxies else None
+        self.last_proxy = None
+        self._fails, self._pause_until = 0, 0.0
+        self._outbox = []
+
+    @property
+    def enabled(self) -> bool:
+        return bool(self.webhook and self.webhook.startswith("https://") and "/api/webhooks/" in self.webhook)
+
+    def _post(self, text: str) -> tuple[int, str]:
+        payload = {"content": text[:1900]}
+        if self.proxies:
+            import requests
+            order = self.proxies[:]
+            if self.last_proxy in order:
+                order.remove(self.last_proxy)
+                order.insert(0, self.last_proxy)
+            last_exc: Exception | None = None
+            for px in order:
+                try:
+                    r = requests.post(self.webhook, json=payload, timeout=15, proxies={"http": px, "https": px})
+                    self.last_proxy = px
+                    return r.status_code, r.text
+                except Exception as e:  # noqa: BLE001
+                    last_exc = e
+            raise last_exc  # type: ignore[misc]
+        req = urllib.request.Request(self.webhook, data=json.dumps(payload).encode(),
+                                     headers={"Content-Type": "application/json", "User-Agent": "scalp-bot/1.0"})
+        try:
+            with urllib.request.urlopen(req, timeout=10) as r:
+                return r.status, r.read().decode()
+        except urllib.error.HTTPError as e:
+            return e.code, e.read().decode()
+
+    def _try(self, text: str) -> bool:
+        try:
+            return self._post(text)[0] in (200, 204)
+        except Exception as e:  # noqa: BLE001
+            print(f"[{self.NAME}] send failed: " + explain_network_error(e, self.webhook))
+            return False
+
+    def check(self) -> tuple[bool, str]:
+        if not self.enabled:
+            return False, ("DISCORD_WEBHOOK_URL set nahi hai ya galat hai (https://discord.com/api/webhooks/... jaisa hona chahiye)")
+        try:
+            code, body = self._post("✅ Discord test: bot connected")
+        except Exception as e:  # noqa: BLE001
+            return False, "network error: " + explain_network_error(e, self.webhook)
+        if code in (200, 204):
+            return True, "ok" + (f" (proxy: {self.last_proxy.split('@')[-1]})" if self.last_proxy else "")
+        hint = {401: "webhook galat ya delete ho chuka", 404: "webhook galat ya delete ho chuka", 429: "bahut zyada messages (rate limit)"}.get(code, "")
+        return False, f"HTTP {code}" + (f" ({hint})" if hint else "")
+
+
+class MultiNotifier:
+    """Telegram + Discord (jo chalu hon) dono ko bhejta hai; ek fail ho to doosra chalta rahe."""
+
+    def __init__(self, *notifiers):
+        self.ns = [n for n in notifiers if n.enabled]
+
+    @property
+    def enabled(self) -> bool:
+        return bool(self.ns)
+
+    @property
+    def names(self) -> str:
+        return ", ".join(n.NAME.capitalize() for n in self.ns) or "koi nahi"
+
+    def send(self, text: str) -> bool:
+        ok = False
+        for n in self.ns:
+            ok = n.send(text) or ok
+        return ok
+
+    def flush(self) -> bool:
+        ok = True
+        for n in self.ns:
+            ok = n.flush() and ok
+        return ok
+
+
+def make_notifier(env_file: str = ".env") -> MultiNotifier:
+    return MultiNotifier(TelegramNotifier(env_file=env_file), DiscordNotifier(env_file=env_file))
