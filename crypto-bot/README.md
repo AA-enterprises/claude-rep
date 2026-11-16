@@ -147,3 +147,6 @@ Agar aapke network par `api.telegram.org` block hai, to `.env` mein ek line jodo
 TELEGRAM_PROXY=socks5h://127.0.0.1:40000
 ```
 `40000` Cloudflare WARP ke "proxy mode" ka default port hai. `pip install -r requirements.txt` (pysocks chahiye). `python main.py telegram-test` se check karo.
+
+Kai proxy ek saath (free proxy aksar mar jaati hain): `TELEGRAM_PROXY=socks5h://1.2.3.4:1080, http://5.6.7.8:8080` — bot ek-ek karke try karta hai aur jo chale use yaad rakhta hai.
+Password wali proxy: `socks5h://user:password@host:port`. **Sirf SOCKS5 ya HTTP(S) proxy chalegi.** Telegram app wali MTProto proxy (`tg://proxy?...` link) bot ke liye nahi chalti.

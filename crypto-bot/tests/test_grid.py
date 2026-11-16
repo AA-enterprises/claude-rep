@@ -172,3 +172,29 @@ def test_telegram_failures_pause_sending_but_never_raise(monkeypatch):
     t._pause_until = _t.time() - 1                             # pause khatam
     t.send("e")
     assert len(calls) == 4
+
+
+def test_multiple_proxies_fall_back_and_remember_working_one(monkeypatch):
+    import sys
+    import types
+    from gridbot.notify import TelegramNotifier
+
+    tried = []
+
+    class R:
+        status_code, text = 200, "{}"
+
+    def post(url, json=None, timeout=None, proxies=None):
+        tried.append(proxies["https"])
+        if "dead" in proxies["https"]:
+            raise OSError("proxy connection refused")
+        return R()
+    monkeypatch.setitem(sys.modules, "requests", types.SimpleNamespace(post=post))
+    t = TelegramNotifier(token="1:x", chat_id="1", env_file="none.env",
+                         proxy="socks5h://dead1:1080, http://user:pw@good:8080 ; socks5h://dead2:1080")
+    assert t.proxies == ["socks5h://dead1:1080", "http://user:pw@good:8080", "socks5h://dead2:1080"]
+    ok, detail = t.check()
+    assert ok and tried == ["socks5h://dead1:1080", "http://user:pw@good:8080"]
+    assert "good:8080" in detail and "pw" not in detail and "user" not in detail      # password nahi dikhta
+    tried.clear()
+    assert t.send("x") and tried == ["http://user:pw@good:8080"]                      # chalne wala pehle

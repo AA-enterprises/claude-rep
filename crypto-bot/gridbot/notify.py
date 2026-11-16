@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import time
 import urllib.error
 import urllib.request
@@ -111,7 +112,10 @@ class TelegramNotifier:
         f = load_dotenv(env_file)
         self.token = token or os.environ.get("TELEGRAM_BOT_TOKEN") or f.get("TELEGRAM_BOT_TOKEN")
         self.chat_id = chat_id or os.environ.get("TELEGRAM_CHAT_ID") or f.get("TELEGRAM_CHAT_ID")
-        self.proxy = proxy or os.environ.get("TELEGRAM_PROXY") or f.get("TELEGRAM_PROXY") or None
+        raw = proxy or os.environ.get("TELEGRAM_PROXY") or f.get("TELEGRAM_PROXY") or ""
+        self.proxies = [x for x in re.split(r"[,;\s]+", raw) if x]      # kai proxy: pehla chale to wahi, warna agla
+        self.proxy = self.proxies[0] if self.proxies else None
+        self.last_proxy: str | None = None
         self._fails, self._pause_until = 0, 0.0      # lagataar fail hone par Telegram ko kuch der skip (bot atke nahi)
 
     @property
@@ -122,10 +126,21 @@ class TelegramNotifier:
         """(HTTP status, body). Network fail par exception uthata hai."""
         payload = {"chat_id": self.chat_id, "text": text}
         url = f"{self.API}/bot{self.token}/sendMessage"
-        if self.proxy:                                    # SOCKS/HTTP proxy ke liye requests (+pysocks)
+        if self.proxies:                                  # SOCKS/HTTP proxy ke liye requests (+pysocks)
             import requests
-            r = requests.post(url, json=payload, timeout=15, proxies={"http": self.proxy, "https": self.proxy})
-            return r.status_code, r.text
+            order = self.proxies[:]
+            if self.last_proxy in order:                  # jo pichli baar chala wahi pehle
+                order.remove(self.last_proxy)
+                order.insert(0, self.last_proxy)
+            last_exc: Exception | None = None
+            for px in order:
+                try:
+                    r = requests.post(url, json=payload, timeout=15, proxies={"http": px, "https": px})
+                    self.last_proxy = px
+                    return r.status_code, r.text
+                except Exception as e:  # noqa: BLE001
+                    last_exc = e
+            raise last_exc  # type: ignore[misc]
         req = urllib.request.Request(url, data=json.dumps(payload).encode(), headers={"Content-Type": "application/json"})
         try:
             with urllib.request.urlopen(req, timeout=10) as r:
@@ -137,11 +152,12 @@ class TelegramNotifier:
         """Test message bhej ke saaf wajah batata hai (error text mein token kabhi nahi hota)."""
         if not self.enabled:
             return False, "token ya chat id set nahi hai"
-        via = f" (proxy: {self.proxy.split('@')[-1]})" if self.proxy else ""
         try:
             code, body = self._post("✅ Telegram test: bot connected")
         except Exception as e:  # noqa: BLE001
-            return False, "network error" + via + ": " + explain_network_error(e, self.token)
+            return False, f"network error ({len(self.proxies)} proxy try ki)" + ": " + explain_network_error(e, self.token) if self.proxies \
+                else "network error: " + explain_network_error(e, self.token)
+        via = f" (proxy: {self.last_proxy.split('@')[-1]})" if self.last_proxy else ""     # password kabhi nahi dikhate
         if code == 200:
             return True, "ok" + via
         try:
