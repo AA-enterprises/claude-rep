@@ -39,5 +39,6 @@ def download(sym, tf, y0, y1, out_dir, workers=12):
 
 if __name__ == "__main__":
     out = sys.argv[1]
+    tf = sys.argv[3] if len(sys.argv) > 3 else "15m"
     for s in sys.argv[2].split(","):
-        print(s, download(s, "15m", 2020, 2026, out), flush=True)
+        print(s, download(s, tf, 2020, 2026, out), flush=True)

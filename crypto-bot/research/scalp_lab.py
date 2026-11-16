@@ -72,11 +72,49 @@ def sma_prior(x, n):
     return out
 
 
+@njit(cache=True)
+def vwap_daily(ts, h, l, c, v):
+    out = np.empty(len(c))
+    pv = 0.0
+    vv = 0.0
+    day = -1
+    for i in range(len(c)):
+        dday = ts[i] // 86_400_000
+        if dday != day:
+            day, pv, vv = dday, 0.0, 0.0
+        pv += (h[i] + l[i] + c[i]) / 3.0 * v[i]
+        vv += v[i]
+        out[i] = pv / vv if vv > 0 else c[i]
+    return out
+
+
+@njit(cache=True)
+def roll_max_prior(x, n):
+    out = np.full(len(x), np.nan)
+    for i in range(n, len(x)):
+        m = x[i - n]
+        for j in range(i - n + 1, i):
+            m = max(m, x[j])
+        out[i] = m
+    return out
+
+
+@njit(cache=True)
+def roll_min_prior(x, n):
+    out = np.full(len(x), np.nan)
+    for i in range(n, len(x)):
+        m = x[i - n]
+        for j in range(i - n + 1, i):
+            m = min(m, x[j])
+        out[i] = m
+    return out
+
+
 # ---------------- simulation ----------------
 
 
 @njit(cache=True)
-def sim(sig, o, h, l, c, atr, s, t, T, mode, off, W, fee_t, fee_m, slip, out_i, out_rn, out_rg, out_k):
+def sim(sig, o, h, l, c, atr, s, t, T, mode, off, W, fee_t, fee_m, slip, out_i, out_rn, out_rg, out_k, rev):
     """mode 0: market entry bar-close par | mode 1: limit entry (c -+ off*ATR), W bars tak wait.
     Stop market (taker+slip), TP limit (maker), time-stop market. Ek candle mein stop aur TP dono touch ho to stop."""
     n = len(c)
@@ -134,6 +172,10 @@ def sim(sig, o, h, l, c, atr, s, t, T, mode, off, W, fee_t, fee_m, slip, out_i, 
                         fee_out = fee_m
                         k = j
                         break
+                if rev != 0 and sig[j] == -d:                      # ulta signal aaya: market par band
+                    exit_p = c[j] * (1 - d * slip)
+                    k = j
+                    break
         if np.isnan(exit_p):
             exit_p = c[j0 + T] * (1 - d * slip)
         gross = d * (exit_p - entry)
@@ -170,6 +212,48 @@ def sig_pullback(d, rsi_lo):
     return up.astype(np.int8) - dn.astype(np.int8)
 
 
+def _cross_up(a, b):
+    x = np.zeros(len(a), bool)
+    x[1:] = (a[:-1] <= b[:-1]) & (a[1:] > b[1:])
+    return x
+
+
+def _cross_dn(a, b):
+    x = np.zeros(len(a), bool)
+    x[1:] = (a[:-1] >= b[:-1]) & (a[1:] < b[1:])
+    return x
+
+
+def sig_emacross(d):
+    return _cross_up(d["ema9"], d["ema21"]).astype(np.int8) - _cross_dn(d["ema9"], d["ema21"]).astype(np.int8)
+
+
+def sig_rsiflip(d, lo=30.0, hi=70.0):
+    r = d["rsi"]
+    up = np.zeros(len(r), bool)
+    dn = np.zeros(len(r), bool)
+    up[1:] = (r[:-1] < lo) & (r[1:] >= lo)
+    dn[1:] = (r[:-1] > hi) & (r[1:] <= hi)
+    return up.astype(np.int8) - dn.astype(np.int8)
+
+
+def sig_vwap(d):
+    c, l, h, v = d["c"], d["l"], d["h"], d["vwap"]
+    up = np.zeros(len(c), bool)
+    dn = np.zeros(len(c), bool)
+    up[1:] = (c[:-1] > v[:-1]) & (l[1:] <= v[1:]) & (c[1:] > v[1:])             # vwap ko chhoo kar upar band: bounce
+    dn[1:] = (c[:-1] < v[:-1]) & (h[1:] >= v[1:]) & (c[1:] < v[1:])             # vwap se reject
+    return up.astype(np.int8) - dn.astype(np.int8)
+
+
+def sig_range(d, width=6.0, edge=0.15):
+    rng = d["hi20"] - d["lo20"]
+    tight = rng < width * d["atr"]
+    up = tight & (d["c"] <= d["lo20"] + edge * rng)
+    dn = tight & (d["c"] >= d["hi20"] - edge * rng)
+    return up.astype(np.int8) - dn.astype(np.int8)
+
+
 def sig_random(d, p, seed=1):
     r = np.random.default_rng(seed)
     x = r.random(len(d["c"]))
@@ -180,15 +264,18 @@ def sig_random(d, p, seed=1):
 # ---------------- loading / evaluation ----------------
 
 
-def load(dir_):
+def load(dir_, tf="15m"):
     data = {}
-    for p in sorted(glob.glob(os.path.join(dir_, "*_15m.npz"))):
+    for p in sorted(glob.glob(os.path.join(dir_, f"*_{tf}.npz"))):
         z = np.load(p)
         d = {k: z[k].astype(np.float64) if k != "ts" else z[k] for k in ("ts", "o", "h", "l", "c", "v")}
         d["atr"] = atr_w(d["h"], d["l"], d["c"])
         d["ema20"], d["ema50"], d["ema200"] = ema(d["c"], 20), ema(d["c"], 50), ema(d["c"], 200)
         d["rsi"], d["rsi7"] = rsi_w(d["c"], 14), rsi_w(d["c"], 7)
         d["vr"] = d["v"] / sma_prior(d["v"], 20)
+        d["ema9"], d["ema21"] = ema(d["c"], 9), ema(d["c"], 21)
+        d["vwap"] = vwap_daily(d["ts"], d["h"], d["l"], d["c"], d["v"])
+        d["hi20"], d["lo20"] = roll_max_prior(d["h"], 20), roll_min_prior(d["l"], 20)
         d["year"] = (d["ts"] // 1000 // 31_557_600 + 1970).astype(np.int32)
         data[os.path.basename(p).split("_")[0]] = d
     return data
@@ -198,14 +285,14 @@ COST = dict(fee_t=0.0005, fee_m=0.0002, slip=0.0002)
 FREE = dict(fee_t=0.0, fee_m=0.0, slip=0.0)
 
 
-def run(data, make_sig, s, t, T, mode=0, off=0.0, W=2, cost=COST, split_year=2024):
+def run(data, make_sig, s, t, T, mode=0, off=0.0, W=2, cost=COST, split_year=2024, rev=0):
     """Saare coins par: (n, winrate, avgR net, avgR gross, train avgR, test avgR, test coins positive)."""
     allr, allg, yrs, per = [], [], [], {}
     for name, d in data.items():
         sig = make_sig(d)
         cap = int((sig != 0).sum()) + 1
         oi, orn, org, ok = np.zeros(cap, np.int64), np.zeros(cap), np.zeros(cap), np.zeros(cap, np.int64)
-        n = sim(sig, d["o"], d["h"], d["l"], d["c"], d["atr"], s, t, T, mode, off, W, cost["fee_t"], cost["fee_m"], cost["slip"], oi, orn, org, ok)
+        n = sim(sig, d["o"], d["h"], d["l"], d["c"], d["atr"], s, t, T, mode, off, W, cost["fee_t"], cost["fee_m"], cost["slip"], oi, orn, org, ok, rev)
         if n == 0:
             continue
         allr.append(orn[:n]); allg.append(org[:n]); yrs.append(d["year"][oi[:n]])

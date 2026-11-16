@@ -12,3 +12,15 @@ Nateeja:
 - Timeframe badhne par fees ka bojh ghatta hai: 15m -0.07R, 1h +0.02R, 2h +0.06R, 4h +0.05R (4h mein train aur test dono positive). Yahi bot ka 4h trend tareeka hai.
 
 Chalane ke liye (optional): `pip install numpy numba`.
+
+## Binance Square post ki 6 scalping strategies ka test (5m, 8 coins, 2020-2026)
+Mechanical version, market entry, taker fee 0.05% + slippage 0.02%, R = ATR stop:
+| Strategy | Gross R/trade (fees ke bina) | Net R/trade | Test coins profitable |
+|---|---|---|---|
+| EMA 9/21 crossover (ulta cross par exit) | -0.007 | -0.216 | 0/8 |
+| EMA 9/21 crossover (stop/target) | +0.003 | -0.255 | 0/8 |
+| VWAP bounce/reject | -0.007 | -0.260 | 0/8 |
+| RSI quick flip 30/70 | -0.019 | -0.227 | 0/8 |
+| Range scalping | +0.001 | -0.246 | 0/8 |
+| Random entry (control) | -0.094 | -0.340 | 0/8 |
+Fees ke bina bhi in tareeko mein koi edge nahi (gross ~0). Order book/tape reading test nahi ho sakta (L2 data + low latency chahiye).
