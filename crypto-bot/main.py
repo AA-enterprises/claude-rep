@@ -129,9 +129,10 @@ def cmd_scalp_download(args) -> int:
     else:
         syms, _ = scanner.universe(ex, cfg, limit=0)
         syms = ["BTC/USDT:USDT"] + [x for x in syms if not x.startswith("BTC/")][: args.coins - 1]
-    print(f"{len(syms)} coins, {args.years} saal tak (jitna Binance par available ho). Beech mein ruk sakte ho, dobara chalane par wahin se aage badhega.")
+    # Cache hamesha 15m mein hota hai (4h/1h/intrabar usse bante hain), config ka timeframe kuch bhi ho
+    print(f"{len(syms)} coins, 15m candles, {args.years} saal tak (jitna Binance par available ho). Beech mein ruk sakte ho, dobara chalane par wahin se aage badhega.")
     for sym in syms:
-        history.download(ex, sym, cfg.timeframe, cfg.tf_ms, args.years, args.cache_dir)
+        history.download(ex, sym, "15m", 900_000, args.years, args.cache_dir)
     return 0
 
 

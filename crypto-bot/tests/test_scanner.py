@@ -361,3 +361,20 @@ def test_dashboard_close_button_flow_end_to_end(tmp_path):
     assert not bot.acct.positions and "MANUAL CLOSE" in tg.msgs[-1] and len(tg.msgs) == n_msgs + 1
     assert ",MANUAL," in open(tp).read() and not os.path.exists(sp.replace(".json", "_commands.jsonl"))
     srv.shutdown()
+
+
+def test_scalp_download_always_fetches_15m_even_if_config_timeframe_is_4h(tmp_path, monkeypatch):
+    import types
+    import main as m
+    from scalp import history, scanner
+
+    assert ScalpConfig().timeframe == "15m"
+    monkeypatch.setattr(scanner, "make_exchange", lambda: types.SimpleNamespace())
+    monkeypatch.setattr(scanner, "universe", lambda ex, cfg, limit=None: (["BTC/USDT:USDT", "ETH/USDT:USDT"], {}))
+    calls = []
+    monkeypatch.setattr(history, "download", lambda ex, sym, tf, tf_ms, years, d, log=print: calls.append((sym, tf, tf_ms)) or 0)
+    cfg_file = tmp_path / "c.json"
+    cfg_file.write_text('{"timeframe": "4h"}')                     # config 4h hai
+    args = types.SimpleNamespace(scalp_config=str(cfg_file), symbols="", coins=5, years=10, cache_dir=str(tmp_path))
+    assert m.cmd_scalp_download(args) == 0
+    assert calls and all(tf == "15m" and ms == 900_000 for _, tf, ms in calls)

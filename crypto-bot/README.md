@@ -227,3 +227,5 @@ Default `max_coins` ab 80 hai (volume ke hisaab se top 80, kam se kam 20M USDT 2
    (Discord block ho to: `DISCORD_PROXY=socks5h://127.0.0.1:PORT`.)
 3. `python main.py discord-test` -> channel mein "✅ Discord test" aana chahiye.
 4. Bot restart karo: ab trade open/close, 12-hour report Telegram aur Discord dono par jayenge. Ek band ho to doosra chalta rahta hai (aur jo message nahi gaye wo baad mein "der se" bheje jaate hain).
+
+Note: `scalp-download` hamesha **15m** candles laata hai (config ka timeframe 4h ho tab bhi). Backtest/validate cache ke 15m files (`*_15m.csv`) se 4h/1h/intrabar banate hain. Purane galti se bane `*_4h.csv` files ko ignore/delete kar sakte ho.
