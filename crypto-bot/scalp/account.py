@@ -52,6 +52,24 @@ class PaperAccount:
     def equity(self, prices: dict[str, float]) -> float:
         return self.balance + sum(p.unrealized(prices.get(s, p.entry)) for s, p in self.positions.items())
 
+    def reject_reason(self, sig: Signal, price: float) -> str | None:
+        """Trade kyun nahi khul sakti (None = khul sakti hai). open() jin shartein par None deta hai, unka saaf kaaran."""
+        cfg = self.cfg
+        if sig.symbol in self.positions:
+            return "pehle se open hai"
+        if len(self.positions) >= cfg.max_open:
+            return f"{cfg.max_open} trades pehle se open hain (max_open)"
+        if self.balance <= 0 and not self.unlimited:
+            return "balance khatam"
+        if cfg.exit_mode == "atr":
+            sl_frac = cfg.sl_atr * sig.atr_pct * ((sig.price or price) / price)
+            if sl_frac <= 0:
+                return "ATR zero hai"
+            if sl_frac * cfg.leverage > 0.8:
+                return (f"coin bahut volatile: stop {sl_frac:.1%} door hai, {cfg.leverage:g}x leverage par "
+                        f"liquidation stop se pehle lag jayegi (safety rule)")
+        return None
+
     def open(self, sig: Signal, price: float, ts: int) -> Position | None:
         cfg = self.cfg
         if sig.symbol in self.positions or len(self.positions) >= cfg.max_open or (self.balance <= 0 and not self.unlimited):

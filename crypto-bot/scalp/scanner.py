@@ -294,6 +294,8 @@ class Bot:
                 break
             px = (self.ex.fetch_ticker(s.symbol) or {}).get("last") or s.price
             pos = self.acct.open(s, px, self.ex.milliseconds())
+            if not pos:
+                print(f"  skip {s.symbol} {s.side}: {self.acct.reject_reason(s, px) or 'margin/risk limit'}")
             if pos:
                 opened += 1
                 print(f"OPEN {pos.side} {s.symbol} @ {px}")
@@ -340,18 +342,23 @@ def pick_current_setup(bot: "Bot") -> Signal:
             return sym, [], None
     with ThreadPoolExecutor(max_workers=max(1, bot.cfg.fetch_workers)) as pool:
         res = list(pool.map(one, syms))
-    sigs = [g for _, _, g in res if g]
+    sigs = [g for _, _, g in res if g and bot.acct.reject_reason(g, g.price) is None]      # sirf jo asal mein khul sakti hon
     if sigs:
         best = max(sigs, key=lambda g: (g.score, g.vol_ratio))
         best.gates = ["TEST (abhi ki adhoori candle par): " + "; ".join(best.gates)]
         return best
     # koi setup nahi: sabse bade coin ki trend disha (sirf demo ke liye)
-    sym, cs, _ = next(((s_, c_, g) for s_, c_, g in res if c_), (syms[0], [], None))
     from . import indicators as ind
-    closes = [c[4] for c in cs]
-    side = "LONG" if ind.ema(closes, 20)[-1] >= ind.ema(closes, 50)[-1] else "SHORT"
-    atr = atr_series([c[2] for c in cs], [c[3] for c in cs], closes)[-1]
-    return Signal(sym, side, 0, ["TEST: koi setup nahi mila, sirf trend disha"], 0.0, atr / closes[-1], closes[-1])
+    for sym, cs, _ in sorted(res, key=lambda r: 0 if r[0].startswith("BTC/") else 1):       # BTC pehle, phir jo bhi tradable ho
+        if len(cs) < MIN_CANDLES:
+            continue
+        closes = [c[4] for c in cs]
+        atr = atr_series([c[2] for c in cs], [c[3] for c in cs], closes)[-1]
+        side = "LONG" if ind.ema(closes, 20)[-1] >= ind.ema(closes, 50)[-1] else "SHORT"
+        sig = Signal(sym, side, 0, ["TEST: koi setup nahi mila, sirf trend disha"], 0.0, atr / closes[-1], closes[-1])
+        if bot.acct.reject_reason(sig, sig.price) is None:
+            return sig
+    raise RuntimeError("Koi bhi coin abhi tradable nahi mila")
 
 
 def run_test_trade(cfg: ScalpConfig, symbol: str | None, side: str | None, close_after_min: float, state_path: str,
@@ -376,7 +383,7 @@ def run_test_trade(cfg: ScalpConfig, symbol: str | None, side: str | None, close
             sig = Signal(symbol, (side or "long").upper(), 0, ["manual TEST trade (asli signal nahi)"], 0.0, atr / price, price)
         pos = bot.acct.open(sig, price, bot.ex.milliseconds())
         if not pos:
-            print("Trade khul nahi payi (risk/limit check)")
+            print(f"Trade khul nahi payi ({symbol} {sig.side}): {bot.acct.reject_reason(sig, price) or 'margin/risk limit'}")
             return False
         print(f"TEST OPEN {pos.side} {symbol} @ {price} | stop {pos.sl:.4f} | {close_after_min:g} minute baad band hogi")
         print("   kaaran:", "; ".join(pos.gates))
@@ -423,6 +430,7 @@ def watch_rows(cfg: ScalpConfig, ex=None) -> list[dict]:
             mask = f.lmask if side == "LONG" else f.smask if side == "SHORT" else ()
             return {"symbol": sym, "side": side, "score": score, "need": cfg.min_gates, "atr_pct": f.atr_pct,
                     "vol_ratio": f.vol_ratio, "price": f.price, "ok_atr": f.atr_pct >= cfg.min_atr_pct,
+                    "too_volatile": cfg.exit_mode == "atr" and cfg.sl_atr * f.atr_pct * cfg.leverage > 0.8,
                     "met": [n for n, ok in zip(GATE_NAMES, mask) if ok],
                     "missing": [n for n, ok in zip(GATE_NAMES, mask) if not ok] if mask else GATE_NAMES}
         except Exception:  # noqa: BLE001

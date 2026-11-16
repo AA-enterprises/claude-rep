@@ -353,3 +353,15 @@ def test_shipped_default_config_file_loads_and_is_the_validated_setup():
     assert (cfg.timeframe, cfg.exit_mode, cfg.sl_atr, cfg.tp_atr, cfg.trail_atr, cfg.min_gates) == ("4h", "atr", 2.0, 0.0, 2.5, 3)
     assert cfg.risk_pct == 0.004 and cfg.max_hold_hours == 48 and cfg.symbols == [] and cfg.max_coins == 30
     assert cfg.entry_mode == "intrabar" and cfg.btc_filter is False
+
+
+def test_reject_reason_explains_why_a_trade_cannot_open():
+    a = PaperAccount(atr_cfg())
+    calm = Signal("A/USDT:USDT", "LONG", 3, [], 2.0, 0.01, 100.0)
+    wild = Signal("B/USDT:USDT", "LONG", 3, [], 2.0, 0.06, 100.0)          # 6% ATR x 1.5 x 10x leverage > liquidation
+    assert a.reject_reason(calm, 100.0) is None and a.open(calm, 100.0, 0) is not None
+    assert "volatile" in a.reject_reason(wild, 100.0) and a.open(wild, 100.0, 0) is None
+    assert "pehle se open" in a.reject_reason(calm, 100.0)
+    for i in range(10):
+        a.open(Signal(f"C{i}/USDT:USDT", "LONG", 3, [], 2.0, 0.01, 100.0), 100.0, 0)
+    assert "max_open" in a.reject_reason(Signal("Z/USDT:USDT", "LONG", 3, [], 2.0, 0.01, 100.0), 100.0)

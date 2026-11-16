@@ -205,11 +205,13 @@ def cmd_scalp_watch(args) -> int:
     if not rows:
         print("Data nahi mila")
         return 1
-    ready = [r for r in rows if r["score"] >= cfg.min_gates and r["ok_atr"]]
+    ready = [r for r in rows if r["score"] >= cfg.min_gates and r["ok_atr"] and not r["too_volatile"]]
     print(f"Abhi ki {cfg.timeframe} candle (adhoori) | trade ke liye {cfg.min_gates}/4 gates chahiye + ATR >= {cfg.min_atr_pct:.2%}")
     print(f"{'Coin':10} {'Side':6} {'Gates':6} {'ATR%':6} {'Vol x':6}  Mile hue -> baaki")
     for r in rows[: args.top]:
-        tag = "  <== TRADE SIGNAL" if r in ready else ("  (ATR kam)" if r["score"] >= cfg.min_gates else "")
+        tag = ("  <== TRADE SIGNAL" if r in ready else
+               ("  (bahut volatile: safety rule se skip)" if r["score"] >= cfg.min_gates and r["too_volatile"] else
+                ("  (ATR kam)" if r["score"] >= cfg.min_gates else "")))
         print(f"{r['symbol'].split('/')[0]:10} {r['side']:6} {str(r['score']) + '/4':6} {r['atr_pct'] * 100:5.2f}% {r['vol_ratio']:5.2f}  "
               f"{', '.join(r['met']) or '-'} -> {', '.join(r['missing']) or '-'}{tag}")
     print(f"\n{len(ready)} coins par abhi trade signal hai, {sum(1 for r in rows if r['score'] == cfg.min_gates - 1)} coins sirf 1 gate door hain.")

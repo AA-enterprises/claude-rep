@@ -293,3 +293,15 @@ def test_watch_rows_show_gates_for_each_coin(tmp_path):
     r = rows[0]
     assert r["symbol"] == "UP/USDT:USDT" and r["side"] == "LONG" and r["score"] >= 3 and r["ok_atr"]
     assert "breakout" in r["met"] and set(r["met"]) | set(r["missing"]) == set(scanner.GATE_NAMES)
+
+
+def test_test_trade_skips_untradable_coins_and_explains(tmp_path, capsys):
+    from dataclasses import replace
+    cfg = replace(ScalpConfig(), leverage=200)                  # itni leverage par koi coin tradable nahi: saaf wajah chahiye
+    ex, tg = FakeEx(cfg), Rec()
+    try:
+        ok = scanner.run_test_trade(cfg, None, None, 0, str(tmp_path / "s.json"), str(tmp_path / "t.csv"), tg, ex=ex, sleep=lambda s: None)
+    except RuntimeError as e:
+        assert "tradable nahi" in str(e)
+        return
+    assert not ok and "volatile" in capsys.readouterr().out
