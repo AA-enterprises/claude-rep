@@ -160,7 +160,7 @@ Agar bot lamba band raha ho to gap milne par wo apne aap poori history dobara le
 
 
 ## Sirf kuch chune hue coins par (jaise BTC, ETH, SOL, BNB)
-`scalp_config.json` mein `"symbols": ["BTC", "ETH", "SOL", "BNB"]` set hai: bot sirf inhi par scan karta hai (volume/`max_coins` ka filter nahi lagta). Khali list `[]` = top `max_coins`.
+`scalp_config.json` mein `"symbols"` khali `[]` hai (default: top-30 liquid coins, jo validate hua). Naam daalne par bot sirf unhi par scan karta hai, jaise `["BTC", "ETH", "SOL", "BNB"]` (volume/`max_coins` ka filter nahi lagta).
 ```powershell
 python main.py scalp-validate --symbols BTC,ETH,SOL,BNB                     # pehle inhi coins par backtest/validate
 python main.py scalp-backtest --source cache --timeframe 4h --symbols BTC,ETH,SOL,BNB
