@@ -92,3 +92,19 @@ def test_dotenv_telegram_credentials(tmp_path, monkeypatch):
     off = TelegramNotifier(env_file=str(tmp_path / "missing.env"))
     ok, why = off.check()
     assert not off.enabled and ok is False and "set nahi" in why
+
+
+def test_network_error_is_explained_without_leaking_token(monkeypatch):
+    import urllib.error
+    import urllib.request
+    from gridbot.notify import TelegramNotifier
+
+    tok = "111:SECRET_TOKEN_VALUE"
+    t = TelegramNotifier(token=tok, chat_id="1", env_file="none.env")
+    for msg, word in [("[Errno 11001] getaddrinfo failed", "DNS"), ("timed out", "timeout"),
+                      ("[SSL: CERTIFICATE_VERIFY_FAILED]", "SSL"), (f"failed for {tok}", "network")]:
+        def boom(*a, **k):
+            raise urllib.error.URLError(msg)
+        monkeypatch.setattr(urllib.request, "urlopen", boom)
+        ok, why = t.check()
+        assert ok is False and word in why and "SECRET_TOKEN_VALUE" not in why

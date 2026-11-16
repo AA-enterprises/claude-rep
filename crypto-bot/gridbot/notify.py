@@ -59,6 +59,25 @@ def format_close(t: Trade, symbol: str, equity: float, start_equity: float, mode
     return "\n".join(lines)
 
 
+def explain_network_error(e: Exception, token: str | None = None) -> str:
+    """Network error ki wajah saaf shabdon mein (token kabhi nahi dikhata)."""
+    reason = str(getattr(e, "reason", e))
+    if token:
+        reason = reason.replace(token, "***")
+    low = reason.lower()
+    if "getaddrinfo" in low or "name or service" in low or "11001" in low:
+        hint = "DNS: api.telegram.org ka address nahi mil raha (internet/DNS ya ISP block)"
+    elif "timed out" in low or "timeout" in low:
+        hint = "timeout: connection beech mein ruk raha hai (ISP/firewall block ya VPN chahiye)"
+    elif "certificate" in low or "ssl" in low:
+        hint = "SSL: antivirus/firewall ya proxy certificate badal raha hai"
+    elif "refused" in low or "10061" in low or "10060" in low or "unreachable" in low:
+        hint = "connection refused/blocked: firewall ya ISP block"
+    else:
+        hint = "network problem"
+    return f"{type(e).__name__}: {reason[:160]} -> {hint}"
+
+
 def load_dotenv(path: str = ".env") -> dict:
     """Simple .env reader: KEY=VALUE lines (# comments ok, quotes optional). File na ho to khali."""
     vals: dict = {}
@@ -107,7 +126,7 @@ class TelegramNotifier:
                     403: "aapne bot ko block kiya hai ya /start nahi bheja", 404: "token galat"}.get(e.code, "")
             return False, f"HTTP {e.code}: {desc} ({hint})" if hint else f"HTTP {e.code}: {desc}"
         except Exception as e:  # noqa: BLE001
-            return False, f"network error: {type(e).__name__}"
+            return False, "network error: " + explain_network_error(e, self.token)
 
     def send(self, text: str) -> bool:
         """Kabhi exception nahi uthata: notification fail hone se bot band nahi hona chahiye."""
@@ -122,5 +141,5 @@ class TelegramNotifier:
             with urllib.request.urlopen(req, timeout=10) as r:
                 return r.status == 200
         except Exception as e:  # noqa: BLE001
-            print(f"[telegram] send failed: {type(e).__name__}")  # token print nahi karte
+            print("[telegram] send failed: " + explain_network_error(e, self.token))  # token print nahi karte
             return False
