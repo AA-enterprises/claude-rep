@@ -297,24 +297,61 @@ class Bot:
             print(f"Bot stopped. Balance {self.acct.balance:,.2f}, open positions: {len(self.acct.positions)}")
 
 
-def run_test_trade(cfg: ScalpConfig, symbol: str, side: str, close_after_min: float, state_path: str, trades_path: str,
-                   tg: TelegramNotifier, ex=None, sleep=time.sleep) -> bool:
-    """Manual TEST paper trade (alag state file): pipeline dekhne ke liye (Telegram open/close, dashboard, stop khiskna).
-    Normal stop/trailing chalta hai, aur `close_after_min` baad market par band (reason TEST)."""
+def pick_current_setup(bot: "Bot") -> Signal:
+    """Abhi ki (adhoori) candle ko bhi shamil karke sabse achha setup. Sirf TEST ke liye (backtest mein aisa nahi hota)."""
+    from dataclasses import replace
+    relaxed = replace(bot.cfg, min_gates=2, min_atr_pct=0.002)
+    syms, _ = universe(bot.ex, bot.cfg)
+
+    def one(sym: str):
+        try:
+            rows = bot.ex.fetch_ohlcv(sym, bot.cfg.timeframe, limit=LIVE_CANDLES)      # aakhri candle abhi ban rahi hai
+            cs = [tuple(r[:6]) for r in rows]
+            return sym, cs, (evaluate(sym, cs, relaxed) if len(cs) >= MIN_CANDLES else None)
+        except Exception:  # noqa: BLE001
+            return sym, [], None
+    with ThreadPoolExecutor(max_workers=max(1, bot.cfg.fetch_workers)) as pool:
+        res = list(pool.map(one, syms))
+    sigs = [g for _, _, g in res if g]
+    if sigs:
+        best = max(sigs, key=lambda g: (g.score, g.vol_ratio))
+        best.gates = ["TEST (abhi ki adhoori candle par): " + "; ".join(best.gates)]
+        return best
+    # koi setup nahi: sabse bade coin ki trend disha (sirf demo ke liye)
+    sym, cs, _ = next(((s_, c_, g) for s_, c_, g in res if c_), (syms[0], [], None))
+    from . import indicators as ind
+    closes = [c[4] for c in cs]
+    side = "LONG" if ind.ema(closes, 20)[-1] >= ind.ema(closes, 50)[-1] else "SHORT"
+    atr = atr_series([c[2] for c in cs], [c[3] for c in cs], closes)[-1]
+    return Signal(sym, side, 0, ["TEST: koi setup nahi mila, sirf trend disha"], 0.0, atr / closes[-1], closes[-1])
+
+
+def run_test_trade(cfg: ScalpConfig, symbol: str | None, side: str | None, close_after_min: float, state_path: str,
+                   trades_path: str, tg: TelegramNotifier, ex=None, sleep=time.sleep) -> bool:
+    """TEST paper trade (alag state file): pipeline dekhne ke liye (Telegram open/close, dashboard, stop khiskna).
+    symbol None = abhi ki candle ke hisaab se khud chune. Normal stop/trailing chalta hai, `close_after_min` baad market par band."""
     bot = Bot(cfg, state_path, trades_path, tg, ex=ex)
-    if symbol not in bot.acct.positions:
-        if not bot._update_candles(symbol) or len(bot.candles[symbol]) < 50:
-            print(f"{symbol}: candles nahi mile")
-            return False
-        cs = bot.candles[symbol]
-        atr = atr_series([c[2] for c in cs], [c[3] for c in cs], [c[4] for c in cs])[-1]
-        price = (bot.ex.fetch_ticker(symbol) or {}).get("last") or cs[-1][4]
-        sig = Signal(symbol, side.upper(), 0, ["manual TEST trade (asli signal nahi)"], 0.0, atr / price, price)
+    if not bot.acct.positions:
+        if symbol is None:
+            sig = pick_current_setup(bot)
+            if side:
+                sig.side = side.upper()
+            symbol = sig.symbol
+            price = (bot.ex.fetch_ticker(symbol) or {}).get("last") or sig.price
+        else:
+            if not bot._update_candles(symbol) or len(bot.candles[symbol]) < 50:
+                print(f"{symbol}: candles nahi mile")
+                return False
+            cs = bot.candles[symbol]
+            atr = atr_series([c[2] for c in cs], [c[3] for c in cs], [c[4] for c in cs])[-1]
+            price = (bot.ex.fetch_ticker(symbol) or {}).get("last") or cs[-1][4]
+            sig = Signal(symbol, (side or "long").upper(), 0, ["manual TEST trade (asli signal nahi)"], 0.0, atr / price, price)
         pos = bot.acct.open(sig, price, bot.ex.milliseconds())
         if not pos:
             print("Trade khul nahi payi (risk/limit check)")
             return False
         print(f"TEST OPEN {pos.side} {symbol} @ {price} | stop {pos.sl:.4f} | {close_after_min:g} minute baad band hogi")
+        print("   kaaran:", "; ".join(pos.gates))
         tg.send(messages.opened(pos, cfg, bot.acct.balance))
         bot.save()
     deadline = time.time() + close_after_min * 60

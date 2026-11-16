@@ -252,3 +252,12 @@ def test_manual_test_trade_opens_and_closes_in_separate_files(tmp_path):
     st = json.load(open(sp))
     assert st["account"]["positions"] == []
     assert not (tmp_path / "scalp_trades.csv").exists()                             # asli files nahi chhui
+
+
+def test_auto_test_trade_picks_setup_from_current_candle(tmp_path):
+    cfg = ScalpConfig()
+    ex, tg = FakeEx(cfg), Rec()
+    ok = scanner.run_test_trade(cfg, None, None, 0, str(tmp_path / "s.json"), str(tmp_path / "t.csv"), tg, ex=ex, sleep=lambda s: None)
+    assert ok and "TRADE OPENED" in tg.msgs[0] and "LONG" in tg.msgs[0] and "UP" in tg.msgs[0] and "TEST" in tg.msgs[0]
+    assert "TEST TRADE CLOSED" in tg.msgs[-1]
+    assert scanner.stats_from_csv(str(tmp_path / "t.csv"))["n"] == 1

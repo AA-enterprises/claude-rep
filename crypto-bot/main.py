@@ -178,7 +178,7 @@ def cmd_telegram_test(args) -> int:
 def cmd_scalp_test_trade(args) -> int:
     from scalp import config as sc, scanner
     cfg = sc.load(args.scalp_config)
-    sym = sc.normalize_symbols(args.symbol)[0]
+    sym = None if args.symbol.lower() == "auto" else sc.normalize_symbols(args.symbol)[0]
     print("TEST trade (nakli paisa, alag file: scalp_test_*). Asli paper test ke numbers mein nahi judegi.")
     ok = scanner.run_test_trade(cfg, sym, args.side, args.minutes, "scalp_test_state.json", "scalp_test_trades.csv",
                                 TelegramNotifier())
@@ -268,8 +268,8 @@ def main() -> int:
     sv_.set_defaults(fn=cmd_scalp_validate)
     sub.add_parser("telegram-test").set_defaults(fn=cmd_telegram_test)
     st_ = sub.add_parser("scalp-test-trade")
-    st_.add_argument("--symbol", default="BTC", help="jaise BTC, ETH, SOL")
-    st_.add_argument("--side", choices=["long", "short"], default="long")
+    st_.add_argument("--symbol", default="auto", help="auto = abhi ki candle ke hisaab se khud chune, ya BTC, ETH, SOL")
+    st_.add_argument("--side", choices=["long", "short"], default=None, help="khali = khud chune")
     st_.add_argument("--minutes", type=float, default=3.0, help="itni der baad market par band (test)")
     st_.set_defaults(fn=cmd_scalp_test_trade)
     sp_ = sub.add_parser("scalp-paper")
