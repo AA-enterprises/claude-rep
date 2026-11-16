@@ -1,0 +1,23 @@
+{
+  "timeframe": "4h",
+  "entry_mode": "intrabar",
+  "exit_mode": "atr",
+  "leverage": 10,
+  "sl_atr": 2.0,
+  "tp_atr": 0.0,
+  "trail_start_atr": 1.5,
+  "trail_atr": 2.5,
+  "risk_pct": 0.004,
+  "margin_pct": 0.05,
+  "min_gates": 3,
+  "btc_filter": false,
+  "symbols": [],
+  "max_hold_hours": 48,
+  "max_open": 5,
+  "max_new_per_scan": 2,
+  "max_coins": 30,
+  "min_quote_volume": 20000000,
+  "max_daily_loss_pct": 0.05,
+  "report_hours": 12,
+  "start_balance": 10000
+}
