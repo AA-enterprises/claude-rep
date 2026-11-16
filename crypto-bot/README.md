@@ -215,3 +215,5 @@ Isolated margin mein liquidation entry se lagbhag `1/leverage - 0.5%` door hoti 
 Har open trade ke saamne `CLOSE` button hai. Dabane par (confirm ke baad) dashboard ek request file (`scalp_state_commands.jsonl`) mein likhta hai, aur bot agle ~10 second mein us trade ko market price par band karta hai (reason `MANUAL`) aur Telegram par "MANUAL CLOSE" bhejta hai.
 - Bot chalna zaroori hai (button sirf bot ko bolta hai, khud trade band nahi karta).
 - Safety: dashboard sirf aapke PC (127.0.0.1) par chalta hai; dusri website se bheji gayi request reject hoti hai (Host/Origin/custom header check).
+
+Default `max_coins` ab 80 hai (volume ke hisaab se top 80, kam se kam 20M USDT 24h volume). Backtest top-30 par validate hua tha; baaki coins par paper mein dekha ja raha hai. 30 par wapas jaane ke liye `scalp_config.json` mein `"max_coins": 30`.

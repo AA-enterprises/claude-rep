@@ -351,7 +351,7 @@ def test_shipped_default_config_file_loads_and_is_the_validated_setup():
     path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "scalp_config.json")
     cfg = sc.load(path)                                           # khali ya kharab file yahan fail hogi
     assert (cfg.timeframe, cfg.exit_mode, cfg.sl_atr, cfg.tp_atr, cfg.trail_atr, cfg.min_gates) == ("4h", "atr", 2.0, 0.0, 2.5, 3)
-    assert cfg.risk_pct == 0.004 and cfg.max_hold_hours == 48 and cfg.symbols == [] and cfg.max_coins == 30
+    assert cfg.risk_pct == 0.004 and cfg.max_hold_hours == 48 and cfg.symbols == [] and cfg.max_coins == 80
     assert cfg.leverage == 3 and cfg.min_liq_distance == 0.30 and cfg.max_atr_pct == 0.04
     assert cfg.entry_mode == "intrabar" and cfg.btc_filter is False
 
