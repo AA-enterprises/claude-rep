@@ -80,15 +80,21 @@ def sweep(ds: Dataset, base: ScalpConfig, grid: dict, split: float = 0.7, out_cs
     return rows
 
 
-def report(rows, top: int = 8) -> str:
-    ranked = sorted(rows, key=lambda r: r[1].ret / max(r[1].max_dd, 0.05), reverse=True)[:top]
-    out = ["TOP (train score ke hisaab se) -> TEST (unseen data) result:"]
+def report(rows, top: int = 10) -> str:
+    traded = [r for r in rows if r[1].records or r[2].records]
+    idle = len(rows) - len(traded)
+    ranked = sorted(traded, key=lambda r: r[1].ret / max(r[1].max_dd, 0.05), reverse=True)[:top]
+    out = [f"TOP (train score ke hisaab se) -> TEST (unseen data) result:   [{idle} combos mein trades 0 thi (liquidation/ATR rule se reject), unhe dikhaya nahi]"]
     for c, tr, te, ok in ranked:
-        out.append(f"{'PASS' if ok else 'fail'} | {c} | risk_pct ~{suggested_risk(0.01, tr, te)} se dd ~20%\n       train {tr.ret:+.1%} (dd {tr.max_dd:.0%}, {len(tr.records)} trades)"
-                   f" -> test {te.ret:+.1%} (dd {te.max_dd:.0%}, {len(te.records)} trades, pf {te.profit_factor:.2f})")
+        out.append(f"{'PASS' if ok else 'fail'} | {c} | risk_pct ~{suggested_risk(0.01, tr, te)} se dd ~20%\n"
+                   f"       train {tr.ret:+.1%} (dd {tr.max_dd:.0%}, {len(tr.records)} trades, {tr.avg_r:+.2f}R/trade)"
+                   f" -> test {te.ret:+.1%} (dd {te.max_dd:.0%}, {len(te.records)} trades, {te.avg_r:+.2f}R/trade, pf {te.profit_factor:.2f})")
     n_ok = sum(1 for r in rows if r[3])
+    best = max(traded, key=lambda r: r[2].avg_r, default=None)
     out.append("")
-    out.append(f"PASS hue: {n_ok} / {len(rows)}")
+    out.append(f"PASS hue: {n_ok} / {len(rows)}  (trades wale combos: {len(traded)})")
+    if best:
+        out.append(f"Sabse achha test R/trade: {best[2].avg_r:+.3f} R ({best[0]})")
     out.append("VERDICT: " + ("kuch settings dono hisson mein profitable rahin. Ab zaroori hai: python main.py scalp-validate (survivorship, coin concentration, har saal, stability check). Yeh guarantee nahi."
                               if n_ok else "Koi bhi settings unseen data par profitable nahi nikli. Is strategy ko in rules par live mat karo."))
     return "\n".join(out)

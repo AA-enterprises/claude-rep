@@ -416,3 +416,15 @@ def test_roi30_grid_has_low_leverage_and_30_percent_target():
     cfg = ScalpConfig(exit_mode="roi", leverage=3, tp_roi=0.30, sl_roi=0.15, fee_rate=0.0, slippage_pct=0.0)
     p = PaperAccount(cfg).open(sig("LONG"), 100.0, 0)
     assert p.tp == pytest.approx(110.0) and p.sl == pytest.approx(95.0)       # 3x: 30% ROI = 10% price, 15% ROI stop = 5% price
+
+
+def test_report_hides_zero_trade_combos_and_shows_real_ones():
+    from scalp import sweep
+    mk = lambda n, ret, r: backtest.Result(1000.0, 1000.0 * (1 + ret), [
+        {"pnl": r * 10, "r": r, "closed_ts": 0, "symbol": "X", "side": "LONG", "reason": "TP"} for _ in range(n)], 0.1 if n else 0.0)
+    rows = [({"leverage": 5}, mk(0, 0, 0), mk(0, 0, 0), False),                       # liquidation rule se 0 trades
+            ({"leverage": 3}, mk(200, -0.3, -0.1), mk(100, -0.2, -0.1), False),
+            ({"leverage": 2}, mk(200, -0.1, -0.05), mk(100, -0.05, -0.02), False)]
+    text = sweep.report(rows)
+    assert "'leverage': 5" not in text and "'leverage': 3" in text and "'leverage': 2" in text
+    assert "1 combos mein trades 0" in text and "PASS hue: 0 / 3" in text and "Sabse achha test R/trade" in text
