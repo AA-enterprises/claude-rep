@@ -185,5 +185,6 @@ Pehle backtest se compare karo (6 saal ka data, same settings):
 ```powershell
 python main.py scalp-validate --entry intrabar          # intrabar (precompute mein kuch minute lagte hain)
 python main.py scalp-validate                           # close (purana)
+python main.py scalp-validate --entry close15           # band candle par entry, par exit 15m par (fair compare)
 ```
 Jo behtar nikle wahi `scalp_config.json` mein `"entry_mode"` rakho. Intrabar mein signal candle ke beech mein aa ke candle band hone tak hat bhi sakta hai (whipsaw); backtest ye bhi ginta hai.

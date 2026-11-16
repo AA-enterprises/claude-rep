@@ -330,3 +330,16 @@ def test_intrabar_backtest_runs_with_15m_exits_and_subset():
     assert any((x["closed_ts"] - x["held_min"] * 60_000) % (4 * 3_600_000) != 0 for x in r.records)
     sub = ds.subset(list(cs_map)[:2])
     assert isinstance(sub, backtest.IntrabarDataset) and len(backtest.run(sub, cfg).records) > 0
+
+
+def test_close15_keeps_only_last_subbar_events():
+    from dataclasses import replace
+    cs_map = {f"COIN{i}/USDT:USDT": _s15(500, seed=30 + i)[1] for i in range(3)}
+    cfg = replace(ScalpConfig(), timeframe="4h")
+    full = backtest.IntrabarDataset(cs_map, cfg.tf_ms)
+    cl = backtest.IntrabarDataset(cs_map, cfg.tf_ms, only_close=True)
+    n_full = sum(len(v) for v in full.events.values())
+    n_cl = sum(len(v) for v in cl.events.values())
+    assert 0 < n_cl < n_full
+    assert all(t % cfg.tf_ms == cfg.tf_ms - 900_000 for t in cl.events)
+    assert len(backtest.run(cl, cfg).records) > 0

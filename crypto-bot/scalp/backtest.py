@@ -60,11 +60,14 @@ class Dataset:
 class IntrabarDataset(Dataset):
     """Entry har 15m candle ke close par adhoori badi (4h) candle dekh kar. Exit/trailing bhi 15m candles par."""
 
-    def __init__(self, series15: dict[str, Series], tf_ms: int, base_ms: int = 900_000):
+    def __init__(self, series15: dict[str, Series], tf_ms: int, base_ms: int = 900_000, only_close: bool = False):
+        """only_close=True: entry sirf band hui badi candle par (aakhri 15m sub-bar), par exit/trailing 15m par (fair compare)."""
         self.s, self.tf, self.grid, self.base = series15, tf_ms, base_ms, base_ms
         self.events = {}
         for sym, s in series15.items():
             for ts, f in intrabar_events(s, base_ms, tf_ms).items():
+                if only_close and ts % tf_ms != tf_ms - base_ms:
+                    continue
                 self.events.setdefault(ts, []).append((sym, f))
         self.tmin = min(s.ts[0] for s in series15.values())
         self.tmax = max(s.ts[-1] for s in series15.values())

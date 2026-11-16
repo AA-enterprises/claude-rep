@@ -80,12 +80,14 @@ def cmd_paper(args) -> int:
 def make_cache_dataset(args, cfg, sb, history, sc):
     """Cache se dataset: --entry intrabar ho to adhoori candle wala, warna band candle wala."""
     only = sc.normalize_symbols(args.symbols) or None
-    if getattr(args, "entry", "close") == "intrabar":
+    entry = getattr(args, "entry", "close")
+    if entry in ("intrabar", "close15"):
         series = history.load_cache(args.cache_dir, "15m", args.coins, only)
         if not series:
             return None
-        print("Entry mode: INTRABAR (har 15 min adhoori candle dekh kar; features precompute mein kuch minute lag sakte hain)")
-        return sb.IntrabarDataset(series, cfg.tf_ms)
+        print("Entry mode: " + ("INTRABAR (har 15 min adhoori candle dekh kar)" if entry == "intrabar"
+                                else "CLOSE15 (band candle par entry, exit/trailing 15m par)") + " | features precompute mein kuch minute lagte hain")
+        return sb.IntrabarDataset(series, cfg.tf_ms, only_close=(entry == "close15"))
     series = history.load_resampled(args.cache_dir, cfg, args.coins, only=only)
     return sb.Dataset(series, cfg.tf_ms) if series else None
 
@@ -246,7 +248,7 @@ def main() -> int:
     sb_.add_argument("--timeframe", choices=["15m", "1h", "4h"], help="cache 15m se resample hota hai")
     sb_.add_argument("--coins", type=int, default=20)
     sb_.add_argument("--limit", type=int, default=700)
-    sb_.add_argument("--entry", choices=["close", "intrabar"], default="close", help="close: band hui candle par | intrabar: har 15 min adhoori candle dekh kar")
+    sb_.add_argument("--entry", choices=["close", "close15", "intrabar"], default="close", help="close: band candle (exit bhi candle par) | close15: band candle par entry, exit 15m par | intrabar: har 15 min adhoori candle dekh kar")
     sb_.add_argument("--symbols", default="", help="chune hue coins, jaise BTC,ETH,SOL,BNB")
     sb_.set_defaults(fn=cmd_scalp_backtest)
     sd_ = sub.add_parser("scalp-download")
@@ -264,7 +266,7 @@ def main() -> int:
     sw_.add_argument("--timeframe", choices=["15m", "1h", "4h"], help="cache 15m se resample hota hai")
     sw_.add_argument("--mode", choices=["atr", "roi"], default="atr", help="atr: ATR stop/target + trailing, roi: purana 70/-20 rule")
     sw_.add_argument("--out", default="sweep_results.csv")
-    sw_.add_argument("--entry", choices=["close", "intrabar"], default="close", help="close: band hui candle par | intrabar: har 15 min adhoori candle dekh kar")
+    sw_.add_argument("--entry", choices=["close", "close15", "intrabar"], default="close", help="close: band candle (exit bhi candle par) | close15: band candle par entry, exit 15m par | intrabar: har 15 min adhoori candle dekh kar")
     sw_.add_argument("--symbols", default="", help="chune hue coins, jaise BTC,ETH,SOL,BNB")
     sw_.set_defaults(fn=cmd_scalp_sweep)
     dd_ = sub.add_parser("scalp-dashboard")
@@ -277,7 +279,7 @@ def main() -> int:
     sv_.add_argument("--cache-dir", default="data_cache")
     sv_.add_argument("--coins", type=int, default=30)
     sv_.add_argument("--set", action="append", default=[], metavar="KEY=VALUE", help="config override, jaise --set sl_atr=2.5 (kayi baar de sakte ho)")
-    sv_.add_argument("--entry", choices=["close", "intrabar"], default="close", help="close: band hui candle par | intrabar: har 15 min adhoori candle dekh kar")
+    sv_.add_argument("--entry", choices=["close", "close15", "intrabar"], default="close", help="close: band candle (exit bhi candle par) | close15: band candle par entry, exit 15m par | intrabar: har 15 min adhoori candle dekh kar")
     sv_.add_argument("--symbols", default="", help="chune hue coins, jaise BTC,ETH,SOL,BNB")
     sv_.set_defaults(fn=cmd_scalp_validate)
     sub.add_parser("telegram-test").set_defaults(fn=cmd_telegram_test)
