@@ -32,3 +32,12 @@ Order-flow proxy: Binance klines ka taker-buy volume se delta=(buy-sell)/total, 
 - Flow gate (delta>3%) thoda sudhar laata hai (test +0.07R -> +0.16R at T24, +0.24R -> +0.32R at T48), par zyada sakht (6%, 10%) karne par train achha aur test kharab (overfit).
 - Lamba hold (T48 = 8 din) 4h par T24 se behtar. Bot ke apne validate mein bhi max_hold_hours=96 behtar nikla (+0.128R vs +0.095R).
 Caveat: 12 survivor coins, kuch combos mein se chuna gaya result: bot ke pipeline par validate karna zaroori.
+
+## Partial take-profit + break-even stop (4h bias + flow>3% + breakout, stop 1.5 ATR, 12 coins)
+| Exit style | Win rate | Net R/trade (T48) | Test R |
+|---|---|---|---|
+| Seedha (stop 1.5 ATR, koi TP/BE nahi) | 32% | +0.459 | +0.322 |
+| 50% 2R par band, baaki BE stop | 44% | +0.367 | +0.275 |
+| 50% 1R par band, baaki BE stop | 58% | +0.252 | +0.142 |
+| Poora 1R par TP | 58% | +0.128 | +0.042 |
+Early profit lena/BE par jana win rate badhata hai par trend-following ka edge ghatata hai: bade winners hi paisa banate hain.

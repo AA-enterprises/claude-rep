@@ -189,6 +189,77 @@ def sim(sig, o, h, l, c, atr, s, t, T, mode, off, W, fee_t, fee_m, slip, out_i, 
     return cnt
 
 
+@njit(cache=True)
+def sim_partial(sig, o, h, l, c, atr, s, T, tp1_r, frac, fee_t, fee_m, slip, out_i, out_rn, out_k):
+    """Market entry. tp1_r*R par `frac` position limit (maker) se band, baaki ka stop entry (break-even) par. Time-stop T bars.
+    Ek candle mein stop aur TP1 dono touch ho to stop pehle."""
+    n = len(c)
+    cnt = 0
+    i = 60
+    while i < n - T - 3:
+        d = sig[i]
+        if d == 0 or np.isnan(atr[i]):
+            i += 1
+            continue
+        a = atr[i]
+        entry = c[i] * (1 + d * slip)
+        sd = s * a
+        stop = entry - d * sd
+        tp1 = entry + d * tp1_r * sd
+        reached = False
+        k = i + T
+        exit2 = np.nan
+        fee2 = fee_t
+        for j in range(i + 1, i + T + 1):
+            if d == 1:
+                if l[j] <= stop:
+                    exit2 = stop * (1 - slip)
+                    k = j
+                    break
+                if (not reached) and h[j] >= tp1:
+                    reached = True
+                    stop = entry                      # break-even
+            else:
+                if h[j] >= stop:
+                    exit2 = stop * (1 + slip)
+                    k = j
+                    break
+                if (not reached) and l[j] <= tp1:
+                    reached = True
+                    stop = entry
+        if np.isnan(exit2):
+            exit2 = c[i + T] * (1 - d * slip)
+        if reached:
+            g1 = d * (tp1 - entry)
+            pnl = frac * (g1 - fee_m * tp1) + (1 - frac) * (d * (exit2 - entry) - fee_t * exit2)
+        else:
+            pnl = d * (exit2 - entry) - fee_t * exit2
+        pnl -= fee_t * entry
+        out_i[cnt] = i
+        out_rn[cnt] = pnl / sd
+        out_k[cnt] = k - i
+        cnt += 1
+        i = k + 1
+    return cnt
+
+
+def run_partial(data, make_sig, s, T, tp1_r, frac, cost=None, split_year=2024):
+    cost = cost or COST
+    allr, yrs, per = [], [], {}
+    for name, d in data.items():
+        sig = make_sig(d)
+        cap = int((sig != 0).sum()) + 1
+        oi, orn, ok = np.zeros(cap, np.int64), np.zeros(cap), np.zeros(cap, np.int64)
+        n = sim_partial(sig, d["o"], d["h"], d["l"], d["c"], d["atr"], s, T, tp1_r, frac, cost["fee_t"], cost["fee_m"], cost["slip"], oi, orn, ok)
+        if n:
+            allr.append(orn[:n]); yrs.append(d["year"][oi[:n]]); per[name] = (orn[:n], d["year"][oi[:n]])
+    r, y = np.concatenate(allr), np.concatenate(yrs)
+    tr, te = r[y < split_year], r[y >= split_year]
+    pos = sum(1 for nm, (rr, yy) in per.items() if (yy >= split_year).any() and rr[yy >= split_year].mean() > 0)
+    return dict(n=len(r), win=float((r > 0).mean()), net=float(r.mean()), train=float(tr.mean()), test=float(te.mean()), pos=pos, coins=len(per),
+                dd=float(np.max(np.maximum.accumulate(np.cumsum(r)) - np.cumsum(r))))
+
+
 # ---------------- signal families ----------------
 
 
