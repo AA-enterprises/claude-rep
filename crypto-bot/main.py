@@ -94,7 +94,7 @@ def cmd_scalp_backtest(args) -> int:
         data_ = sb.Dataset(series, cfg.tf_ms)
     elif args.source == "binance":
         ex = scanner.make_exchange()
-        syms, _ = scanner.universe(ex, cfg)
+        syms, _ = scanner.universe(ex, cfg, limit=0)
         syms = syms[: args.coins]
         print(f"{len(syms)} coins ka data le raha hoon...")
         data_ = {s: scanner.fetch_closed(ex, s, cfg, limit=1000) for s in syms}
@@ -109,7 +109,7 @@ def cmd_scalp_download(args) -> int:
     from scalp import config as sc, history, scanner
     cfg = sc.load(args.scalp_config)
     ex = scanner.make_exchange()
-    syms, _ = scanner.universe(ex, cfg)
+    syms, _ = scanner.universe(ex, cfg, limit=0)
     syms = ["BTC/USDT:USDT"] + [x for x in syms if not x.startswith("BTC/")][: args.coins - 1]
     print(f"{len(syms)} coins, {args.years} saal tak (jitna Binance par available ho). Beech mein ruk sakte ho, dobara chalane par wahin se aage badhega.")
     for sym in syms:

@@ -151,3 +151,15 @@ def test_periodic_telegram_report(tmp_path):
     assert len(tg.msgs) == k                                      # dobara turant nahi
     bot2 = scanner.Bot(cfg, str(tmp_path / "s.json"), str(tmp_path / "t.csv"), Rec(), ex=ex)
     assert abs(bot2.last_report - bot.last_report) < 1            # restart ke baad bhi yaad
+
+
+def test_universe_caps_to_top_coins_by_volume():
+    cfg = ScalpConfig(max_coins=2, min_quote_volume=1e6)
+
+    class Ex:
+        markets = {f"C{i}/USDT:USDT": {"swap": True, "linear": True, "active": True, "quote": "USDT", "settle": "USDT",
+                                       "info": {"contractType": "PERPETUAL", "status": "TRADING"}} for i in range(4)}
+        def fetch_tickers(self): return {f"C{i}/USDT:USDT": {"quoteVolume": (i + 1) * 1e7} for i in range(4)}
+    syms, _ = scanner.universe(Ex(), cfg)
+    assert syms == ["C3/USDT:USDT", "C2/USDT:USDT"]
+    assert len(scanner.universe(Ex(), cfg, limit=0)[0]) == 4

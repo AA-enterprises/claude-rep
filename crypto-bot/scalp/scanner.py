@@ -25,7 +25,8 @@ def make_exchange():
     return ex
 
 
-def universe(ex, cfg: ScalpConfig) -> tuple[list[str], dict]:
+def universe(ex, cfg: ScalpConfig, limit: int | None = None) -> tuple[list[str], dict]:
+    """Liquid USDT perpetuals, volume ke hisaab se. limit None = cfg.max_coins, 0 = koi cap nahi."""
     tickers = ex.fetch_tickers()
     out = []
     for s, m in ex.markets.items():
@@ -39,7 +40,9 @@ def universe(ex, cfg: ScalpConfig) -> tuple[list[str], dict]:
         if qv >= cfg.min_quote_volume:
             out.append((qv, s))
     out.sort(reverse=True)
-    return [s for _, s in out], tickers
+    syms = [s for _, s in out]
+    cap = cfg.max_coins if limit is None else limit
+    return (syms[:cap] if cap else syms), tickers
 
 
 def fetch_closed(ex, sym: str, cfg: ScalpConfig, limit: int = LIVE_CANDLES) -> list[tuple]:

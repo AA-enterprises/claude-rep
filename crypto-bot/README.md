@@ -128,3 +128,9 @@ python main.py scalp-validate                       # default: sweep ka best 4h 
 python main.py scalp-validate --set sl_atr=2.5 --set min_gates=4 --set timeframe=4h
 ```
 Checks: har saal ka PnL, kya sirf top-3 coins ne kamaya, sirf BTC+ETH par result (survivorship bias kam), parameters hilane par result barkarar rehta hai, aur Monte Carlo (worst-case drawdown + suggested risk_pct).
+
+## Validate hua 4h config (ab default `scalp_config.json`)
+6 saal ke 30 coins ke backtest mein: +0.095 R/trade, profit factor 1.24, 4557 trades, 6/8 saal profitable, top-3 coins ke bina bhi profitable,
+BTC+ETH par bhi profitable, 8/8 nearby settings profitable. **Lekin:** survivorship bias baaki hai, 2026 abhi tak negative hai (-23R), aur edge chhota hai (~0.1R/trade).
+`risk_pct 0.004` (0.4%) isliye ki 95% worst-case drawdown ~20% rahe. Bot top-30 liquid coins (`max_coins`) par hi chalta hai, kyunki edge sirf unhi par test hua.
+4h candle par scan hota hai (UTC 00, 04, 08, 12, 16, 20 ke baad), to trades kam aur kabhi kabhi din bhar koi signal nahi.

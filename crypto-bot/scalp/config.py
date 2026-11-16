@@ -16,6 +16,7 @@ class ScalpConfig:
     max_open: int = 5
     max_new_per_scan: int = 2
     min_gates: int = 3            # 4 mein se kam se kam itne gates agree karein
+    max_coins: int = 30           # volume ke hisaab se top N coins (backtest 30 coins par validate hua). 0 = sab
     min_quote_volume: float = 20_000_000   # 24h volume (USDT) se kam wale coins skip
     min_atr_pct: float = 0.004    # candle ATR/price: itni volatility ho tabhi TP reach ho sakta hai
     max_hold_hours: float = 6.0
