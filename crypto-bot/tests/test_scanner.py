@@ -283,3 +283,13 @@ def test_intrabar_live_scan_enters_on_forming_candle_without_waiting(tmp_path):
     bot2 = scanner.Bot(base, str(tmp_path / "s2.json"), str(tmp_path / "t2.csv"), tg2, ex=ex2)
     bot2.scan()
     assert len(bot2.acct.positions) == 0
+
+
+def test_watch_rows_show_gates_for_each_coin(tmp_path):
+    cfg = ScalpConfig()
+    ex = FakeEx(cfg)
+    rows = scanner.watch_rows(cfg, ex=ex)
+    assert len(rows) == 1
+    r = rows[0]
+    assert r["symbol"] == "UP/USDT:USDT" and r["side"] == "LONG" and r["score"] >= 3 and r["ok_atr"]
+    assert "breakout" in r["met"] and set(r["met"]) | set(r["missing"]) == set(scanner.GATE_NAMES)

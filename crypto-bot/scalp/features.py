@@ -61,7 +61,7 @@ def regime_series(c) -> list:
     return [0] * 199 + [1 if e50[i] > e200[i] else -1 for i in range(199, len(c))]
 
 
-def compute(h, l, c, v) -> dict[int, Feat]:
+def compute(h, l, c, v, min_score: int = FLOOR_SCORE, min_atr: float = FLOOR_ATR, allow_tie: bool = False) -> dict[int, Feat]:
     n = len(c)
     if n < MIN_CANDLES:
         return {}
@@ -92,7 +92,7 @@ def compute(h, l, c, v) -> dict[int, Feat]:
         if i < MIN_CANDLES - 1:
             continue
         price, a, r = c[i], at[i], rs[i]
-        if a is None or price <= 0 or a / price < FLOOR_ATR:
+        if a is None or price <= 0 or a / price < min_atr:
             continue
         avg_v = (pv[i] - pv[i - 20]) / 20
         vr = v[i] / avg_v if avg_v > 0 else 0.0
@@ -102,7 +102,7 @@ def compute(h, l, c, v) -> dict[int, Feat]:
         sm = (e20[i] < e50[i] and price < e200[i], r is not None and 25 < r < 50 and hist[i] < 0 and hist[i] < hist[i - 1],
               price < l[dl[0]], vol)
         ls, ss = sum(lm), sum(sm)
-        if max(ls, ss) < FLOOR_SCORE or ls == ss:
+        if max(ls, ss) < min_score or (ls == ss and not allow_tie):
             continue
         out[i] = Feat(price, a / price, vr, ls, ss, lm, sm)
     return out

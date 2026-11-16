@@ -188,3 +188,10 @@ python main.py scalp-validate                           # close (purana)
 python main.py scalp-validate --entry close15           # band candle par entry, par exit 15m par (fair compare)
 ```
 Jo behtar nikle wahi `scalp_config.json` mein `"entry_mode"` rakho. Intrabar mein signal candle ke beech mein aa ke candle band hone tak hat bhi sakta hai (whipsaw); backtest ye bhi ginta hai.
+
+
+## Bot ko trade kyun nahi mil rahi? (`scalp-watch`)
+```powershell
+python main.py scalp-watch
+```
+Har coin ki abhi ki (adhoori) candle par kitne gates mil rahe hain, kaun se mile aur kaun se baaki hain. 3/4 hone par (aur ATR theek ho) wo coin `TRADE SIGNAL` dikhata hai, aur bot ka agla 15-minute scan us par trade khol deta hai.

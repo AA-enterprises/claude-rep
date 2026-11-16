@@ -198,6 +198,24 @@ def cmd_scalp_test_trade(args) -> int:
     return 0 if ok else 1
 
 
+def cmd_scalp_watch(args) -> int:
+    from scalp import config as sc, scanner
+    cfg = sc.load(args.scalp_config)
+    rows = scanner.watch_rows(cfg)
+    if not rows:
+        print("Data nahi mila")
+        return 1
+    ready = [r for r in rows if r["score"] >= cfg.min_gates and r["ok_atr"]]
+    print(f"Abhi ki {cfg.timeframe} candle (adhoori) | trade ke liye {cfg.min_gates}/4 gates chahiye + ATR >= {cfg.min_atr_pct:.2%}")
+    print(f"{'Coin':10} {'Side':6} {'Gates':6} {'ATR%':6} {'Vol x':6}  Mile hue -> baaki")
+    for r in rows[: args.top]:
+        tag = "  <== TRADE SIGNAL" if r in ready else ("  (ATR kam)" if r["score"] >= cfg.min_gates else "")
+        print(f"{r['symbol'].split('/')[0]:10} {r['side']:6} {str(r['score']) + '/4':6} {r['atr_pct'] * 100:5.2f}% {r['vol_ratio']:5.2f}  "
+              f"{', '.join(r['met']) or '-'} -> {', '.join(r['missing']) or '-'}{tag}")
+    print(f"\n{len(ready)} coins par abhi trade signal hai, {sum(1 for r in rows if r['score'] == cfg.min_gates - 1)} coins sirf 1 gate door hain.")
+    return 0
+
+
 def cmd_scalp_paper(args) -> int:
     from scalp import config as sc, scanner
     cfg = sc.load(args.scalp_config)
@@ -288,6 +306,9 @@ def main() -> int:
     st_.add_argument("--side", choices=["long", "short"], default=None, help="khali = khud chune")
     st_.add_argument("--minutes", type=float, default=3.0, help="itni der baad market par band (test)")
     st_.set_defaults(fn=cmd_scalp_test_trade)
+    sx_ = sub.add_parser("scalp-watch")
+    sx_.add_argument("--top", type=int, default=15, help="kitne coins dikhane hain")
+    sx_.set_defaults(fn=cmd_scalp_watch)
     sp_ = sub.add_parser("scalp-paper")
     sp_.add_argument("--state", default="scalp_state.json")
     sp_.add_argument("--trades", default="scalp_trades.csv")

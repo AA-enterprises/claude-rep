@@ -12,7 +12,7 @@ from gridbot.notify import TelegramNotifier
 from . import messages
 from .account import PaperAccount
 from .config import ScalpConfig
-from .features import MIN_CANDLES, atr_series, regime_series
+from .features import MIN_CANDLES, atr_series, compute, regime_series
 from .signals import LIVE_CANDLES, Signal, evaluate
 
 TRADE_FIELDS = ["closed_ts", "symbol", "side", "entry", "exit", "reason", "roi", "pnl", "r", "held_min",
@@ -399,3 +399,35 @@ def run_test_trade(cfg: ScalpConfig, symbol: str | None, side: str | None, close
             break
         sleep(cfg.poll_seconds)
     return True
+
+
+GATE_NAMES = ["trend", "momentum", "breakout", "volume"]
+
+
+def watch_rows(cfg: ScalpConfig, ex=None) -> list[dict]:
+    """Har coin ki abhi ki (adhoori) candle par: kitne gates mil rahe hain (Long/Short), aur kaun se."""
+    ex = ex or make_exchange()
+    syms, _ = universe(ex, cfg)
+
+    def one(sym: str):
+        try:
+            rows = [tuple(r[:6]) for r in ex.fetch_ohlcv(sym, cfg.timeframe, limit=LIVE_CANDLES)]      # aakhri candle adhoori
+            if len(rows) < MIN_CANDLES:
+                return None
+            f = compute([r[2] for r in rows], [r[3] for r in rows], [r[4] for r in rows], [r[5] for r in rows],
+                        min_score=0, min_atr=0.0, allow_tie=True).get(len(rows) - 1)
+            if not f:
+                return None
+            side = "LONG" if f.ls > f.ss else "SHORT" if f.ss > f.ls else "-"
+            score = max(f.ls, f.ss)
+            mask = f.lmask if side == "LONG" else f.smask if side == "SHORT" else ()
+            return {"symbol": sym, "side": side, "score": score, "need": cfg.min_gates, "atr_pct": f.atr_pct,
+                    "vol_ratio": f.vol_ratio, "price": f.price, "ok_atr": f.atr_pct >= cfg.min_atr_pct,
+                    "met": [n for n, ok in zip(GATE_NAMES, mask) if ok],
+                    "missing": [n for n, ok in zip(GATE_NAMES, mask) if not ok] if mask else GATE_NAMES}
+        except Exception:  # noqa: BLE001
+            return None
+    with ThreadPoolExecutor(max_workers=max(1, cfg.fetch_workers)) as pool:
+        out = [r for r in pool.map(one, syms) if r]
+    out.sort(key=lambda r: (r["score"], r["vol_ratio"]), reverse=True)
+    return out
