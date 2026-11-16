@@ -260,3 +260,27 @@ def test_diagnose_pinpoints_invalid_token_and_unstarted_chat(tmp_path, monkeypat
     mode["m"] = "chat400"
     ok, lines = TelegramNotifier(env_file=str(f)).diagnose()
     assert not ok and "chat not found" in lines[-1] and "/start" in lines[-1]
+
+
+def test_failed_messages_are_kept_and_delivered_late_in_order(monkeypatch):
+    import time as _t
+    from gridbot.notify import TelegramNotifier
+
+    t = TelegramNotifier(token="1:x", chat_id="1", env_file="none.env")
+    sent: list[str] = []
+    up = {"on": False}
+
+    def post(text):
+        if not up["on"]:
+            raise OSError("proxy down")
+        sent.append(text)
+        return 200, "{}"
+    monkeypatch.setattr(t, "_post", post)
+    assert t.send("OPENED A") is False and t.send("CLOSED A") is False and sent == []
+    assert [x for _, x in t._outbox] == ["OPENED A", "CLOSED A"]            # yaad rakhe
+    t._outbox = [(ts - 120, x) for ts, x in t._outbox]                       # 2 minute purane
+    up["on"] = True
+    t._pause_until = 0.0
+    assert t.flush() is True and t._outbox == []
+    assert sent[0].endswith("OPENED A") and sent[1].endswith("CLOSED A") and "der se" in sent[0]      # order theek, 'der se' likha
+    assert t.send("NEW") is True and sent[-1] == "NEW"                       # taaza message par prefix nahi

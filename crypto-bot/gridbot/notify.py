@@ -69,7 +69,7 @@ def explain_network_error(e: Exception, token: str | None = None) -> str:
     if "socks" in low and ("missing dependencies" in low or "no module" in low):
         hint = "SOCKS support nahi: pip install pysocks (ya pip install -r requirements.txt)"
     elif ("proxy" in low or "40000" in low or "socks" in low) and ("refused" in low or "10061" in low or "timed out" in low or "failed" in low):
-        hint = "proxy chalu nahi hai: Cloudflare WARP ko proxy mode mein connect karo (warp-cli status)"
+        hint = "proxy chalu nahi ya Telegram tak jawab nahi de rahi: apni proxy/VPN app check karo (connected hai?)"
     elif "getaddrinfo" in low or "name or service" in low or "11001" in low:
         hint = "DNS: api.telegram.org ka address nahi mil raha (internet/DNS ya ISP block)"
     elif "timed out" in low or "timeout" in low:
@@ -135,6 +135,7 @@ class TelegramNotifier:
         self.proxy = self.proxies[0] if self.proxies else None
         self.last_proxy: str | None = None
         self._fails, self._pause_until = 0, 0.0      # lagataar fail hone par Telegram ko kuch der skip (bot atke nahi)
+        self._outbox: list[tuple[float, str]] = []    # jo message nahi ja paaye: baad mein dobara bhejte hain
 
     @property
     def enabled(self) -> bool:
@@ -244,20 +245,35 @@ class TelegramNotifier:
                 403: "aapne bot ko block kiya hai ya /start nahi bheja", 404: "token galat"}.get(code, "")
         return False, f"HTTP {code}: {self._desc(body)} ({hint})" if hint else f"HTTP {code}: {self._desc(body)}"
 
-    def send(self, text: str) -> bool:
-        """Kabhi exception nahi uthata. 3 baar lagataar fail hone par 10 minute skip, taaki bot har message par 10-15s na atke."""
-        if not self.enabled or time.time() < self._pause_until:
-            return False
+    def _try(self, text: str) -> bool:
         try:
-            ok = self._post(text)[0] == 200
+            return self._post(text)[0] == 200
         except Exception as e:  # noqa: BLE001
             print("[telegram] send failed: " + explain_network_error(e, self.token))  # token print nahi karte
-            ok = False
-        if ok:
+            return False
+
+    def flush(self) -> bool:
+        """Pending messages order mein bhejta hai. Fail par ruk jata hai; 3 baar lagataar fail par 10 minute skip."""
+        if not self.enabled or not self._outbox or time.time() < self._pause_until:
+            return not self._outbox
+        while self._outbox:
+            t0, text = self._outbox[0]
+            late = time.time() - t0 > 60
+            if not self._try(("⏳ (der se pahunchi) " if late else "") + text):
+                self._fails += 1
+                if self._fails >= 3:
+                    self._fails, self._pause_until = 0, time.time() + 600
+                    print(f"[telegram] 3 baar fail: 10 minute ke liye ruk raha hoon. {len(self._outbox)} message pending hain, "
+                          "network theek hote hi bhej diye jayenge (bot chalta rahega)")
+                return False
+            self._outbox.pop(0)
             self._fails = 0
-            return True
-        self._fails += 1
-        if self._fails >= 3:
-            self._fails, self._pause_until = 0, time.time() + 600
-            print("[telegram] 3 baar fail: 10 minute ke liye Telegram skip (bot chalta rahega)")
-        return False
+        return True
+
+    def send(self, text: str) -> bool:
+        """Kabhi exception nahi uthata. Message na jaye to pending rehta hai aur baad mein (flush) bheja jata hai."""
+        if not self.enabled:
+            return False
+        self._outbox.append((time.time(), text))
+        del self._outbox[:-50]                          # sabse purane 50 se zyada nahi rakhte
+        return self.flush()

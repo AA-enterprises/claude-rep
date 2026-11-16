@@ -142,6 +142,9 @@ class Bot:
     def heartbeat(self) -> None:
         """Har cycle: dashboard ke liye state + (har 60s) equity point + periodic report."""
         now = time.time()
+        flush = getattr(self.tg, "flush", None)
+        if flush:
+            flush()                                      # pending Telegram messages (network theek hone par)
         self._maybe_report(now)
         self.updated = now
         if now - self.last_eq_log >= 60:
