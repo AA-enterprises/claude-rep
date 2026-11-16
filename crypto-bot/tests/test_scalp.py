@@ -365,3 +365,22 @@ def test_reject_reason_explains_why_a_trade_cannot_open():
     for i in range(10):
         a.open(Signal(f"C{i}/USDT:USDT", "LONG", 3, [], 2.0, 0.01, 100.0), 100.0, 0)
     assert "max_open" in a.reject_reason(Signal("Z/USDT:USDT", "LONG", 3, [], 2.0, 0.01, 100.0), 100.0)
+
+
+def test_margin_sizing_uses_fixed_percent_of_equity_and_reports_actual_risk():
+    cfg = atr_cfg(sizing_mode="margin", margin_pct=0.05, compound=True)
+    a = PaperAccount(cfg)
+    p = a.open(atr_sig("LONG"), 100.0, 0)
+    assert p.margin == pytest.approx(500.0)                                       # 10,000 ka 5%
+    assert p.qty * 100 == pytest.approx(5000.0)                                   # 10x leverage = $5,000 notional
+    assert p.risk == pytest.approx(5000 * 0.015)                                  # stop 1.5% door: loss ~ $75 (0.75% equity), sach mein jo hoga
+    a.balance = 8000.0                                                            # compound: agli trade ghatte equity ka 5%
+    q = a.open(Signal("Y/USDT:USDT", "LONG", 3, [], 2.0, 0.01, 100.0), 100.0, 0)
+    assert q.margin == pytest.approx(400.0)
+    wide = PaperAccount(atr_cfg(sizing_mode="margin", margin_pct=0.05)).open(Signal("W/USDT:USDT", "LONG", 3, [], 2.0, 0.04, 100.0), 100.0, 0)
+    assert wide.risk == pytest.approx(5000 * 0.06)                                # chauda stop = bada loss: risk mode se alag
+
+
+def test_invalid_sizing_mode_rejected():
+    with pytest.raises(ValueError):
+        ScalpConfig(sizing_mode="lots").validate()

@@ -195,3 +195,9 @@ Jo behtar nikle wahi `scalp_config.json` mein `"entry_mode"` rakho. Intrabar mei
 python main.py scalp-watch
 ```
 Har coin ki abhi ki (adhoori) candle par kitne gates mil rahe hain, kaun se mile aur kaun se baaki hain. 3/4 hone par (aur ATR theek ho) wo coin `TRADE SIGNAL` dikhata hai, aur bot ka agla 15-minute scan us par trade khol deta hai.
+
+
+## Sizing: equity ka % margin (`sizing_mode`)
+- `"risk"` (default, validate hua): stop lagne par `risk_pct` (0.4%) loss. Stop door ho to size chhota, paas ho to bada.
+- `"margin"`: har trade mein `margin_pct` (jaise 0.05 = 5%) margin, `leverage` se multiply. Stop kitna bhi door ho, size wahi. **Chauda stop = bada loss.** 4h strategy (stop ~4%) par 5% margin x 10x = ~2% equity risk per trade, 5 guna validate hue risk se zyada.
+`compound: true` karne par % current balance ka lagta hai, warna start_balance ka.

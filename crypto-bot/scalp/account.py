@@ -84,7 +84,10 @@ class PaperAccount:
             sl_frac = sl_dist / entry
             if sl_frac <= 0 or sl_frac * cfg.leverage > 0.8:      # liquidation stop se pehle aa jayegi
                 return None
-            notional = min(base * cfg.risk_pct / sl_frac, base * cfg.margin_pct * cfg.leverage)
+            if cfg.sizing_mode == "margin":                          # equity ka margin_pct% margin, stop kitna bhi door ho
+                notional = base * cfg.margin_pct * cfg.leverage
+            else:
+                notional = min(base * cfg.risk_pct / sl_frac, base * cfg.margin_pct * cfg.leverage)
             margin = notional / cfg.leverage
             qty = notional / entry
             sl = entry - d * sl_dist
