@@ -157,3 +157,15 @@ Agar pehle PowerShell mein `$env:TELEGRAM_BOT_TOKEN=...` chalaya tha to wo us wi
 ## Scan speed
 Bot har coin ki closed candles memory mein yaad rakhta hai. Pehli scan mein poori history aati hai, uske baad har scan mein sirf **nayi candle** mangta hai. Coins ke requests parallel (`fetch_workers`, default 5) chalte hain. Har scan ke baad console mein `scan X.Xs` dikhta hai.
 Agar bot lamba band raha ho to gap milne par wo apne aap poori history dobara le leta hai. Agar scan par rate-limit/ban jaisa error aaye to `fetch_workers` kam kar do (jaise 3).
+
+
+## Sirf kuch chune hue coins par (jaise BTC, ETH, SOL, BNB)
+`scalp_config.json` mein `"symbols": ["BTC", "ETH", "SOL", "BNB"]` set hai: bot sirf inhi par scan karta hai (volume/`max_coins` ka filter nahi lagta). Khali list `[]` = top `max_coins`.
+```powershell
+python main.py scalp-validate --symbols BTC,ETH,SOL,BNB                     # pehle inhi coins par backtest/validate
+python main.py scalp-backtest --source cache --timeframe 4h --symbols BTC,ETH,SOL,BNB
+python main.py scalp-paper                                                  # config ke symbols par
+python main.py scalp-paper --symbols BTC,ETH                                # ya command se override
+python main.py scalp-download --symbols BTC,ETH,SOL,BNB                     # data cache mein nahi hai to
+```
+Dhyan: 4 coins par trades kam hongi (hafte mein ~1-2) aur coins aapas mein correlated hain (BTC girta hai to baaki bhi), isliye `max_open` kam rakhna behtar hai.

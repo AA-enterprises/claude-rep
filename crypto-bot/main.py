@@ -86,7 +86,7 @@ def cmd_scalp_backtest(args) -> int:
         print(f"Timeframe: {cfg.timeframe} (15m cache se resample)")
     if args.source == "cache":
         from scalp import history
-        series = history.load_resampled(args.cache_dir, cfg, args.coins)
+        series = history.load_resampled(args.cache_dir, cfg, args.coins, only=sc.normalize_symbols(args.symbols) or None)
         if not series:
             print("Cache khali hai. Pehle: python main.py scalp-download")
             return 1
@@ -109,8 +109,12 @@ def cmd_scalp_download(args) -> int:
     from scalp import config as sc, history, scanner
     cfg = sc.load(args.scalp_config)
     ex = scanner.make_exchange()
-    syms, _ = scanner.universe(ex, cfg, limit=0)
-    syms = ["BTC/USDT:USDT"] + [x for x in syms if not x.startswith("BTC/")][: args.coins - 1]
+    chosen = sc.normalize_symbols(args.symbols)
+    if chosen:
+        syms = chosen
+    else:
+        syms, _ = scanner.universe(ex, cfg, limit=0)
+        syms = ["BTC/USDT:USDT"] + [x for x in syms if not x.startswith("BTC/")][: args.coins - 1]
     print(f"{len(syms)} coins, {args.years} saal tak (jitna Binance par available ho). Beech mein ruk sakte ho, dobara chalane par wahin se aage badhega.")
     for sym in syms:
         history.download(ex, sym, cfg.timeframe, cfg.tf_ms, args.years, args.cache_dir)
@@ -127,7 +131,7 @@ def cmd_scalp_sweep(args) -> int:
     if args.source == "synthetic":
         ds = sb.Dataset.from_candles(sim.market(cfg, coins=args.coins, n=args.limit), cfg.tf_ms)
     else:
-        series = history.load_resampled(args.cache_dir, cfg, args.coins)
+        series = history.load_resampled(args.cache_dir, cfg, args.coins, only=sc.normalize_symbols(args.symbols) or None)
         if not series:
             print("Cache khali hai. Pehle: python main.py scalp-download")
             return 1
@@ -155,7 +159,7 @@ def cmd_scalp_validate(args) -> int:
     cfg = replace(cfg, **cand)
     cfg.validate()
     print("Config:", {k: getattr(cfg, k) for k in cand})
-    series = history.load_resampled(args.cache_dir, cfg, args.coins)
+    series = history.load_resampled(args.cache_dir, cfg, args.coins, only=sc.normalize_symbols(args.symbols) or None)
     if not series:
         print("Cache khali hai. Pehle: python main.py scalp-download")
         return 1
@@ -174,6 +178,12 @@ def cmd_telegram_test(args) -> int:
 def cmd_scalp_paper(args) -> int:
     from scalp import config as sc, scanner
     cfg = sc.load(args.scalp_config)
+    if args.symbols:
+        from dataclasses import replace
+        cfg = replace(cfg, symbols=sc.normalize_symbols(args.symbols))
+        cfg.validate()
+    if cfg.symbols:
+        print("Sirf in coins par:", ", ".join(x.split("/")[0] for x in cfg.symbols))
     scanner.Bot(cfg, args.state, args.trades, TelegramNotifier()).run()
     return 0
 
@@ -215,11 +225,13 @@ def main() -> int:
     sb_.add_argument("--timeframe", choices=["15m", "1h", "4h"], help="cache 15m se resample hota hai")
     sb_.add_argument("--coins", type=int, default=20)
     sb_.add_argument("--limit", type=int, default=700)
+    sb_.add_argument("--symbols", default="", help="chune hue coins, jaise BTC,ETH,SOL,BNB")
     sb_.set_defaults(fn=cmd_scalp_backtest)
     sd_ = sub.add_parser("scalp-download")
     sd_.add_argument("--coins", type=int, default=30)
     sd_.add_argument("--years", type=float, default=10)
     sd_.add_argument("--cache-dir", default="data_cache")
+    sd_.add_argument("--symbols", default="", help="chune hue coins, jaise BTC,ETH,SOL,BNB")
     sd_.set_defaults(fn=cmd_scalp_download)
     sw_ = sub.add_parser("scalp-sweep")
     sw_.add_argument("--source", choices=["synthetic", "cache"], default="cache")
@@ -230,6 +242,7 @@ def main() -> int:
     sw_.add_argument("--timeframe", choices=["15m", "1h", "4h"], help="cache 15m se resample hota hai")
     sw_.add_argument("--mode", choices=["atr", "roi"], default="atr", help="atr: ATR stop/target + trailing, roi: purana 70/-20 rule")
     sw_.add_argument("--out", default="sweep_results.csv")
+    sw_.add_argument("--symbols", default="", help="chune hue coins, jaise BTC,ETH,SOL,BNB")
     sw_.set_defaults(fn=cmd_scalp_sweep)
     dd_ = sub.add_parser("scalp-dashboard")
     dd_.add_argument("--state", default="scalp_state.json")
@@ -241,11 +254,13 @@ def main() -> int:
     sv_.add_argument("--cache-dir", default="data_cache")
     sv_.add_argument("--coins", type=int, default=30)
     sv_.add_argument("--set", action="append", default=[], metavar="KEY=VALUE", help="config override, jaise --set sl_atr=2.5 (kayi baar de sakte ho)")
+    sv_.add_argument("--symbols", default="", help="chune hue coins, jaise BTC,ETH,SOL,BNB")
     sv_.set_defaults(fn=cmd_scalp_validate)
     sub.add_parser("telegram-test").set_defaults(fn=cmd_telegram_test)
     sp_ = sub.add_parser("scalp-paper")
     sp_.add_argument("--state", default="scalp_state.json")
     sp_.add_argument("--trades", default="scalp_trades.csv")
+    sp_.add_argument("--symbols", default="", help="chune hue coins, jaise BTC,ETH,SOL,BNB")
     sp_.set_defaults(fn=cmd_scalp_paper)
     ss_ = sub.add_parser("scalp-stats")
     ss_.add_argument("--trades", default="scalp_trades.csv")

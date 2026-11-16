@@ -29,6 +29,12 @@ def make_exchange():
 def universe(ex, cfg: ScalpConfig, limit: int | None = None) -> tuple[list[str], dict]:
     """Liquid USDT perpetuals, volume ke hisaab se. limit None = cfg.max_coins, 0 = koi cap nahi."""
     tickers = ex.fetch_tickers()
+    if cfg.symbols and limit is None:                  # chune hue coins: volume/cap ka filter nahi, bas market valid ho
+        ok = [x for x in cfg.symbols if ex.markets.get(x, {}).get("active")]
+        miss = [x for x in cfg.symbols if x not in ok]
+        if miss:
+            print(f"  WARNING: ye symbols Binance futures par nahi mile: {', '.join(miss)}")
+        return ok, tickers
     out = []
     for s, m in ex.markets.items():
         info = m.get("info", {})

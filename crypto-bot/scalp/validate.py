@@ -75,10 +75,13 @@ def validate(ds: Dataset, cfg: ScalpConfig, log=print) -> bool:
     share = sum(v for k, v in ranked[:3] if v > 0) / gross
     for k, v in ranked[:5]:
         log(f"  {k:22} {v:+10,.0f}")
-    rest = [k for k in ds.s if k not in top3]
-    ex = run(ds.subset(rest), cfg) if rest else None
-    log(f"  Top-3 coins = {share:.0%} of gross profit | top-3 hata ke: {ex.ret:+.1%}, {ex.avg_r:+.3f} R/trade" if ex else "")
-    checks.append((share < 0.5 and ex is not None and ex.avg_r > 0, f"top-3 coins ka share {share:.0%}, unke bina {ex.avg_r:+.3f} R/trade" if ex else "n/a"))
+    if len(ds.s) < 8:
+        log(f"  Top-3 coins = {share:.0%} of gross profit. (Sirf {len(ds.s)} coins hain, 'top-3 hata ke' check skip: bahut kam bachenge)")
+    else:
+        rest = [k for k in ds.s if k not in top3]
+        ex = run(ds.subset(rest), cfg)
+        log(f"  Top-3 coins = {share:.0%} of gross profit | top-3 hata ke: {ex.ret:+.1%}, {ex.avg_r:+.3f} R/trade")
+        checks.append((share < 0.5 and ex.avg_r > 0, f"top-3 coins ka share {share:.0%}, unke bina {ex.avg_r:+.3f} R/trade"))
 
     log("\n=== 3) Sirf BTC + ETH (hamesha se maujood, survivorship bias kam) ===")
     majors = [k for k in ds.s if k.startswith(("BTC/", "ETH/"))]

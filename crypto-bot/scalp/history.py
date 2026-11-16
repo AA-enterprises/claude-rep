@@ -79,7 +79,7 @@ def load_series(path: str) -> Series:
     return Series(ts, h, l, c, v)
 
 
-def load_cache(cache_dir: str, tf: str, max_coins: int | None = None) -> dict[str, Series]:
+def load_cache(cache_dir: str, tf: str, max_coins: int | None = None, only: list[str] | None = None) -> dict[str, Series]:
     out = {}
     for p in sorted(glob.glob(os.path.join(cache_dir, f"*_{tf}.csv"))):
         sym = os.path.basename(p)[: -len(f"_{tf}.csv")]
@@ -88,6 +88,11 @@ def load_cache(cache_dir: str, tf: str, max_coins: int | None = None) -> dict[st
         s = load_series(p)
         if len(s.ts) >= 300:
             out[sym] = s
+    if only:
+        miss = [x for x in only if x not in out]
+        if miss:
+            print(f"  WARNING: cache mein ye coins nahi hain: {', '.join(miss)} (pehle: python main.py scalp-download --symbols ...)")
+        return {k: out[k] for k in only if k in out}
     if max_coins and len(out) > max_coins:
         btc = [k for k in out if k.startswith("BTC/")]
         rest = sorted((k for k in out if k not in btc), key=lambda k: -len(out[k].ts))[: max_coins - len(btc)]
@@ -114,6 +119,6 @@ def resample(s: Series, base_ms: int, new_ms: int) -> Series:
     return Series(ts, h, l, c, v)
 
 
-def load_resampled(cache_dir: str, cfg, max_coins: int | None = None, base_tf: str = "15m", base_ms: int = 900_000):
+def load_resampled(cache_dir: str, cfg, max_coins: int | None = None, only: list[str] | None = None, base_tf: str = "15m", base_ms: int = 900_000):
     """Cache hamesha 15m mein hota hai; cfg.timeframe (15m/1h/4h) ke hisaab se resample."""
-    return {k: resample(v, base_ms, cfg.tf_ms) for k, v in load_cache(cache_dir, base_tf, max_coins).items()}
+    return {k: resample(v, base_ms, cfg.tf_ms) for k, v in load_cache(cache_dir, base_tf, max_coins, only).items()}

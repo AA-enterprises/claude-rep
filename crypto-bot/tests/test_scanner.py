@@ -203,3 +203,36 @@ def test_second_scan_only_evaluates_symbols_with_a_new_candle(tmp_path):
     bot.scan()
     assert len(ex.calls) == calls_after_first      # candle cache hit: network par koi nayi candle request nahi
     assert len(bot.acct.positions) == 0            # purani candle par dobara signal/trade nahi
+
+
+def test_symbols_list_overrides_universe_and_accepts_short_names(tmp_path):
+    import json
+    from scalp import config as sc
+
+    assert sc.normalize_symbols("btc, eth;SOL BNB/USDT") == ["BTC/USDT:USDT", "ETH/USDT:USDT", "SOL/USDT:USDT", "BNB/USDT:USDT"]
+    assert sc.normalize_symbols(["BTC/USDT:USDT", "btc"]) == ["BTC/USDT:USDT"]
+    f = tmp_path / "c.json"
+    f.write_text(json.dumps({"symbols": ["BTC", "ETH", "SOL", "BNB"], "max_coins": 30}))
+    cfg = sc.load(str(f))
+    assert cfg.symbols == ["BTC/USDT:USDT", "ETH/USDT:USDT", "SOL/USDT:USDT", "BNB/USDT:USDT"]
+
+    class Ex:
+        markets = {f"{n}/USDT:USDT": {"swap": True, "linear": True, "active": True, "quote": "USDT", "settle": "USDT",
+                                      "info": {"contractType": "PERPETUAL", "status": "TRADING"}} for n in ("BTC", "ETH", "SOL", "BNB", "DOGE")}
+        def fetch_tickers(self): return {s: {"quoteVolume": 1e3} for s in self.markets}      # volume bahut kam: phir bhi chune hue coins aayenge
+    syms, _ = scanner.universe(Ex(), cfg)
+    assert syms == cfg.symbols and "DOGE/USDT:USDT" not in syms
+    assert len(scanner.universe(Ex(), cfg, limit=0)[0]) == 0                                # limit=0: purana universe (volume filter), download ke liye
+
+
+def test_cache_loader_can_select_only_given_symbols(tmp_path, capsys):
+    from scalp import history, sim
+    cfg = ScalpConfig()
+    for n, seed in (("BTC", 1), ("ETH", 2), ("DOGE", 3)):
+        cs = sim.coin(400, 10, seed, cfg.tf_ms)
+        with open(history.cache_path(str(tmp_path), f"{n}/USDT:USDT", "15m"), "w", newline="") as f:
+            for c in cs:
+                f.write(",".join(str(x) for x in c) + "\n")
+    got = history.load_cache(str(tmp_path), "15m", only=["BTC/USDT:USDT", "SOL/USDT:USDT", "ETH/USDT:USDT"])
+    assert list(got) == ["BTC/USDT:USDT", "ETH/USDT:USDT"]
+    assert "SOL/USDT:USDT" in capsys.readouterr().out                                         # missing coin ki chetavni

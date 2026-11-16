@@ -3,7 +3,24 @@ from __future__ import annotations
 
 import json
 import os
-from dataclasses import dataclass, fields
+from dataclasses import dataclass, field, fields
+
+
+def normalize_symbols(items) -> list[str]:
+    """['btc', 'ETH', 'SOL/USDT:USDT'] -> ['BTC/USDT:USDT', 'ETH/USDT:USDT', 'SOL/USDT:USDT']; 'BTC,ETH' string bhi chalegi."""
+    if isinstance(items, str):
+        items = items.replace(";", ",").replace(" ", ",").split(",")
+    out = []
+    for x in items or []:
+        x = x.strip().upper()
+        if not x:
+            continue
+        x = x if "/" in x else f"{x}/USDT:USDT"
+        if not x.endswith(":USDT"):
+            x = f"{x.split(':')[0]}:USDT" if x.endswith("/USDT") else x
+        if x not in out:
+            out.append(x)
+    return out
 
 
 @dataclass
@@ -16,6 +33,7 @@ class ScalpConfig:
     max_open: int = 5
     max_new_per_scan: int = 2
     min_gates: int = 3            # 4 mein se kam se kam itne gates agree karein
+    symbols: list[str] = field(default_factory=list)   # khali = top max_coins; warna sirf yahi coins (BTC, ETH ya BTC/USDT:USDT)
     max_coins: int = 30           # volume ke hisaab se top N coins (backtest 30 coins par validate hua). 0 = sab
     min_quote_volume: float = 20_000_000   # 24h volume (USDT) se kam wale coins skip
     min_atr_pct: float = 0.004    # candle ATR/price: itni volatility ho tabhi TP reach ho sakta hai
@@ -51,6 +69,8 @@ class ScalpConfig:
             raise ValueError("sl_roi 0 aur 1 ke beech (liquidation se pehle stop)")
         if self.tp_roi <= 0:
             raise ValueError("tp_roi > 0")
+        if any(not x.endswith('/USDT:USDT') for x in self.symbols):
+            raise ValueError("symbols: BTC jaisa naam ya BTC/USDT:USDT")
         if self.report_hours < 0:
             raise ValueError("report_hours >= 0")
         if self.exit_mode not in ("atr", "roi"):
@@ -73,6 +93,7 @@ def load(path: str | None) -> ScalpConfig:
         bad = set(raw) - known
         if bad:
             raise ValueError(f"Unknown config keys: {sorted(bad)}")
+        raw["symbols"] = normalize_symbols(raw.get("symbols", []))
         cfg = ScalpConfig(**raw)
     cfg.validate()
     return cfg

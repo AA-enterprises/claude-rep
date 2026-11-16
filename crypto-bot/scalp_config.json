@@ -10,6 +10,12 @@
   "margin_pct": 0.05,
   "min_gates": 3,
   "btc_filter": false,
+  "symbols": [
+    "BTC",
+    "ETH",
+    "SOL",
+    "BNB"
+  ],
   "max_hold_hours": 48,
   "max_open": 5,
   "max_new_per_scan": 2,
