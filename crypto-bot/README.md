@@ -248,3 +248,9 @@ Alag state/trades files aur alag dashboard (`http://127.0.0.1:8060`); Telegram/D
 Aapne ke coins par validate karne ke liye: `python main.py scalp-validate --entry intrabar --set min_gates=2 --set max_open=10 --set max_new_per_scan=3 --set risk_pct=0.002`
 
 12h report mein ab "Bot zinda: N scans, M signals, K skip, aakhri scan ka time, aakhri skip ki wajah" bhi hota hai. Trade na ho tab bhi report aati hai, to mobile par hi pata chal jata hai ki bot chal raha hai (Telegram + Discord dono par). `report_hours` se interval badlo (jaise 6).
+
+## BIG bot (kam trades, badi position, alag paper account)
+`scalp_config_big.json`: sab 4 gates, 48h hold, max 5 open, 1 nayi/scan, risk 0.6% (3x par ek trade ~$1,000-1,500 notional, margin cap 5%).
+Sandbox backtest (30 coins): ~10.7 trades/hafta, +0.094 R/trade, ~$52/hafta ($10,000 par), +183%, worst drawdown ~35% (validated bot: 18/hafta, +0.063R, $44/hafta, dd 23%).
+`start_bot_big.bat` ya `python main.py --scalp-config scalp_config_big.json scalp-paper --state scalp_state_big.json --trades scalp_trades_big.csv --dashboard-port 8070`. Dashboard `http://127.0.0.1:8070`, alerts mein "· BIG".
+Apne data par check: `python main.py scalp-validate --entry intrabar --set min_gates=4 --set max_new_per_scan=1 --set risk_pct=0.006`

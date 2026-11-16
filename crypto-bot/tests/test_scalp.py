@@ -444,3 +444,16 @@ def test_freq_config_and_label_in_messages():
     rec = a.close(p, "TP", p.entry * 1.02, 1)
     assert "FREQ" in messages.closed(rec, a.balance, {"n": 1, "win_rate": 1.0, "pnl": 1.0}, f.label)
     assert "FREQ" not in messages.closed(rec, a.balance, {"n": 1, "win_rate": 1.0, "pnl": 1.0})
+
+
+def test_big_config_loads_and_sizes_trades_between_1000_and_1500_notional():
+    import os
+    from scalp import config as sc
+    base = os.path.dirname(os.path.dirname(__file__))
+    b = sc.load(os.path.join(base, "scalp_config_big.json"))
+    assert (b.label, b.min_gates, b.max_open, b.max_new_per_scan, b.risk_pct, b.max_hold_hours, b.leverage) == ("BIG", 4, 5, 1, 0.006, 48, 3)
+    a = PaperAccount(b)
+    p = a.open(Signal("A/USDT:USDT", "LONG", 4, ["g"] * 4, 2.0, 0.015, 100.0), 100.0, 0)       # ATR 1.5% -> stop 3%
+    assert 1000 <= p.qty * p.entry <= 1500 + 1e-6                                              # risk $60 / 3% = $2,000, margin-cap $1,500
+    q = PaperAccount(b).open(Signal("B/USDT:USDT", "LONG", 4, ["g"] * 4, 2.0, 0.03, 100.0), 100.0, 0)   # ATR 3% -> stop 6%
+    assert 900 <= q.qty * q.entry <= 1100                                                      # risk $60 / 6% = $1,000

@@ -13,3 +13,5 @@ scalp_state_equity.csv
 scalp_test_*
 scalp_state_freq*
 scalp_trades_freq.csv
+scalp_state_big*
+scalp_trades_big.csv
