@@ -153,3 +153,22 @@ def test_proxy_errors_are_explained_and_token_hidden(tmp_path, monkeypatch):
         raise RuntimeError("Missing dependencies for SOCKS support.")
     monkeypatch.setitem(sys.modules, "requests", types.SimpleNamespace(post=nosocks))
     assert "pysocks" in t.check()[1]
+
+
+def test_telegram_failures_pause_sending_but_never_raise(monkeypatch):
+    import time as _t
+    import urllib.request
+    from gridbot.notify import TelegramNotifier
+
+    calls = []
+
+    def boom(*a, **k):
+        calls.append(1)
+        raise OSError("blocked")
+    monkeypatch.setattr(urllib.request, "urlopen", boom)
+    t = TelegramNotifier(token="1:x", chat_id="1", env_file="none.env")
+    assert [t.send("a"), t.send("b"), t.send("c")] == [False, False, False] and len(calls) == 3
+    assert t.send("d") is False and len(calls) == 3            # pause: ab network call hi nahi
+    t._pause_until = _t.time() - 1                             # pause khatam
+    t.send("e")
+    assert len(calls) == 4

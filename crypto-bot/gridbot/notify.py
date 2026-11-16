@@ -112,6 +112,7 @@ class TelegramNotifier:
         self.token = token or os.environ.get("TELEGRAM_BOT_TOKEN") or f.get("TELEGRAM_BOT_TOKEN")
         self.chat_id = chat_id or os.environ.get("TELEGRAM_CHAT_ID") or f.get("TELEGRAM_CHAT_ID")
         self.proxy = proxy or os.environ.get("TELEGRAM_PROXY") or f.get("TELEGRAM_PROXY") or None
+        self._fails, self._pause_until = 0, 0.0      # lagataar fail hone par Telegram ko kuch der skip (bot atke nahi)
 
     @property
     def enabled(self) -> bool:
@@ -152,11 +153,19 @@ class TelegramNotifier:
         return False, f"HTTP {code}: {desc} ({hint})" if hint else f"HTTP {code}: {desc}"
 
     def send(self, text: str) -> bool:
-        """Kabhi exception nahi uthata: notification fail hone se bot band nahi hona chahiye."""
-        if not self.enabled:
+        """Kabhi exception nahi uthata. 3 baar lagataar fail hone par 10 minute skip, taaki bot har message par 10-15s na atke."""
+        if not self.enabled or time.time() < self._pause_until:
             return False
         try:
-            return self._post(text)[0] == 200
+            ok = self._post(text)[0] == 200
         except Exception as e:  # noqa: BLE001
             print("[telegram] send failed: " + explain_network_error(e, self.token))  # token print nahi karte
-            return False
+            ok = False
+        if ok:
+            self._fails = 0
+            return True
+        self._fails += 1
+        if self._fails >= 3:
+            self._fails, self._pause_until = 0, time.time() + 600
+            print("[telegram] 3 baar fail: 10 minute ke liye Telegram skip (bot chalta rahega)")
+        return False
