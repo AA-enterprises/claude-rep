@@ -65,7 +65,11 @@ def explain_network_error(e: Exception, token: str | None = None) -> str:
     if token:
         reason = reason.replace(token, "***")
     low = reason.lower()
-    if "getaddrinfo" in low or "name or service" in low or "11001" in low:
+    if "socks" in low and ("missing dependencies" in low or "no module" in low):
+        hint = "SOCKS support nahi: pip install pysocks (ya pip install -r requirements.txt)"
+    elif ("proxy" in low or "40000" in low or "socks" in low) and ("refused" in low or "10061" in low or "timed out" in low or "failed" in low):
+        hint = "proxy chalu nahi hai: Cloudflare WARP ko proxy mode mein connect karo (warp-cli status)"
+    elif "getaddrinfo" in low or "name or service" in low or "11001" in low:
         hint = "DNS: api.telegram.org ka address nahi mil raha (internet/DNS ya ISP block)"
     elif "timed out" in low or "timeout" in low:
         hint = "timeout: connection beech mein ruk raha hai (ISP/firewall block ya VPN chahiye)"
@@ -94,52 +98,65 @@ def load_dotenv(path: str = ".env") -> dict:
 
 
 class TelegramNotifier:
-    """Token/chat id ka order: argument > environment variable > .env file (crypto-bot folder mein)."""
+    """Token/chat id/proxy ka order: argument > environment variable > .env file (crypto-bot folder mein).
 
-    def __init__(self, token: str | None = None, chat_id: str | None = None, env_file: str = ".env"):
-        file_vals = load_dotenv(env_file)
-        self.token = token or os.environ.get("TELEGRAM_BOT_TOKEN") or file_vals.get("TELEGRAM_BOT_TOKEN")
-        self.chat_id = chat_id or os.environ.get("TELEGRAM_CHAT_ID") or file_vals.get("TELEGRAM_CHAT_ID")
+    TELEGRAM_PROXY (optional): sirf Telegram ka traffic is proxy se jayega, baaki bot (Binance) seedha.
+    Jaise: socks5h://127.0.0.1:40000 (Cloudflare WARP proxy mode). `h` = DNS bhi proxy se.
+    """
+
+    API = "https://api.telegram.org"
+
+    def __init__(self, token: str | None = None, chat_id: str | None = None, env_file: str = ".env",
+                 proxy: str | None = None):
+        f = load_dotenv(env_file)
+        self.token = token or os.environ.get("TELEGRAM_BOT_TOKEN") or f.get("TELEGRAM_BOT_TOKEN")
+        self.chat_id = chat_id or os.environ.get("TELEGRAM_CHAT_ID") or f.get("TELEGRAM_CHAT_ID")
+        self.proxy = proxy or os.environ.get("TELEGRAM_PROXY") or f.get("TELEGRAM_PROXY") or None
 
     @property
     def enabled(self) -> bool:
         return bool(self.token and self.chat_id)
 
+    def _post(self, text: str) -> tuple[int, str]:
+        """(HTTP status, body). Network fail par exception uthata hai."""
+        payload = {"chat_id": self.chat_id, "text": text}
+        url = f"{self.API}/bot{self.token}/sendMessage"
+        if self.proxy:                                    # SOCKS/HTTP proxy ke liye requests (+pysocks)
+            import requests
+            r = requests.post(url, json=payload, timeout=15, proxies={"http": self.proxy, "https": self.proxy})
+            return r.status_code, r.text
+        req = urllib.request.Request(url, data=json.dumps(payload).encode(), headers={"Content-Type": "application/json"})
+        try:
+            with urllib.request.urlopen(req, timeout=10) as r:
+                return r.status, r.read().decode()
+        except urllib.error.HTTPError as e:
+            return e.code, e.read().decode()
+
     def check(self) -> tuple[bool, str]:
         """Test message bhej ke saaf wajah batata hai (error text mein token kabhi nahi hota)."""
         if not self.enabled:
             return False, "token ya chat id set nahi hai"
-        req = urllib.request.Request(
-            f"https://api.telegram.org/bot{self.token}/sendMessage",
-            data=json.dumps({"chat_id": self.chat_id, "text": "✅ Telegram test: bot connected"}).encode(),
-            headers={"Content-Type": "application/json"},
-        )
+        via = f" (proxy: {self.proxy.split('@')[-1]})" if self.proxy else ""
         try:
-            with urllib.request.urlopen(req, timeout=10) as r:
-                return r.status == 200, "ok"
-        except urllib.error.HTTPError as e:
-            try:
-                desc = json.loads(e.read().decode()).get("description", "")
-            except Exception:  # noqa: BLE001
-                desc = ""
-            hint = {401: "token galat ya revoke ho chuka", 400: "chat id galat ya aapne bot ko /start nahi bheja",
-                    403: "aapne bot ko block kiya hai ya /start nahi bheja", 404: "token galat"}.get(e.code, "")
-            return False, f"HTTP {e.code}: {desc} ({hint})" if hint else f"HTTP {e.code}: {desc}"
+            code, body = self._post("✅ Telegram test: bot connected")
         except Exception as e:  # noqa: BLE001
-            return False, "network error: " + explain_network_error(e, self.token)
+            return False, "network error" + via + ": " + explain_network_error(e, self.token)
+        if code == 200:
+            return True, "ok" + via
+        try:
+            desc = json.loads(body).get("description", "")
+        except Exception:  # noqa: BLE001
+            desc = ""
+        hint = {401: "token galat ya revoke ho chuka", 400: "chat id galat ya aapne bot ko /start nahi bheja",
+                403: "aapne bot ko block kiya hai ya /start nahi bheja", 404: "token galat"}.get(code, "")
+        return False, f"HTTP {code}: {desc} ({hint})" if hint else f"HTTP {code}: {desc}"
 
     def send(self, text: str) -> bool:
         """Kabhi exception nahi uthata: notification fail hone se bot band nahi hona chahiye."""
         if not self.enabled:
             return False
-        req = urllib.request.Request(
-            f"https://api.telegram.org/bot{self.token}/sendMessage",
-            data=json.dumps({"chat_id": self.chat_id, "text": text}).encode(),
-            headers={"Content-Type": "application/json"},
-        )
         try:
-            with urllib.request.urlopen(req, timeout=10) as r:
-                return r.status == 200
+            return self._post(text)[0] == 200
         except Exception as e:  # noqa: BLE001
             print("[telegram] send failed: " + explain_network_error(e, self.token))  # token print nahi karte
             return False

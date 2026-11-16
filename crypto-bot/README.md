@@ -139,3 +139,11 @@ Checks: har saal ka PnL, kya sirf top-3 coins ne kamaya, sirf BTC+ETH par result
 BTC+ETH par bhi profitable, 8/8 nearby settings profitable. **Lekin:** survivorship bias baaki hai, 2026 abhi tak negative hai (-23R), aur edge chhota hai (~0.1R/trade).
 `risk_pct 0.004` (0.4%) isliye ki 95% worst-case drawdown ~20% rahe. Bot top-30 liquid coins (`max_coins`) par hi chalta hai, kyunki edge sirf unhi par test hua.
 4h candle par scan hota hai (UTC 00, 04, 08, 12, 16, 20 ke baad), to trades kam aur kabhi kabhi din bhar koi signal nahi.
+
+
+## Telegram sirf proxy se (VPN poore PC par nahi)
+Agar aapke network par `api.telegram.org` block hai, to `.env` mein ek line jodo, aur sirf Telegram ka traffic us proxy se jayega (Binance seedha):
+```
+TELEGRAM_PROXY=socks5h://127.0.0.1:40000
+```
+`40000` Cloudflare WARP ke "proxy mode" ka default port hai. `pip install -r requirements.txt` (pysocks chahiye). `python main.py telegram-test` se check karo.

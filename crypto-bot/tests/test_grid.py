@@ -108,3 +108,48 @@ def test_network_error_is_explained_without_leaking_token(monkeypatch):
         monkeypatch.setattr(urllib.request, "urlopen", boom)
         ok, why = t.check()
         assert ok is False and word in why and "SECRET_TOKEN_VALUE" not in why
+
+
+def test_telegram_proxy_is_used_only_when_configured(tmp_path, monkeypatch):
+    import sys
+    import types
+    from gridbot.notify import TelegramNotifier
+
+    monkeypatch.delenv("TELEGRAM_PROXY", raising=False)
+    f = tmp_path / ".env"
+    f.write_text("TELEGRAM_BOT_TOKEN=1:abc\nTELEGRAM_CHAT_ID=5\nTELEGRAM_PROXY=socks5h://127.0.0.1:40000\n")
+    seen = {}
+
+    class R:
+        status_code, text = 200, "{}"
+
+    def fake_post(url, json=None, timeout=None, proxies=None):
+        seen.update(url=url, proxies=proxies)
+        return R()
+    monkeypatch.setitem(sys.modules, "requests", types.SimpleNamespace(post=fake_post))
+    t = TelegramNotifier(env_file=str(f))
+    assert t.proxy == "socks5h://127.0.0.1:40000"
+    ok, detail = t.check()
+    assert ok and "127.0.0.1:40000" in detail
+    assert seen["proxies"] == {"http": t.proxy, "https": t.proxy} and "/bot1:abc/sendMessage" in seen["url"]
+    assert t.send("hi") is True
+
+
+def test_proxy_errors_are_explained_and_token_hidden(tmp_path, monkeypatch):
+    import sys
+    import types
+    from gridbot.notify import TelegramNotifier
+
+    monkeypatch.delenv("TELEGRAM_PROXY", raising=False)
+
+    def refused(*a, **k):
+        raise OSError("SOCKSHTTPSConnectionPool(host='api.telegram.org') /bot1:TOPSECRET/sendMessage: proxy 127.0.0.1:40000 connection refused")
+    monkeypatch.setitem(sys.modules, "requests", types.SimpleNamespace(post=refused))
+    t = TelegramNotifier(token="1:TOPSECRET", chat_id="5", env_file="none.env", proxy="socks5h://127.0.0.1:40000")
+    ok, why = t.check()
+    assert not ok and "proxy chalu nahi" in why and "TOPSECRET" not in why
+
+    def nosocks(*a, **k):
+        raise RuntimeError("Missing dependencies for SOCKS support.")
+    monkeypatch.setitem(sys.modules, "requests", types.SimpleNamespace(post=nosocks))
+    assert "pysocks" in t.check()[1]
