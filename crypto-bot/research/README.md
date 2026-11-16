@@ -24,3 +24,11 @@ Mechanical version, market entry, taker fee 0.05% + slippage 0.02%, R = ATR stop
 | Range scalping | +0.001 | -0.246 | 0/8 |
 | Random entry (control) | -0.094 | -0.340 | 0/8 |
 Fees ke bina bhi in tareeko mein koi edge nahi (gross ~0). Order book/tape reading test nahi ho sakta (L2 data + low latency chahiye).
+
+## HTF bias + order flow (taker delta) gates, 12 coins, 2020-2026
+Order-flow proxy: Binance klines ka taker-buy volume se delta=(buy-sell)/total, pichli 8 bars par.
+- 15m aur 1h par: bias/flow gates ka net result negative ya ~0 (fees ke baad).
+- 4h par **bias + 20-bar breakout (flow ke bina)** hi net positive hai (T24: +0.21R, T48: +0.41R; train/test dono positive, long hold, koi TP nahi). Yani edge mostly "higher-timeframe trend + breakout" se aata hai.
+- Flow gate (delta>3%) thoda sudhar laata hai (test +0.07R -> +0.16R at T24, +0.24R -> +0.32R at T48), par zyada sakht (6%, 10%) karne par train achha aur test kharab (overfit).
+- Lamba hold (T48 = 8 din) 4h par T24 se behtar. Bot ke apne validate mein bhi max_hold_hours=96 behtar nikla (+0.128R vs +0.095R).
+Caveat: 12 survivor coins, kuch combos mein se chuna gaya result: bot ke pipeline par validate karna zaroori.

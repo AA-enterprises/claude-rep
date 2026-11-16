@@ -254,6 +254,26 @@ def sig_range(d, width=6.0, edge=0.15):
     return up.astype(np.int8) - dn.astype(np.int8)
 
 
+def sig_flow(d, th=0.08, cont=1):
+    x = d["dr"]
+    up = np.zeros(len(x), bool)
+    dn = np.zeros(len(x), bool)
+    up[1:] = (x[:-1] <= th) & (x[1:] > th)
+    dn[1:] = (x[:-1] >= -th) & (x[1:] < -th)
+    return cont * (up.astype(np.int8) - dn.astype(np.int8))
+
+
+def sig_bias_flow(d, mode, rl=35, th=0.03):
+    """mode 'pb': bias + flow + pullback (RSI7) | 'bo': bias + flow + 20-bar breakout (3 gates)."""
+    up_b, dn_b = d["bias_f"] > d["bias_s"], d["bias_f"] < d["bias_s"]
+    up_f, dn_f = d["dr"] > th, d["dr"] < -th
+    if mode == "pb":
+        up, dn = up_b & up_f & (d["rsi7"] < rl), dn_b & dn_f & (d["rsi7"] > 100 - rl)
+    else:
+        up, dn = up_b & up_f & (d["c"] > d["hi20"]), dn_b & dn_f & (d["c"] < d["lo20"])
+    return up.astype(np.int8) - dn.astype(np.int8)
+
+
 def sig_random(d, p, seed=1):
     r = np.random.default_rng(seed)
     x = r.random(len(d["c"]))
@@ -264,11 +284,21 @@ def sig_random(d, p, seed=1):
 # ---------------- loading / evaluation ----------------
 
 
+def add_flow(d, n=8):
+    """Order-flow proxy: taker buy volume se delta = (buy - sell)/total, pichli n bars par."""
+    delta = 2.0 * d["tb"] - d["v"]
+    cd, cv = np.cumsum(delta), np.cumsum(d["v"])
+    dr = np.full(len(delta), np.nan)
+    dr[n:] = (cd[n:] - cd[:-n]) / np.maximum(cv[n:] - cv[:-n], 1e-12)
+    d["dr"] = dr
+    return d
+
+
 def load(dir_, tf="15m"):
     data = {}
     for p in sorted(glob.glob(os.path.join(dir_, f"*_{tf}.npz"))):
         z = np.load(p)
-        d = {k: z[k].astype(np.float64) if k != "ts" else z[k] for k in ("ts", "o", "h", "l", "c", "v")}
+        d = {k: z[k].astype(np.float64) if k != "ts" else z[k] for k in ("ts", "o", "h", "l", "c", "v", "tb")}
         d["atr"] = atr_w(d["h"], d["l"], d["c"])
         d["ema20"], d["ema50"], d["ema200"] = ema(d["c"], 20), ema(d["c"], 50), ema(d["c"], 200)
         d["rsi"], d["rsi7"] = rsi_w(d["c"], 14), rsi_w(d["c"], 7)
@@ -276,6 +306,8 @@ def load(dir_, tf="15m"):
         d["ema9"], d["ema21"] = ema(d["c"], 9), ema(d["c"], 21)
         d["vwap"] = vwap_daily(d["ts"], d["h"], d["l"], d["c"], d["v"])
         d["hi20"], d["lo20"] = roll_max_prior(d["h"], 20), roll_min_prior(d["l"], 20)
+        add_flow(d)
+        d["bias_f"], d["bias_s"] = ema(d["c"], 800), ema(d["c"], 3200)      # ~ 1h EMA50/EMA200 ke barabar (15m par)
         d["year"] = (d["ts"] // 1000 // 31_557_600 + 1970).astype(np.int32)
         data[os.path.basename(p).split("_")[0]] = d
     return data
@@ -329,12 +361,17 @@ def resample(d, k, base_ms=900_000):
     t2 = ts[sl].reshape(-1, k)
     ok = (t2[:, -1] - t2[:, 0]) == (k - 1) * base_ms
     r = {}
-    for key, fn in (("o", lambda a: a[:, 0]), ("h", lambda a: a.max(1)), ("l", lambda a: a.min(1)), ("c", lambda a: a[:, -1]), ("v", lambda a: a.sum(1))):
+    for key, fn in (("o", lambda a: a[:, 0]), ("h", lambda a: a.max(1)), ("l", lambda a: a.min(1)), ("c", lambda a: a[:, -1]), ("v", lambda a: a.sum(1)), ("tb", lambda a: a.sum(1))):
         r[key] = fn(d[key][sl].reshape(-1, k))[ok]
     r["ts"] = t2[:, 0][ok]
     r["atr"] = atr_w(r["h"], r["l"], r["c"])
     r["ema20"], r["ema50"], r["ema200"] = ema(r["c"], 20), ema(r["c"], 50), ema(r["c"], 200)
     r["rsi"], r["rsi7"] = rsi_w(r["c"], 14), rsi_w(r["c"], 7)
     r["vr"] = r["v"] / sma_prior(r["v"], 20)
+    r["ema9"], r["ema21"] = ema(r["c"], 9), ema(r["c"], 21)
+    r["vwap"] = vwap_daily(r["ts"], r["h"], r["l"], r["c"], r["v"])
+    r["hi20"], r["lo20"] = roll_max_prior(r["h"], 20), roll_min_prior(r["l"], 20)
+    add_flow(r)
+    r["bias_f"], r["bias_s"] = ema(r["c"], 50), ema(r["c"], 200)
     r["year"] = (r["ts"] // 1000 // 31_557_600 + 1970).astype(np.int32)
     return r
