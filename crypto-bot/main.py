@@ -77,6 +77,19 @@ def cmd_paper(args) -> int:
     return 0
 
 
+def make_cache_dataset(args, cfg, sb, history, sc):
+    """Cache se dataset: --entry intrabar ho to adhoori candle wala, warna band candle wala."""
+    only = sc.normalize_symbols(args.symbols) or None
+    if getattr(args, "entry", "close") == "intrabar":
+        series = history.load_cache(args.cache_dir, "15m", args.coins, only)
+        if not series:
+            return None
+        print("Entry mode: INTRABAR (har 15 min adhoori candle dekh kar; features precompute mein kuch minute lag sakte hain)")
+        return sb.IntrabarDataset(series, cfg.tf_ms)
+    series = history.load_resampled(args.cache_dir, cfg, args.coins, only=only)
+    return sb.Dataset(series, cfg.tf_ms) if series else None
+
+
 def cmd_scalp_backtest(args) -> int:
     from dataclasses import replace
     from scalp import backtest as sb, config as sc, scanner, sim
@@ -86,12 +99,11 @@ def cmd_scalp_backtest(args) -> int:
         print(f"Timeframe: {cfg.timeframe} (15m cache se resample)")
     if args.source == "cache":
         from scalp import history
-        series = history.load_resampled(args.cache_dir, cfg, args.coins, only=sc.normalize_symbols(args.symbols) or None)
-        if not series:
+        data_ = make_cache_dataset(args, cfg, sb, history, sc)
+        if data_ is None:
             print("Cache khali hai. Pehle: python main.py scalp-download")
             return 1
-        print(f"{len(series)} coins cache se load hue")
-        data_ = sb.Dataset(series, cfg.tf_ms)
+        print(f"{len(data_.s)} coins cache se load hue")
     elif args.source == "binance":
         ex = scanner.make_exchange()
         syms, _ = scanner.universe(ex, cfg, limit=0)
@@ -131,11 +143,10 @@ def cmd_scalp_sweep(args) -> int:
     if args.source == "synthetic":
         ds = sb.Dataset.from_candles(sim.market(cfg, coins=args.coins, n=args.limit), cfg.tf_ms)
     else:
-        series = history.load_resampled(args.cache_dir, cfg, args.coins, only=sc.normalize_symbols(args.symbols) or None)
-        if not series:
+        ds = make_cache_dataset(args, cfg, sb, history, sc)
+        if ds is None:
             print("Cache khali hai. Pehle: python main.py scalp-download")
             return 1
-        ds = sb.Dataset(series, cfg.tf_ms)
     from dataclasses import replace
     grid, over = sweep.grid_for(args.mode, args.quick, slow=cfg.timeframe != "15m")
     rows = sweep.sweep(ds, replace(cfg, **over), grid, out_csv=args.out)
@@ -159,12 +170,12 @@ def cmd_scalp_validate(args) -> int:
     cfg = replace(cfg, **cand)
     cfg.validate()
     print("Config:", {k: getattr(cfg, k) for k in cand})
-    series = history.load_resampled(args.cache_dir, cfg, args.coins, only=sc.normalize_symbols(args.symbols) or None)
-    if not series:
+    ds = make_cache_dataset(args, cfg, sb, history, sc)
+    if ds is None:
         print("Cache khali hai. Pehle: python main.py scalp-download")
         return 1
-    print(f"{len(series)} coins, timeframe {cfg.timeframe}")
-    validate.validate(sb.Dataset(series, cfg.tf_ms), cfg)
+    print(f"{len(ds.s)} coins, timeframe {cfg.timeframe}, entry {getattr(args, 'entry', 'close')}")
+    validate.validate(ds, cfg)
     return 0
 
 
@@ -235,6 +246,7 @@ def main() -> int:
     sb_.add_argument("--timeframe", choices=["15m", "1h", "4h"], help="cache 15m se resample hota hai")
     sb_.add_argument("--coins", type=int, default=20)
     sb_.add_argument("--limit", type=int, default=700)
+    sb_.add_argument("--entry", choices=["close", "intrabar"], default="close", help="close: band hui candle par | intrabar: har 15 min adhoori candle dekh kar")
     sb_.add_argument("--symbols", default="", help="chune hue coins, jaise BTC,ETH,SOL,BNB")
     sb_.set_defaults(fn=cmd_scalp_backtest)
     sd_ = sub.add_parser("scalp-download")
@@ -252,6 +264,7 @@ def main() -> int:
     sw_.add_argument("--timeframe", choices=["15m", "1h", "4h"], help="cache 15m se resample hota hai")
     sw_.add_argument("--mode", choices=["atr", "roi"], default="atr", help="atr: ATR stop/target + trailing, roi: purana 70/-20 rule")
     sw_.add_argument("--out", default="sweep_results.csv")
+    sw_.add_argument("--entry", choices=["close", "intrabar"], default="close", help="close: band hui candle par | intrabar: har 15 min adhoori candle dekh kar")
     sw_.add_argument("--symbols", default="", help="chune hue coins, jaise BTC,ETH,SOL,BNB")
     sw_.set_defaults(fn=cmd_scalp_sweep)
     dd_ = sub.add_parser("scalp-dashboard")
@@ -264,6 +277,7 @@ def main() -> int:
     sv_.add_argument("--cache-dir", default="data_cache")
     sv_.add_argument("--coins", type=int, default=30)
     sv_.add_argument("--set", action="append", default=[], metavar="KEY=VALUE", help="config override, jaise --set sl_atr=2.5 (kayi baar de sakte ho)")
+    sv_.add_argument("--entry", choices=["close", "intrabar"], default="close", help="close: band hui candle par | intrabar: har 15 min adhoori candle dekh kar")
     sv_.add_argument("--symbols", default="", help="chune hue coins, jaise BTC,ETH,SOL,BNB")
     sv_.set_defaults(fn=cmd_scalp_validate)
     sub.add_parser("telegram-test").set_defaults(fn=cmd_telegram_test)

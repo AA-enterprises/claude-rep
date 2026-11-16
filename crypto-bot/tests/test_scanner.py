@@ -261,3 +261,25 @@ def test_auto_test_trade_picks_setup_from_current_candle(tmp_path):
     assert ok and "TRADE OPENED" in tg.msgs[0] and "LONG" in tg.msgs[0] and "UP" in tg.msgs[0] and "TEST" in tg.msgs[0]
     assert "TEST TRADE CLOSED" in tg.msgs[-1]
     assert scanner.stats_from_csv(str(tmp_path / "t.csv"))["n"] == 1
+
+
+def test_intrabar_live_scan_enters_on_forming_candle_without_waiting(tmp_path):
+    from dataclasses import replace
+    base = ScalpConfig()
+    cfg = replace(base, entry_mode="intrabar")
+    ex, tg = FakeEx(cfg), Rec()
+    # pichli candle normal, aur abhi ki ADHOORI candle mein breakout + volume (open ts <= now < ts + tf)
+    closed = ex.cs[:-1]
+    c = closed[-1]
+    forming = (ex.now - cfg.tf_ms // 4, c[4], c[4] * 1.04, c[4], c[4] * 1.035, 400.0)
+    ex.cs = closed + [forming]
+    bot = scanner.Bot(cfg, str(tmp_path / "s.json"), str(tmp_path / "t.csv"), tg, ex=ex)
+    bot.scan()
+    assert len(bot.acct.positions) == 1 and "TRADE OPENED" in tg.msgs[0]
+    assert "INTRABAR" in tg.msgs[0]
+    # close mode mein wahi data: band candle par signal nahi, to trade nahi
+    ex2, tg2 = FakeEx(base), Rec()
+    ex2.cs = closed + [forming]
+    bot2 = scanner.Bot(base, str(tmp_path / "s2.json"), str(tmp_path / "t2.csv"), tg2, ex=ex2)
+    bot2.scan()
+    assert len(bot2.acct.positions) == 0

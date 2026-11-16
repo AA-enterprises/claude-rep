@@ -47,6 +47,7 @@ class ScalpConfig:
     fetch_workers: int = 5        # candles parallel mein itne coins ek saath mangta hai
     report_hours: float = 12.0    # Telegram par itne ghante mein ek report (0 = band)
     # --- ATR exit mode (default): stop/target har coin ki volatility ke hisaab se ---
+    entry_mode: str = "close"     # "close": band hui candle par (validate hua) | "intrabar": har 15 min adhoori candle dekh kar foran entry
     exit_mode: str = "atr"        # "atr" | "roi" (purana 70%/-20% ROI rule)
     sl_atr: float = 1.5           # stop = entry se 1.5 x ATR door
     tp_atr: float = 3.0           # target = 3 x ATR (risk:reward 1:2). 0 = koi fixed target nahi
@@ -73,6 +74,8 @@ class ScalpConfig:
             raise ValueError("symbols: BTC jaisa naam ya BTC/USDT:USDT")
         if self.report_hours < 0:
             raise ValueError("report_hours >= 0")
+        if self.entry_mode not in ("close", "intrabar"):
+            raise ValueError("entry_mode: close/intrabar")
         if self.exit_mode not in ("atr", "roi"):
             raise ValueError("exit_mode: atr/roi")
         if self.exit_mode == "atr" and (self.sl_atr <= 0 or self.tp_atr < 0 or self.trail_atr < 0 or not 0 < self.risk_pct <= 0.05):

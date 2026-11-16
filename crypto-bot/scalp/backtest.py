@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 
 from .account import PaperAccount
 from .config import ScalpConfig
-from .features import Series, compute, regime_series
+from .features import Series, compute, group_bars, intrabar_events, regime_series
 from .signals import decide
 
 DAY = 86_400_000
@@ -33,8 +33,9 @@ class Dataset:
     def subset(self, syms) -> "Dataset":
         """Kuch coins hata ke/chun ke naya dataset (features dobara nahi nikalte). BTC regime original rehta hai."""
         keep = set(syms)
-        new = object.__new__(Dataset)
-        new.s, new.tf = {k: v for k, v in self.s.items() if k in keep}, self.tf
+        new = object.__new__(type(self))
+        new.__dict__.update(self.__dict__)
+        new.s = {k: v for k, v in self.s.items() if k in keep}
         new.events = {}
         for t, ev in self.events.items():
             e = [x for x in ev if x[0] in keep]
@@ -42,7 +43,6 @@ class Dataset:
                 new.events[t] = e
         new.tmin = min(s.ts[0] for s in new.s.values())
         new.tmax = max(s.ts[-1] for s in new.s.values())
-        new.btc_ts, new.btc_reg = self.btc_ts, self.btc_reg
         return new
 
     def at(self, sym: str, t: int) -> int | None:
@@ -55,6 +55,30 @@ class Dataset:
             return None
         i = bisect_left(self.btc_ts, t)
         return self.btc_reg[i] if i < len(self.btc_ts) and self.btc_ts[i] == t else None
+
+
+class IntrabarDataset(Dataset):
+    """Entry har 15m candle ke close par adhoori badi (4h) candle dekh kar. Exit/trailing bhi 15m candles par."""
+
+    def __init__(self, series15: dict[str, Series], tf_ms: int, base_ms: int = 900_000):
+        self.s, self.tf, self.grid, self.base = series15, tf_ms, base_ms, base_ms
+        self.events = {}
+        for sym, s in series15.items():
+            for ts, f in intrabar_events(s, base_ms, tf_ms).items():
+                self.events.setdefault(ts, []).append((sym, f))
+        self.tmin = min(s.ts[0] for s in series15.values())
+        self.tmax = max(s.ts[-1] for s in series15.values())
+        btc = next((k for k in series15 if k.startswith("BTC/")), None)
+        self.btc_ts = self.btc_reg = None
+        if btc:
+            bars, _ = group_bars(series15[btc], base_ms, tf_ms)
+            self.btc_ts, self.btc_reg = bars.ts, regime_series(bars.c)
+
+    def regime(self, t: int) -> int | None:
+        if self.btc_ts is None:
+            return None
+        i = bisect_left(self.btc_ts, t + self.base - self.tf + 1) - 1      # aakhri poori band hui 4h bar
+        return self.btc_reg[i] if i >= 0 else None
 
 
 @dataclass
@@ -118,12 +142,13 @@ def run(data, cfg: ScalpConfig, t0: int | None = None, t1: int | None = None) ->
     ds = data if isinstance(data, Dataset) else Dataset.from_candles(data, cfg.tf_ms)
     t0 = ds.tmin if t0 is None else t0
     t1 = ds.tmax + 1 if t1 is None else t1
-    t0 = ds.tmin + -(-(t0 - ds.tmin) // cfg.tf_ms) * cfg.tf_ms      # dataset ki apni grid par align (ceil)
+    step = getattr(ds, "grid", None) or cfg.tf_ms                  # intrabar mein 15m, warna candle timeframe
+    t0 = ds.tmin + -(-(t0 - ds.tmin) // step) * step                # dataset ki apni grid par align (ceil)
     acct = PaperAccount(cfg, unlimited=not cfg.compound)
     res = Result(cfg.start_balance, cfg.start_balance)
     peak = cfg.start_balance
     day, day_start, last_t = None, cfg.start_balance, t0
-    for t in range(t0, t1, cfg.tf_ms):
+    for t in range(t0, t1, step):
         last_t = t
         for sym, pos in list(acct.positions.items()):
             i = ds.at(sym, t)

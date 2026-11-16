@@ -102,6 +102,7 @@ class Bot:
         self.updated, self.last_eq_log = 0.0, 0.0
         self.last_report = 0.0
         self.candles: dict[str, list[tuple]] = {}     # har coin ki closed candles yaad (memory mein)
+        self.forming: dict[str, tuple | None] = {}    # intrabar mode: abhi ki adhoori candle
         self.equity_path = state_path.replace(".json", "_equity.csv")
         if os.path.exists(state_path):
             st = json.load(open(state_path))
@@ -222,6 +223,19 @@ class Bot:
         self.candles[sym] = full
         return bool(full)
 
+    def _forming(self, sym: str) -> tuple | None:
+        """Abhi ban rahi (adhoori) badi candle: exchange se uska ab tak ka OHLCV."""
+        cs = self.candles.get(sym)
+        if not cs:
+            return None
+        tf = self.cfg.tf_ms
+        rows = self.ex.fetch_ohlcv(sym, self.cfg.timeframe, since=cs[-1][0] + tf, limit=5)
+        now = self.ex.milliseconds()
+        for r in rows:
+            if r[0] + tf > now:
+                return tuple(r[:6])
+        return None
+
     def scan(self) -> None:
         t0 = time.time()
         self._roll_day()
@@ -233,9 +247,14 @@ class Bot:
         if self.cfg.btc_filter and "BTC/USDT:USDT" not in todo:
             todo.append("BTC/USDT:USDT")
 
+        intrabar = self.cfg.entry_mode == "intrabar"
+
         def work(sym: str):
             try:
-                return sym, self._update_candles(sym), None
+                fresh = self._update_candles(sym)
+                if intrabar:
+                    self.forming[sym] = self._forming(sym)
+                return sym, fresh, None
             except Exception as e:  # noqa: BLE001
                 return sym, False, e
         with ThreadPoolExecutor(max_workers=max(1, self.cfg.fetch_workers)) as pool:
@@ -254,7 +273,14 @@ class Bot:
                     print(f"  {sym}: {type(err).__name__}")
                 continue
             cs = self.candles.get(sym) or []
-            if fresh and sym in syms and len(cs) >= MIN_CANDLES:      # sirf nayi candle par signal dekho
+            if intrabar:                                             # adhoori candle ke saath, har scan par
+                f = self.forming.get(sym)
+                if f and sym in syms and len(cs) >= MIN_CANDLES:
+                    s = evaluate(sym, cs + [f], self.cfg, reg)
+                    if s:
+                        s.gates = ["INTRABAR (candle abhi band nahi hui)"] + s.gates
+                        sigs.append(s)
+            elif fresh and sym in syms and len(cs) >= MIN_CANDLES:   # sirf nayi band hui candle par signal dekho
                 s = evaluate(sym, cs, self.cfg, reg)
                 if s:
                     sigs.append(s)
@@ -275,8 +301,10 @@ class Bot:
         self.save()
 
     def run(self) -> None:
-        print(f"Scalp bot started (Paper) | balance {self.acct.balance:,.2f} | Telegram: {'ON (sirf trade open/close)' if self.tg.enabled else 'OFF'}")
-        tf = self.cfg.tf_ms / 1000
+        intrabar = self.cfg.entry_mode == "intrabar"
+        print(f"Scalp bot started (Paper) | balance {self.acct.balance:,.2f} | Telegram: {'ON (sirf trade open/close)' if self.tg.enabled else 'OFF'}"
+              f" | entry: {'INTRABAR (har 15 min)' if intrabar else f'candle close ({self.cfg.timeframe})'}")
+        tf = 900.0 if intrabar else self.cfg.tf_ms / 1000                 # intrabar: har 15m candle ke close par
         next_scan = 0.0
         try:
             while True:

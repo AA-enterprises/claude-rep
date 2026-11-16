@@ -178,3 +178,12 @@ python main.py scalp-test-trade                                   # abhi ki cand
 python main.py scalp-test-trade --symbol BTC --side long --minutes 30   # ya khud chuno
 python main.py scalp-dashboard --state scalp_test_state.json --trades scalp_test_trades.csv --port 8051   # test trade dashboard par
 ```
+
+## Intrabar entry (adhoori candle dekh kar foran entry)
+Default `entry_mode: "close"`: signal sirf band hui 4h candle par (yahi validate hua). `"intrabar"`: bot har 15 minute par adhoori 4h candle ko dekhta hai aur signal banate hi entry le leta hai (4 ghante ka intezaar nahi).
+Pehle backtest se compare karo (6 saal ka data, same settings):
+```powershell
+python main.py scalp-validate --entry intrabar          # intrabar (precompute mein kuch minute lagte hain)
+python main.py scalp-validate                           # close (purana)
+```
+Jo behtar nikle wahi `scalp_config.json` mein `"entry_mode"` rakho. Intrabar mein signal candle ke beech mein aa ke candle band hone tak hat bhi sakta hai (whipsaw); backtest ye bhi ginta hai.

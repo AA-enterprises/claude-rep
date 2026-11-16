@@ -289,3 +289,44 @@ def test_subset_and_validate_run_end_to_end():
     assert validate.parse_overrides(["sl_atr=2.5", "btc_filter=true", "min_gates=4"]) == {"sl_atr": 2.5, "btc_filter": True, "min_gates": 4}
     b = validate.bootstrap([1.0, -1.0, 2.0, -1.0], 0.01, sims=200)
     assert 0 <= b["p_profit"] <= 1 and b["dd95"] >= b["dd50"] >= 0
+
+
+def _s15(n_bars=700, seed=11, k=16, base_ms=900_000):
+    """15m candles jo 4h grid par aligned hon (k sub-bars har bar mein)."""
+    cs = sim.coin(n_bars * k, 100, seed, base_ms, t0=(1_700_000_000_000 // (k * base_ms) + 1) * (k * base_ms))
+    from scalp.features import Series
+    return cs, Series.from_candles(cs)
+
+
+def test_intrabar_last_subbar_equals_closed_candle_features():
+    from scalp.features import Series, compute, group_bars, intrabar_events
+    base, new = 900_000, 3_600_000 * 4
+    cs, s15 = _s15()
+    bars, starts = group_bars(s15, base, new)
+    assert len(bars.ts) == 700 and starts[1] - starts[0] == 16
+    closed = compute(bars.h, bars.l, bars.c, bars.v)                  # purana tareeka: band hui 4h candle
+    ib = intrabar_events(s15, base, new)
+    checked = same = 0
+    for i, f in closed.items():
+        t_last = s15.ts[starts[i] + 15]                               # us bar ka aakhri 15m sub-bar
+        g = ib.get(t_last)
+        checked += 1
+        if g and g.lmask == f.lmask and g.smask == f.smask and abs(g.price - f.price) < 1e-9 and abs(g.vol_ratio - f.vol_ratio) < 1e-9 \
+                and abs(g.atr_pct - f.atr_pct) < 1e-9:
+            same += 1
+    assert checked > 20 and same == checked                           # incremental math bilkul wahi
+    assert len(ib) > len(closed)                                      # beech ke sub-bars par bhi decision points
+
+
+def test_intrabar_backtest_runs_with_15m_exits_and_subset():
+    from dataclasses import replace
+    cs_map = {f"COIN{i}/USDT:USDT": _s15(500, seed=20 + i)[1] for i in range(4)}
+    cfg = replace(ScalpConfig(), timeframe="4h", max_hold_hours=48.0)
+    ds = backtest.IntrabarDataset(cs_map, cfg.tf_ms)
+    r = backtest.run(ds, cfg)
+    assert r.records and all(abs(x["pnl"]) < 5000 for x in r.records)
+    assert r.end == pytest.approx(cfg.start_balance + sum(x["pnl"] for x in r.records), rel=1e-9)
+    # intrabar mein entry 4h candle ke beech bhi ho sakti hai (4h boundary par hi nahi)
+    assert any((x["closed_ts"] - x["held_min"] * 60_000) % (4 * 3_600_000) != 0 for x in r.records)
+    sub = ds.subset(list(cs_map)[:2])
+    assert isinstance(sub, backtest.IntrabarDataset) and len(backtest.run(sub, cfg).records) > 0
