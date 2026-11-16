@@ -101,6 +101,7 @@ class Bot:
         self.prices: dict[str, float] = {}
         self.updated, self.last_eq_log = 0.0, 0.0
         self.last_report = 0.0
+        self.scan_stats = self._new_stats()
         self.candles: dict[str, list[tuple]] = {}     # har coin ki closed candles yaad (memory mein)
         self.forming: dict[str, tuple | None] = {}    # intrabar mode: abhi ki adhoori candle
         self.equity_path = state_path.replace(".json", "_equity.csv")
@@ -125,6 +126,10 @@ class Bot:
             except PermissionError:
                 time.sleep(0.1)
 
+    @staticmethod
+    def _new_stats() -> dict:
+        return {"scans": 0, "signals": 0, "skipped": 0, "opened": 0, "last_scan_ms": 0, "last_skip": ""}
+
     def _maybe_report(self, now: float) -> None:
         """Har `report_hours` ghante mein Telegram report. Pehli baar sirf baseline set hota hai (turant report nahi)."""
         hrs = self.cfg.report_hours
@@ -137,7 +142,9 @@ class Bot:
             since_ms, now_ms = int(self.last_report * 1000), int(now * 1000)
             unreal = sum(p.unrealized(self.prices.get(sym, p.entry)) for sym, p in self.acct.positions.items())
             self.tg.send(messages.report(window_stats(self.trades_path, since_ms), since_ms, now_ms, self.acct.balance,
-                                         self.acct.balance + unreal, len(self.acct.positions), unreal))
+                                         self.acct.balance + unreal, len(self.acct.positions), unreal,
+                                         scan=self.scan_stats, bot_label=self.cfg.label))
+            self.scan_stats = self._new_stats()
             self.last_report = now
 
     def process_commands(self) -> None:
@@ -324,6 +331,9 @@ class Bot:
                     sigs.append(s)
         sigs.sort(key=lambda s: (s.score, s.vol_ratio), reverse=True)
         print(f"  signals: {len(sigs)} (errors {errors}) | scan {time.time() - t0:.1f}s")
+        self.scan_stats["scans"] += 1
+        self.scan_stats["signals"] += len(sigs)
+        self.scan_stats["last_scan_ms"] = self.ex.milliseconds()
         if not self._entries_allowed():
             return
         opened = 0
@@ -333,9 +343,13 @@ class Bot:
             px = (self.ex.fetch_ticker(s.symbol) or {}).get("last") or s.price
             pos = self.acct.open(s, px, self.ex.milliseconds())
             if not pos:
-                print(f"  skip {s.symbol} {s.side}: {self.acct.reject_reason(s, px) or 'margin/risk limit'}")
+                why = self.acct.reject_reason(s, px) or "margin/risk limit"
+                print(f"  skip {s.symbol} {s.side}: {why}")
+                self.scan_stats["skipped"] += 1
+                self.scan_stats["last_skip"] = f"{messages.name(s.symbol)} {s.side} ({why[:60]})"
             if pos:
                 opened += 1
+                self.scan_stats["opened"] += 1
                 print(f"OPEN {pos.side} {s.symbol} @ {px}")
                 self.tg.send(messages.opened(pos, self.cfg, self.acct.balance))
         self.save()

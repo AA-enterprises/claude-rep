@@ -425,3 +425,21 @@ def test_browser_opens_only_if_no_dashboard_tab_is_already_polling(tmp_path, mon
     time.sleep(0.3)
     assert len(opened) == 1
     srv3.shutdown()
+
+
+def test_report_shows_bot_is_alive_with_scan_stats_even_without_trades(tmp_path):
+    import time
+    from dataclasses import replace
+    cfg = replace(ScalpConfig(), label="FREQ", max_atr_pct=0.0001)      # har signal "bahut volatile" mana jayega -> skip
+    ex, tg = FakeEx(cfg), Rec()
+    bot = scanner.Bot(cfg, str(tmp_path / "s.json"), str(tmp_path / "t.csv"), tg, ex=ex)
+    bot.heartbeat()                                                    # baseline
+    bot.scan()
+    assert bot.scan_stats["scans"] == 1 and bot.scan_stats["signals"] >= 1 and bot.scan_stats["skipped"] >= 1
+    assert not bot.acct.positions and tg.msgs == []                    # trade nahi, koi message nahi
+    bot.last_report = time.time() - 13 * 3600
+    bot.heartbeat()
+    rep = tg.msgs[-1]
+    assert "REPORT" in rep and "FREQ" in rep and "Bot zinda: 1 scans" in rep and "skip" in rep and "Aakhri skip: UP" in rep
+    assert "Trades closed: 0" in rep
+    assert bot.scan_stats["scans"] == 0                                # report ke baad counters reset

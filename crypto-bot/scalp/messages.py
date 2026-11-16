@@ -75,10 +75,11 @@ def closed(rec: dict, equity: float, stats: dict, bot_label: str = "") -> str:
 
 
 
-def report(w: dict, since_ms: int, now_ms: int, balance: float, equity: float, n_open: int, unrealized: float) -> str:
+def report(w: dict, since_ms: int, now_ms: int, balance: float, equity: float, n_open: int, unrealized: float,
+           scan: dict | None = None, bot_label: str = "") -> str:
     hours = (now_ms - since_ms) / 3_600_000
     lines = [
-        f"📊 {hours:.0f}h REPORT",
+        f"📊 {hours:.0f}h REPORT" + (f" · {bot_label}" if bot_label else ""),
         f"{utc(since_ms)} → {utc(now_ms)}",
         "──────────────",
         f"Trades closed: {w['n']} (won {w['wins']} / lost {w['losses']})" + (f" · win rate {w['wins'] / w['n']:.0%}" if w["n"] else ""),
@@ -88,6 +89,13 @@ def report(w: dict, since_ms: int, now_ms: int, balance: float, equity: float, n
     ]
     if w["n"]:
         lines.append(f"Best: {name(w['best'][0])} {w['best'][1]:+,.2f} · Worst: {name(w['worst'][0])} {w['worst'][1]:+,.2f}")
+    if scan is not None:
+        lines += ["──────────────",
+                  f"🔍 Bot zinda: {scan['scans']} scans · {scan['signals']} signals · {scan['skipped']} skip" +
+                  (f" · {scan['opened']} trade khuli" if scan.get("opened") else ""),
+                  f"Aakhri scan: {utc(scan['last_scan_ms']) if scan.get('last_scan_ms') else 'abhi tak koi nahi'}"]
+        if scan.get("last_skip"):
+            lines.append(f"Aakhri skip: {scan['last_skip']}")
     lines += [
         "──────────────",
         f"Open positions: {n_open} (unrealized {unrealized:+,.2f} USDT)",
