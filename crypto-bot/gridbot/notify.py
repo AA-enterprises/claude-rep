@@ -98,21 +98,39 @@ def load_dotenv(path: str = ".env") -> dict:
     return vals
 
 
+TOKEN_RE = re.compile(r"^\d{6,12}:[A-Za-z0-9_-]{30,50}$")
+
+
 class TelegramNotifier:
-    """Token/chat id/proxy ka order: argument > environment variable > .env file (crypto-bot folder mein).
+    """Token/chat id/proxy ka order: argument > .env file (crypto-bot folder) > environment variable.
 
     TELEGRAM_PROXY (optional): sirf Telegram ka traffic is proxy se jayega, baaki bot (Binance) seedha.
-    Jaise: socks5h://127.0.0.1:40000 (Cloudflare WARP proxy mode). `h` = DNS bhi proxy se.
+    Kai proxy comma se alag karke likh sakte ho. Jaise: socks5h://127.0.0.1:40000
     """
 
     API = "https://api.telegram.org"
 
     def __init__(self, token: str | None = None, chat_id: str | None = None, env_file: str = ".env",
                  proxy: str | None = None):
+        self.env_file = env_file
         f = load_dotenv(env_file)
-        self.token = token or os.environ.get("TELEGRAM_BOT_TOKEN") or f.get("TELEGRAM_BOT_TOKEN")
-        self.chat_id = chat_id or os.environ.get("TELEGRAM_CHAT_ID") or f.get("TELEGRAM_CHAT_ID")
-        raw = proxy or os.environ.get("TELEGRAM_PROXY") or f.get("TELEGRAM_PROXY") or ""
+        self.src: dict[str, str] = {}
+
+        def pick(name: str, arg: str | None) -> str | None:
+            if arg:
+                self.src[name] = "argument"
+                return arg
+            if f.get(name):
+                self.src[name] = ".env file"
+                return f[name]
+            if os.environ.get(name):
+                self.src[name] = "environment variable"
+                return os.environ[name]
+            return None
+
+        self.token = pick("TELEGRAM_BOT_TOKEN", token)
+        self.chat_id = pick("TELEGRAM_CHAT_ID", chat_id)
+        raw = pick("TELEGRAM_PROXY", proxy) or ""
         self.proxies = [x for x in re.split(r"[,;\s]+", raw) if x]      # kai proxy: pehla chale to wahi, warna agla
         self.proxy = self.proxies[0] if self.proxies else None
         self.last_proxy: str | None = None
@@ -122,10 +140,10 @@ class TelegramNotifier:
     def enabled(self) -> bool:
         return bool(self.token and self.chat_id)
 
-    def _post(self, text: str) -> tuple[int, str]:
+    def _call(self, method: str, payload: dict | None = None) -> tuple[int, str]:
         """(HTTP status, body). Network fail par exception uthata hai."""
-        payload = {"chat_id": self.chat_id, "text": text}
-        url = f"{self.API}/bot{self.token}/sendMessage"
+        payload = payload or {}
+        url = f"{self.API}/bot{self.token}/{method}"
         if self.proxies:                                  # SOCKS/HTTP proxy ke liye requests (+pysocks)
             import requests
             order = self.proxies[:]
@@ -148,25 +166,83 @@ class TelegramNotifier:
         except urllib.error.HTTPError as e:
             return e.code, e.read().decode()
 
+    def _post(self, text: str) -> tuple[int, str]:
+        return self._call("sendMessage", {"chat_id": self.chat_id, "text": text})
+
+    @staticmethod
+    def _desc(body: str) -> str:
+        try:
+            return json.loads(body).get("description", "")
+        except Exception:  # noqa: BLE001
+            return ""
+
+    def diagnose(self) -> tuple[bool, list[str]]:
+        """Step-by-step jaanch: file, token ka format, token valid hai?, chat id sahi hai?, test message. Token kabhi print nahi hota."""
+        out: list[str] = []
+        f = load_dotenv(self.env_file)
+        out.append(f".env file: {os.path.abspath(self.env_file)} -> "
+                   + (f"mili (keys: {', '.join(sorted(f)) or 'koi nahi'})" if f else "NAHI mili ya khali (file ka naam bilkul .env hona chahiye, .env.txt nahi)"))
+        for name in ("TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID"):
+            ev = os.environ.get(name)
+            if ev and f.get(name) and ev != f[name]:
+                out.append(f"NOTE: environment variable {name} bhi set hai (alag value). Ab .env wali value use hoti hai.")
+        t, c = self.token or "", self.chat_id or ""
+        if not t:
+            return False, out + ["TOKEN: set nahi hai"]
+        issues = []
+        if t != t.strip() or " " in t:
+            issues.append("space hai")
+        if '"' in t or "'" in t:
+            issues.append("quotes hain")
+        if "apna" in t.lower() or "token" in t.lower() or "yahan" in t.lower():
+            issues.append("ye placeholder lagta hai (asli token nahi)")
+        if not TOKEN_RE.match(t):
+            issues.append("format galat (sahi: 123456789:ABC... 'number:letters', lagbhag 46 akshar)")
+        out.append(f"TOKEN: source = {self.src.get('TELEGRAM_BOT_TOKEN')}, lambai = {len(t)} akshar -> "
+                   + ("format theek" if not issues else "PROBLEM: " + "; ".join(issues)))
+        if not c:
+            return False, out + ["CHAT ID: set nahi hai"]
+        if not re.fullmatch(r"-?\d+", c):
+            out.append("CHAT ID: PROBLEM: sirf numbers hone chahiye" + (" (ye bot token jaisa lagta hai!)" if ":" in c else ""))
+        else:
+            out.append(f"CHAT ID: source = {self.src.get('TELEGRAM_CHAT_ID')}, numeric -> theek")
+        out.append("PROXY: " + (f"{len(self.proxies)} set" if self.proxies else "koi nahi (seedha connection)"))
+        try:
+            code, body = self._call("getMe")
+        except Exception as e:  # noqa: BLE001
+            return False, out + ["CONNECTION: FAIL -> " + explain_network_error(e, self.token)]
+        out.append("CONNECTION: Telegram tak pahunch gaye" + (f" (proxy: {self.last_proxy.split('@')[-1]})" if self.last_proxy else ""))
+        if code != 200:
+            hint = {401: "token galat ya revoke ho chuka", 404: "token galat"}.get(code, "")
+            return False, out + [f"TOKEN CHECK: FAIL HTTP {code} {self._desc(body)} ({hint}) -> BotFather se token dobara copy karo"]
+        try:
+            uname = json.loads(body)["result"].get("username", "?")
+        except Exception:  # noqa: BLE001
+            uname = "?"
+        out.append(f"TOKEN CHECK: OK, bot = @{uname}")
+        try:
+            code, body = self._post("✅ Telegram test: bot connected")
+        except Exception as e:  # noqa: BLE001
+            return False, out + ["MESSAGE: FAIL -> " + explain_network_error(e, self.token)]
+        if code == 200:
+            return True, out + ["MESSAGE: OK, aapko Telegram par test message mil gaya hoga"]
+        hint = {400: "chat id galat, ya aapne @" + uname + " ko /start nahi bheja", 403: "bot block hai ya /start nahi bheja"}.get(code, "")
+        return False, out + [f"MESSAGE: FAIL HTTP {code} {self._desc(body)} ({hint})"]
+
     def check(self) -> tuple[bool, str]:
-        """Test message bhej ke saaf wajah batata hai (error text mein token kabhi nahi hota)."""
+        """Chhota test (diagnose ka short version)."""
         if not self.enabled:
             return False, "token ya chat id set nahi hai"
         try:
             code, body = self._post("✅ Telegram test: bot connected")
         except Exception as e:  # noqa: BLE001
-            return False, f"network error ({len(self.proxies)} proxy try ki)" + ": " + explain_network_error(e, self.token) if self.proxies \
-                else "network error: " + explain_network_error(e, self.token)
+            return False, "network error: " + explain_network_error(e, self.token)
         via = f" (proxy: {self.last_proxy.split('@')[-1]})" if self.last_proxy else ""     # password kabhi nahi dikhate
         if code == 200:
             return True, "ok" + via
-        try:
-            desc = json.loads(body).get("description", "")
-        except Exception:  # noqa: BLE001
-            desc = ""
         hint = {401: "token galat ya revoke ho chuka", 400: "chat id galat ya aapne bot ko /start nahi bheja",
                 403: "aapne bot ko block kiya hai ya /start nahi bheja", 404: "token galat"}.get(code, "")
-        return False, f"HTTP {code}: {desc} ({hint})" if hint else f"HTTP {code}: {desc}"
+        return False, f"HTTP {code}: {self._desc(body)} ({hint})" if hint else f"HTTP {code}: {self._desc(body)}"
 
     def send(self, text: str) -> bool:
         """Kabhi exception nahi uthata. 3 baar lagataar fail hone par 10 minute skip, taaki bot har message par 10-15s na atke."""

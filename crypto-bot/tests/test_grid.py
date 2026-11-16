@@ -86,8 +86,8 @@ def test_dotenv_telegram_credentials(tmp_path, monkeypatch):
     assert load_dotenv(str(f)) == {"TELEGRAM_BOT_TOKEN": "123:abc", "TELEGRAM_CHAT_ID": "987654"}
     t = TelegramNotifier(env_file=str(f))
     assert t.enabled and t.token == "123:abc" and t.chat_id == "987654"
-    monkeypatch.setenv("TELEGRAM_CHAT_ID", "555")                       # env var .env se upar
-    assert TelegramNotifier(env_file=str(f)).chat_id == "555"
+    monkeypatch.setenv("TELEGRAM_CHAT_ID", "555")                       # .env env var se upar (purani placeholder env var trap se bachne ke liye)
+    assert TelegramNotifier(env_file=str(f)).chat_id == "987654"
     monkeypatch.delenv("TELEGRAM_CHAT_ID")
     off = TelegramNotifier(env_file=str(tmp_path / "missing.env"))
     ok, why = off.check()
@@ -198,3 +198,65 @@ def test_multiple_proxies_fall_back_and_remember_working_one(monkeypatch):
     assert "good:8080" in detail and "pw" not in detail and "user" not in detail      # password nahi dikhta
     tried.clear()
     assert t.send("x") and tried == ["http://user:pw@good:8080"]                      # chalne wala pehle
+
+
+def test_diagnose_flags_placeholder_env_var_and_reports_steps(tmp_path, monkeypatch):
+    import sys
+    import types
+    from gridbot.notify import TelegramNotifier
+
+    good = "9126094932:" + "A" * 35
+    f = tmp_path / ".env"
+    f.write_text(f"TELEGRAM_BOT_TOKEN={good}\nTELEGRAM_CHAT_ID=1640161737\n")
+    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "apna_token")                  # purana placeholder env var
+    monkeypatch.delenv("TELEGRAM_PROXY", raising=False)
+    t = TelegramNotifier(env_file=str(f))
+    assert t.token == good                                                   # .env jeet gaya
+
+    class R:
+        def __init__(self, c, b): self.status_code, self.text = c, b
+
+    def post(url, json=None, timeout=None, proxies=None):
+        if url.endswith("/getMe"):
+            return R(200, '{"ok":true,"result":{"username":"my_test_bot"}}')
+        return R(200, "{}")
+    monkeypatch.setitem(sys.modules, "requests", types.SimpleNamespace(post=post))
+    t2 = TelegramNotifier(env_file=str(f), proxy="socks5h://127.0.0.1:1")
+    ok, lines = t2.diagnose()
+    text = "\n".join(lines)
+    assert ok and "environment variable TELEGRAM_BOT_TOKEN" in text and "@my_test_bot" in text and "MESSAGE: OK" in text
+    assert good not in text                                                  # token kabhi print nahi
+
+    bad = tmp_path / "bad.env"
+    bad.write_text("TELEGRAM_BOT_TOKEN=apna_token\nTELEGRAM_CHAT_ID=abc:def\n")
+    monkeypatch.delenv("TELEGRAM_BOT_TOKEN")
+    ok, lines = TelegramNotifier(env_file=str(bad)).diagnose()
+    text = "\n".join(lines)
+    assert not ok and "placeholder" in text and "format galat" in text
+
+
+def test_diagnose_pinpoints_invalid_token_and_unstarted_chat(tmp_path, monkeypatch):
+    import sys
+    import types
+    from gridbot.notify import TelegramNotifier
+
+    f = tmp_path / ".env"
+    f.write_text("TELEGRAM_BOT_TOKEN=" + "9126094932:" + "B" * 35 + "\nTELEGRAM_CHAT_ID=5\nTELEGRAM_PROXY=socks5h://127.0.0.1:1\n")
+    monkeypatch.delenv("TELEGRAM_BOT_TOKEN", raising=False)
+
+    class R:
+        def __init__(self, c, b): self.status_code, self.text = c, b
+    mode = {"m": "token404"}
+
+    def post(url, json=None, timeout=None, proxies=None):
+        if mode["m"] == "token404":
+            return R(404, '{"ok":false,"description":"Not Found"}')
+        if url.endswith("/getMe"):
+            return R(200, '{"result":{"username":"b"}}')
+        return R(400, '{"ok":false,"description":"Bad Request: chat not found"}')
+    monkeypatch.setitem(sys.modules, "requests", types.SimpleNamespace(post=post))
+    ok, lines = TelegramNotifier(env_file=str(f)).diagnose()
+    assert not ok and "TOKEN CHECK: FAIL HTTP 404" in lines[-1]
+    mode["m"] = "chat400"
+    ok, lines = TelegramNotifier(env_file=str(f)).diagnose()
+    assert not ok and "chat not found" in lines[-1] and "/start" in lines[-1]

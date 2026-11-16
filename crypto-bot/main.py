@@ -165,10 +165,9 @@ def cmd_scalp_validate(args) -> int:
 
 
 def cmd_telegram_test(args) -> int:
-    ok, detail = TelegramNotifier().check()
-    print("Telegram OK, aapko test message mil gaya hoga." if ok else f"Telegram FAIL: {detail}")
-    if not ok and "set nahi" in detail:
-        print("crypto-bot folder mein .env file banao (notepad .env) aur 2 lines likho:\n  TELEGRAM_BOT_TOKEN=...\n  TELEGRAM_CHAT_ID=...")
+    ok, lines = TelegramNotifier().diagnose()
+    print("\n".join(lines))
+    print("\n=> Telegram OK" if ok else "\n=> Telegram FAIL (upar ki aakhri FAIL/PROBLEM line dekho)")
     return 0 if ok else 1
 
 

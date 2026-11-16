@@ -150,3 +150,6 @@ TELEGRAM_PROXY=socks5h://127.0.0.1:40000
 
 Kai proxy ek saath (free proxy aksar mar jaati hain): `TELEGRAM_PROXY=socks5h://1.2.3.4:1080, http://5.6.7.8:8080` — bot ek-ek karke try karta hai aur jo chale use yaad rakhta hai.
 Password wali proxy: `socks5h://user:password@host:port`. **Sirf SOCKS5 ya HTTP(S) proxy chalegi.** Telegram app wali MTProto proxy (`tg://proxy?...` link) bot ke liye nahi chalti.
+
+`python main.py telegram-test` ab step-by-step bata deta hai kya galat hai (file mili ya nahi, token ka format, token valid hai ya nahi, chat id, test message). `.env` ki value environment variable se upar rakhi jati hai.
+Agar pehle PowerShell mein `$env:TELEGRAM_BOT_TOKEN=...` chalaya tha to wo us window mein bachi rehti hai. Saaf karne ke liye: `Remove-Item Env:TELEGRAM_BOT_TOKEN, Env:TELEGRAM_CHAT_ID -ErrorAction SilentlyContinue`.
