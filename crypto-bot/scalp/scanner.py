@@ -170,7 +170,7 @@ class Bot:
             rec = self.acct.close(pos, "MANUAL", px, self.ex.milliseconds())
             self.log_trade(rec)
             print(f"MANUAL CLOSE {pos.symbol} roi {rec['roi']:+.1%} pnl {rec['pnl']:+.2f}")
-            self.tg.send(messages.closed(rec, self.acct.balance, stats_from_csv(self.trades_path)))
+            self.tg.send(messages.closed(rec, self.acct.balance, stats_from_csv(self.trades_path), self.cfg.label))
             self.save()
 
     def heartbeat(self) -> None:
@@ -236,7 +236,7 @@ class Bot:
                 rec = self.acct.close(pos, res[0], res[1], now)
                 self.log_trade(rec)
                 print(f"CLOSE {sym} {rec['reason']} roi {rec['roi']:+.1%}")
-                self.tg.send(messages.closed(rec, self.acct.balance, stats_from_csv(self.trades_path)))
+                self.tg.send(messages.closed(rec, self.acct.balance, stats_from_csv(self.trades_path), self.cfg.label))
                 self.save()
 
     def _update_candles(self, sym: str) -> bool:
@@ -439,7 +439,7 @@ def run_test_trade(cfg: ScalpConfig, symbol: str | None, side: str | None, close
             rec = bot.acct.close(pos, "TEST", px, bot.ex.milliseconds())
             bot.log_trade(rec)
             print(f"TEST CLOSE {pos.symbol} roi {rec['roi']:+.2%} pnl {rec['pnl']:+.2f} USDT")
-            tg.send(messages.closed(rec, bot.acct.balance, stats_from_csv(trades_path)))
+            tg.send(messages.closed(rec, bot.acct.balance, stats_from_csv(trades_path), cfg.label))
             bot.heartbeat()
             break
         sleep(cfg.poll_seconds)

@@ -240,3 +240,9 @@ Flags: `--no-dashboard` (band), `--dashboard-port 8060`, `--open` (browser khol 
 Browser tab: `--open` ya `start_bot.bat` har baar naya tab **nahi** kholta. Bot shuru hone ke 5 second baad check hota hai ki koi dashboard tab pehle se khula aur refresh ho raha hai ya nahi; khula ho to naya tab nahi khulta (purana tab bot restart ke baad khud jud kar update ho jata hai). Dashboard tab ko ek baar kholkar pin/khula rakho.
 
 **80/69 coins ka validate (intrabar, 4h):** +0.064 R/trade, profit factor 1.15, +163%, drawdown 26%, 2023 negative; 30 coins par +0.095 R, pf 1.24, +204%, dd 20%, 8/8 saal. Naye ~39 coins ne ~-0.07 R/trade diya (kul ~-$4,000), trades sirf +25% badhi. Isliye default `max_coins` wapas 30.
+
+## FREQ bot (zyada trades, alag paper account)
+`scalp_config_freq.json`: 2 gates, max 10 open, 3 nayi/scan, risk 0.2% (~5 trades/din, sandbox backtest: +0.044R/trade, +119%, dd 23%; validated bot se risk-adjusted kamzor, ret/dd 5.2 vs 6.9).
+`start_bot_freq.bat` double-click (ya `python main.py --scalp-config scalp_config_freq.json scalp-paper --state scalp_state_freq.json --trades scalp_trades_freq.csv --dashboard-port 8060`).
+Alag state/trades files aur alag dashboard (`http://127.0.0.1:8060`); Telegram/Discord messages mein "· FREQ" likha aata hai. Validated bot (`start_bot.bat`, port 8050) saath mein chalta rahe.
+Aapne ke coins par validate karne ke liye: `python main.py scalp-validate --entry intrabar --set min_gates=2 --set max_open=10 --set max_new_per_scan=3 --set risk_pct=0.002`

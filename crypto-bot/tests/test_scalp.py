@@ -428,3 +428,19 @@ def test_report_hides_zero_trade_combos_and_shows_real_ones():
     text = sweep.report(rows)
     assert "'leverage': 5" not in text and "'leverage': 3" in text and "'leverage': 2" in text
     assert "1 combos mein trades 0" in text and "PASS hue: 0 / 3" in text and "Sabse achha test R/trade" in text
+
+
+def test_freq_config_and_label_in_messages():
+    import os
+    from scalp import config as sc
+    base = os.path.dirname(os.path.dirname(__file__))
+    f = sc.load(os.path.join(base, "scalp_config_freq.json"))
+    m = sc.load(os.path.join(base, "scalp_config.json"))
+    assert (f.label, f.min_gates, f.max_open, f.max_new_per_scan, f.risk_pct) == ("FREQ", 2, 10, 3, 0.002)
+    assert (f.timeframe, f.sl_atr, f.trail_atr, f.leverage, f.entry_mode) == (m.timeframe, m.sl_atr, m.trail_atr, m.leverage, m.entry_mode)
+    a = PaperAccount(f)
+    p = a.open(Signal("A/USDT:USDT", "LONG", 2, ["g1", "g2"], 2.0, 0.01, 100.0), 100.0, 0)
+    assert "FREQ" in messages.opened(p, f, a.balance)
+    rec = a.close(p, "TP", p.entry * 1.02, 1)
+    assert "FREQ" in messages.closed(rec, a.balance, {"n": 1, "win_rate": 1.0, "pnl": 1.0}, f.label)
+    assert "FREQ" not in messages.closed(rec, a.balance, {"n": 1, "win_rate": 1.0, "pnl": 1.0})

@@ -40,7 +40,7 @@ def opened(pos: Position, cfg: ScalpConfig, equity: float) -> str:
         extra = []
     return "\n".join([
         f"{icon} TRADE OPENED — {pos.side} @ {fp(pos.entry)}",
-        f"{name(pos.symbol)} · Scalp · Paper",
+        f"{name(pos.symbol)} · Scalp · Paper" + (f" · {cfg.label}" if cfg.label else ""),
         "──────────────",
         f"Side: {pos.side} ({pos.leverage:g}x)",
         f"Entry: {fp(pos.entry)}",
@@ -57,12 +57,12 @@ def opened(pos: Position, cfg: ScalpConfig, equity: float) -> str:
     ])
 
 
-def closed(rec: dict, equity: float, stats: dict) -> str:
+def closed(rec: dict, equity: float, stats: dict, bot_label: str = "") -> str:
     icon = {"TP": "✅", "TRAIL": "✅", "SL": "🛑", "TIMEOUT": "⏱", "TEST": "🧪", "MANUAL": "🖐"}.get(rec["reason"], "ℹ️")
     label = {"TP": "TAKE PROFIT HIT", "TRAIL": "TRAILING STOP HIT", "SL": "STOP-LOSS HIT", "TIMEOUT": "MAX HOLD TIME", "TEST": "TEST TRADE CLOSED", "MANUAL": "MANUAL CLOSE (aapne dashboard se band ki)"}.get(rec["reason"], rec["reason"])
     return "\n".join([
         f"{icon} TRADE CLOSED — {label} @ {fp(rec['exit'])}",
-        f"{name(rec['symbol'])} · Scalp · Paper · {rec['side']}",
+        f"{name(rec['symbol'])} · Scalp · Paper · {rec['side']}" + (f" · {bot_label}" if bot_label else ""),
         "──────────────",
         f"Entry: {fp(rec['entry'])} → Exit: {fp(rec['exit'])}",
         (f"💰 Profit booked: {rec['pnl']:+,.2f} USDT" if rec["pnl"] > 0 else f"Loss: {rec['pnl']:+,.2f} USDT") + f" (after fees) · {rec['roi']:+.1%} ROI" + (f" · {rec['r']:+.2f}R" if rec.get("r") else ""),

@@ -11,3 +11,5 @@ scalp_state_equity.csv
 .env
 *.env
 scalp_test_*
+scalp_state_freq*
+scalp_trades_freq.csv
