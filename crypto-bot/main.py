@@ -194,6 +194,8 @@ def cmd_scalp_test_trade(args) -> int:
     cfg = sc.load(args.scalp_config)
     sym = None if args.symbol.lower() == "auto" else sc.normalize_symbols(args.symbol)[0]
     print("TEST trade (nakli paisa, alag file: scalp_test_*). Asli paper test ke numbers mein nahi judegi.")
+    from scalp import dashboard
+    dashboard.start_background("scalp_test_state.json", "scalp_test_trades.csv", 8051, open_browser=args.open)
     ok = scanner.run_test_trade(cfg, sym, args.side, args.minutes, "scalp_test_state.json", "scalp_test_trades.csv",
                                 make_notifier())
     return 0 if ok else 1
@@ -236,6 +238,9 @@ def cmd_scalp_paper(args) -> int:
         cfg.validate()
     if cfg.symbols:
         print("Sirf in coins par:", ", ".join(x.split("/")[0] for x in cfg.symbols))
+    if not args.no_dashboard:
+        from scalp import dashboard
+        dashboard.start_background(args.state, args.trades, args.dashboard_port, open_browser=args.open)
     scanner.Bot(cfg, args.state, args.trades, make_notifier()).run()
     return 0
 
@@ -316,6 +321,7 @@ def main() -> int:
     st_.add_argument("--symbol", default="auto", help="auto = abhi ki candle ke hisaab se khud chune, ya BTC, ETH, SOL")
     st_.add_argument("--side", choices=["long", "short"], default=None, help="khali = khud chune")
     st_.add_argument("--minutes", type=float, default=3.0, help="itni der baad market par band (test)")
+    st_.add_argument("--open", action="store_true", help="test dashboard browser mein khol do")
     st_.set_defaults(fn=cmd_scalp_test_trade)
     sx_ = sub.add_parser("scalp-watch")
     sx_.add_argument("--top", type=int, default=15, help="kitne coins dikhane hain")
@@ -325,6 +331,9 @@ def main() -> int:
     sp_.add_argument("--state", default="scalp_state.json")
     sp_.add_argument("--trades", default="scalp_trades.csv")
     sp_.add_argument("--symbols", default="", help="chune hue coins, jaise BTC,ETH,SOL,BNB")
+    sp_.add_argument("--no-dashboard", action="store_true", help="dashboard bot ke saath shuru na ho")
+    sp_.add_argument("--dashboard-port", type=int, default=8050)
+    sp_.add_argument("--open", action="store_true", help="shuru hote hi dashboard browser mein khol do")
     sp_.set_defaults(fn=cmd_scalp_paper)
     ss_ = sub.add_parser("scalp-stats")
     ss_.add_argument("--trades", default="scalp_trades.csv")

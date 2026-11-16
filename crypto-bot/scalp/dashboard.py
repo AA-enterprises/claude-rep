@@ -4,6 +4,7 @@ from __future__ import annotations
 import csv
 import json
 import os
+import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
@@ -241,3 +242,21 @@ def serve(state_path: str, trades_path: str, port: int = 8050, open_browser: boo
         srv.serve_forever()
     except KeyboardInterrupt:
         pass
+
+
+def start_background(state_path: str, trades_path: str, port: int = 8050, open_browser: bool = False):
+    """Dashboard ko bot ke saath hi background thread mein chalata hai (alag command ki zaroorat nahi).
+    Port pehle se use mein ho (dashboard alag chal raha ho) to chupchap skip, None return."""
+    equity_path = state_path.replace(".json", "_equity.csv")
+    try:
+        srv = ThreadingHTTPServer(("127.0.0.1", port), make_handler(state_path, trades_path, equity_path))
+    except OSError:
+        print(f"Dashboard port {port} pehle se use mein hai (shayad alag chal raha hai): http://127.0.0.1:{port}")
+        return None
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    url = f"http://127.0.0.1:{srv.server_address[1]}"
+    print(f"Dashboard: {url}  (bot ke saath chalta hai, alag command ki zaroorat nahi)")
+    if open_browser:
+        import webbrowser
+        webbrowser.open(url)
+    return srv

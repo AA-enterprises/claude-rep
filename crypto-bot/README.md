@@ -229,3 +229,10 @@ Default `max_coins` ab 80 hai (volume ke hisaab se top 80, kam se kam 20M USDT 2
 4. Bot restart karo: ab trade open/close, 12-hour report Telegram aur Discord dono par jayenge. Ek band ho to doosra chalta rahta hai (aur jo message nahi gaye wo baad mein "der se" bheje jaate hain).
 
 Note: `scalp-download` hamesha **15m** candles laata hai (config ka timeframe 4h ho tab bhi). Backtest/validate cache ke 15m files (`*_15m.csv`) se 4h/1h/intrabar banate hain. Purane galti se bane `*_4h.csv` files ko ignore/delete kar sakte ho.
+
+
+## Ek command / ek double-click
+`python main.py scalp-paper` ab dashboard bhi saath mein shuru karta hai (`http://127.0.0.1:8050`, har 3 second mein auto-refresh). Alag `scalp-dashboard` command ki zaroorat nahi.
+Windows par `start_bot.bat` ko double-click karo: code update + bot + dashboard (aur browser mein dashboard khul jata hai). Isko Desktop par shortcut bana lo.
+PC chalu hote hi apne aap shuru karne ke liye: `Win+R` -> `shell:startup` -> us folder mein `start_bot.bat` ka shortcut rakh do.
+Flags: `--no-dashboard` (band), `--dashboard-port 8060`, `--open` (browser khol do).

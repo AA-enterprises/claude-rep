@@ -378,3 +378,23 @@ def test_scalp_download_always_fetches_15m_even_if_config_timeframe_is_4h(tmp_pa
     args = types.SimpleNamespace(scalp_config=str(cfg_file), symbols="", coins=5, years=10, cache_dir=str(tmp_path))
     assert m.cmd_scalp_download(args) == 0
     assert calls and all(tf == "15m" and ms == 900_000 for _, tf, ms in calls)
+
+
+def test_dashboard_starts_in_background_with_the_bot_and_handles_busy_port(tmp_path):
+    import json
+    import urllib.request
+    from scalp import dashboard
+
+    sp, tp = str(tmp_path / "s.json"), str(tmp_path / "t.csv")
+    srv = dashboard.start_background(sp, tp, port=0)
+    assert srv is not None
+    port = srv.server_address[1]
+    assert json.load(urllib.request.urlopen(f"http://127.0.0.1:{port}/api/state"))["status"] == "no_state"      # bot abhi shuru nahi hua
+    assert dashboard.start_background(sp, tp, port=port) is None                                                  # port busy: crash nahi
+    cfg = ScalpConfig()
+    bot = scanner.Bot(cfg, sp, tp, Rec(), ex=FakeEx(cfg))
+    bot.scan()
+    bot.heartbeat()
+    st = json.load(urllib.request.urlopen(f"http://127.0.0.1:{port}/api/state"))                                  # bina kuch dobara chalaye trade dikhi
+    assert st["status"] == "running" and len(st["positions"]) == 1
+    srv.shutdown()
