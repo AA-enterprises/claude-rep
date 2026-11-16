@@ -236,3 +236,5 @@ Note: `scalp-download` hamesha **15m** candles laata hai (config ka timeframe 4h
 Windows par `start_bot.bat` ko double-click karo: code update + bot + dashboard (aur browser mein dashboard khul jata hai). Isko Desktop par shortcut bana lo.
 PC chalu hote hi apne aap shuru karne ke liye: `Win+R` -> `shell:startup` -> us folder mein `start_bot.bat` ka shortcut rakh do.
 Flags: `--no-dashboard` (band), `--dashboard-port 8060`, `--open` (browser khol do).
+
+Browser tab: `--open` ya `start_bot.bat` har baar naya tab **nahi** kholta. Bot shuru hone ke 5 second baad check hota hai ki koi dashboard tab pehle se khula aur refresh ho raha hai ya nahi; khula ho to naya tab nahi khulta (purana tab bot restart ke baad khud jud kar update ho jata hai). Dashboard tab ko ek baar kholkar pin/khula rakho.

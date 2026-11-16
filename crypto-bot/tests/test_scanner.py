@@ -398,3 +398,30 @@ def test_dashboard_starts_in_background_with_the_bot_and_handles_busy_port(tmp_p
     st = json.load(urllib.request.urlopen(f"http://127.0.0.1:{port}/api/state"))                                  # bina kuch dobara chalaye trade dikhi
     assert st["status"] == "running" and len(st["positions"]) == 1
     srv.shutdown()
+
+
+def test_browser_opens_only_if_no_dashboard_tab_is_already_polling(tmp_path, monkeypatch):
+    import time
+    import urllib.request
+    import webbrowser
+    from scalp import dashboard
+
+    opened = []
+    monkeypatch.setattr(webbrowser, "open", lambda url: opened.append(url))
+    sp, tp = str(tmp_path / "s.json"), str(tmp_path / "t.csv")
+    # 1) koi tab khula nahi: delay ke baad naya tab khulta hai
+    srv = dashboard.start_background(sp, tp, port=0, open_browser=True, open_delay=0.4)
+    time.sleep(0.9)
+    assert len(opened) == 1 and opened[0].startswith("http://127.0.0.1:")
+    srv.shutdown()
+    # 2) purana tab poll kar raha hai (bot restart ke baad bhi): naya tab nahi
+    srv2 = dashboard.start_background(sp, tp, port=0, open_browser=True, open_delay=0.6)
+    urllib.request.urlopen(f"http://127.0.0.1:{srv2.server_address[1]}/api/state").read()                 # tab ka poll
+    time.sleep(1.1)
+    assert len(opened) == 1                                                                                # abhi bhi sirf pehla
+    srv2.shutdown()
+    # 3) open_browser=False: kabhi nahi
+    srv3 = dashboard.start_background(sp, tp, port=0, open_browser=False)
+    time.sleep(0.3)
+    assert len(opened) == 1
+    srv3.shutdown()

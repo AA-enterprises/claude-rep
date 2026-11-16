@@ -174,10 +174,12 @@ tick();setInterval(tick,3000);
 </script></body></html>"""
 
 
-def make_handler(state_path: str, trades_path: str, equity_path: str):
+def make_handler(state_path: str, trades_path: str, equity_path: str, poll: dict | None = None):
     class H(BaseHTTPRequestHandler):
         def do_GET(self):  # noqa: N802
             if self.path.split("?")[0] == "/api/state":
+                if poll is not None:
+                    poll["t"] = time.time()                  # koi browser tab dashboard dekh raha hai
                 body, ctype = json.dumps(build_state(state_path, trades_path, equity_path)).encode(), "application/json"
             elif self.path.split("?")[0] == "/":
                 body, ctype = PAGE.encode("utf-8"), "text/html; charset=utf-8"
@@ -230,33 +232,42 @@ def make_handler(state_path: str, trades_path: str, equity_path: str):
     return H
 
 
+def _open_if_no_tab(poll: dict, url: str, delay: float) -> None:
+    """`delay` second ruk ke dekho: kisi purane tab ne dashboard poll kiya? Haan to naya tab nahi kholte (wo khud refresh ho jata hai)."""
+    t0 = time.time()
+    time.sleep(delay)
+    if poll["t"] < t0:
+        import webbrowser
+        webbrowser.open(url)
+
+
 def serve(state_path: str, trades_path: str, port: int = 8050, open_browser: bool = True) -> None:
     equity_path = state_path.replace(".json", "_equity.csv")
-    srv = ThreadingHTTPServer(("127.0.0.1", port), make_handler(state_path, trades_path, equity_path))
+    poll = {"t": 0.0}
+    srv = ThreadingHTTPServer(("127.0.0.1", port), make_handler(state_path, trades_path, equity_path, poll))
     url = f"http://127.0.0.1:{port}"
     print(f"Dashboard: {url}  (sirf aapke PC par; band karne ke liye Ctrl+C)")
     if open_browser:
-        import webbrowser
-        webbrowser.open(url)
+        threading.Thread(target=_open_if_no_tab, args=(poll, url, 4.0), daemon=True).start()
     try:
         srv.serve_forever()
     except KeyboardInterrupt:
         pass
 
 
-def start_background(state_path: str, trades_path: str, port: int = 8050, open_browser: bool = False):
+def start_background(state_path: str, trades_path: str, port: int = 8050, open_browser: bool = False, open_delay: float = 5.0):
     """Dashboard ko bot ke saath hi background thread mein chalata hai (alag command ki zaroorat nahi).
     Port pehle se use mein ho (dashboard alag chal raha ho) to chupchap skip, None return."""
     equity_path = state_path.replace(".json", "_equity.csv")
+    poll = {"t": 0.0}
     try:
-        srv = ThreadingHTTPServer(("127.0.0.1", port), make_handler(state_path, trades_path, equity_path))
+        srv = ThreadingHTTPServer(("127.0.0.1", port), make_handler(state_path, trades_path, equity_path, poll))
     except OSError:
         print(f"Dashboard port {port} pehle se use mein hai (shayad alag chal raha hai): http://127.0.0.1:{port}")
         return None
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     url = f"http://127.0.0.1:{srv.server_address[1]}"
     print(f"Dashboard: {url}  (bot ke saath chalta hai, alag command ki zaroorat nahi)")
-    if open_browser:
-        import webbrowser
-        webbrowser.open(url)
+    if open_browser:                                           # naya tab sirf tab, jab koi dashboard tab pehle se khula na ho
+        threading.Thread(target=_open_if_no_tab, args=(poll, url, open_delay), daemon=True).start()
     return srv
