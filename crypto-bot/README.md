@@ -201,3 +201,12 @@ Har coin ki abhi ki (adhoori) candle par kitne gates mil rahe hain, kaun se mile
 - `"risk"` (default, validate hua): stop lagne par `risk_pct` (0.4%) loss. Stop door ho to size chhota, paas ho to bada.
 - `"margin"`: har trade mein `margin_pct` (jaise 0.05 = 5%) margin, `leverage` se multiply. Stop kitna bhi door ho, size wahi. **Chauda stop = bada loss.** 4h strategy (stop ~4%) par 5% margin x 10x = ~2% equity risk per trade, 5 guna validate hue risk se zyada.
 `compound: true` karne par % current balance ka lagta hai, warna start_balance ka.
+
+## Liquidation price (Liq. Price) door rakhna
+Isolated margin mein liquidation entry se lagbhag `1/leverage - 0.5%` door hoti hai: 10x par ~9.5%, 5x par ~19.5%, 3x par ~32.8%.
+- `min_liq_distance` (default config mein 0.30): liquidation entry se kam se kam itni door na ho to trade nahi khulti.
+- `leverage` 3 rakha hai, isliye ~33% door. Telegram "TRADE OPENED" mein `Liquidation: ... (33% door)` aur dashboard mein `Liq. Price` column.
+- `max_atr_pct` 0.04: validate hue backtest mein 10x par bahut volatile coins (ATR 4% se zyada) khud skip ho jate the. Wahi rakha hai taaki trades ka set na badle.
+- Ye andaza hai (Binance maintenance margin tier/coin ke hisaab se alag hota hai). Paper account asli liquidation simulate nahi karta; stop-loss hamesha liquidation se pehle lagta hai.
+
+`python main.py scalp-sweep --mode roi30 --timeframe 15m` : 30% ROI profit-book + kam leverage wale combos (36) ko test karta hai.

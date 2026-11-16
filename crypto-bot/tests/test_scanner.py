@@ -305,3 +305,18 @@ def test_test_trade_skips_untradable_coins_and_explains(tmp_path, capsys):
         assert "tradable nahi" in str(e)
         return
     assert not ok and "volatile" in capsys.readouterr().out
+
+
+def test_dashboard_shows_liquidation_price(tmp_path):
+    from dataclasses import replace
+    from scalp import dashboard
+    cfg = replace(ScalpConfig(), leverage=3)
+    ex, tg = FakeEx(cfg), Rec()
+    sp, tp = str(tmp_path / "s.json"), str(tmp_path / "t.csv")
+    bot = scanner.Bot(cfg, sp, tp, tg, ex=ex)
+    bot.scan()
+    bot.heartbeat()
+    st = dashboard.build_state(sp, tp, sp.replace(".json", "_equity.csv"))
+    p = st["positions"][0]
+    assert p["liq"] < p["entry"] and 0.25 < p["liq_dist"] < 0.40                 # LONG: liquidation neeche, ~33% door
+    assert "Liq. Price" in dashboard.PAGE

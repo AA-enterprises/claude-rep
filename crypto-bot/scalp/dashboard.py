@@ -40,7 +40,9 @@ def build_state(state_path: str, trades_path: str, equity_path: str, now: float 
         d = 1 if p["side"] == "LONG" else -1
         pnl = d * (mark - p["entry"]) * p["qty"]
         unreal += pnl
+        liq = p.get("liq") or p["entry"] * (1 - d * max(0.0, 1 / p["leverage"] - 0.005))      # purani state mein liq nahi hota
         positions.append({
+            "liq": liq, "liq_dist": abs(liq / mark - 1),
             "symbol": p["symbol"], "side": p["side"], "leverage": p["leverage"], "qty": p["qty"],
             "notional": p["qty"] * p["entry"], "margin": p["margin"], "entry": p["entry"], "mark": mark,
             "tp": p["tp"], "sl": p["sl"], "pnl": pnl, "roi": pnl / p["margin"] if p["margin"] else 0.0,
@@ -145,8 +147,8 @@ function render(s){S=s;const st=$("st");
  $("daily").replaceChildren(s.daily.length?table(["Date","Trades","Won / Lost","Profit","Loss","Net PnL"],
   s.daily.map(d=>[d.day+(d.day===T.day?"  (aaj)":""),d.n,d.wins+" / "+d.losses,{t:fm(d.profit),c:d.profit>0?"up":""},{t:fm(d.loss),c:d.loss<0?"dn":""},{t:fm(d.net),c:cls(d.net)}])):el("div","empty","Abhi koi closed trade nahi"));
  $("np").textContent=s.positions.length;
- $("pos").replaceChildren(s.positions.length?table(["Symbol","Size (USDT)","Margin","Entry","Mark","TP","SL","PnL (ROI%)","Held"],
-  s.positions.map(p=>[{t:nm(p.symbol)+" "+p.leverage+"x",n:p.side},fp(p.notional).replace(/\.\d+$/,""),p.margin.toFixed(2),fp(p.entry),fp(p.mark),{t:p.tp==null?"trail":fp(p.tp),c:"up"},{t:fp(p.sl),c:"dn"},
+ $("pos").replaceChildren(s.positions.length?table(["Symbol","Size (USDT)","Margin","Entry","Mark","TP","SL","Liq. Price","PnL (ROI%)","Held"],
+  s.positions.map(p=>[{t:nm(p.symbol)+" "+p.leverage+"x",n:p.side},fp(p.notional).replace(/\.\d+$/,""),p.margin.toFixed(2),fp(p.entry),fp(p.mark),{t:p.tp==null?"trail":fp(p.tp),c:"up"},{t:fp(p.sl),c:"dn"},{t:fp(p.liq)+" ("+(p.liq_dist*100).toFixed(0)+"%)",c:p.liq_dist<0.1?"dn":"mut"},
    {t:fm(p.pnl)+" ("+fm(p.roi*100,1)+"%)",c:cls(p.pnl)},dur(p.held_min)+" / "+dur(p.max_hold_min)])):el("div","empty","Abhi koi open trade nahi"));
  $("hist").replaceChildren(s.trades.length?table(["Symbol","Entry","Exit","Result","PnL (ROI%)","Held","Closed (UTC)"],
   s.trades.map(t=>[{t:nm(t.symbol),n:t.side},fp(t.entry),fp(t.exit),{t:t.reason,c:(t.reason==="TP"||t.reason==="TRAIL")?"up":t.reason==="SL"?"dn":"mut"},

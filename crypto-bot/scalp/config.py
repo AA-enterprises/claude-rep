@@ -53,6 +53,9 @@ class ScalpConfig:
     tp_atr: float = 3.0           # target = 3 x ATR (risk:reward 1:2). 0 = koi fixed target nahi
     trail_start_atr: float = 1.5  # itna profit hone par trailing shuru
     trail_atr: float = 1.5        # stop best price se itni ATR peeche. 0 = trailing band
+    min_liq_distance: float = 0.0  # liquidation price entry se kam se kam itni door ho (0.30 = 30%), warna trade nahi
+    maint_margin_rate: float = 0.005  # liquidation price ke andaze ke liye (Binance mein tier ke hisaab se alag)
+    max_atr_pct: float = 0.0      # ATR (candle) price ke is % se zyada ho to coin skip (0 = band). Bahut volatile coins
     sizing_mode: str = "risk"     # "risk": stop lagne par risk_pct loss | "margin": har trade mein margin_pct (equity ka %) margin lagao
     risk_pct: float = 0.01        # har trade mein start balance ka 1% risk (stop lagne par itna loss)
     compound: bool = False        # False: size start_balance se (backtest fair rahe), True: current balance se
@@ -75,6 +78,8 @@ class ScalpConfig:
             raise ValueError("symbols: BTC jaisa naam ya BTC/USDT:USDT")
         if self.report_hours < 0:
             raise ValueError("report_hours >= 0")
+        if not 0 <= self.min_liq_distance < 1 or self.max_atr_pct < 0:
+            raise ValueError("min_liq_distance 0..1, max_atr_pct >= 0")
         if self.sizing_mode not in ("risk", "margin"):
             raise ValueError("sizing_mode: risk/margin")
         if self.entry_mode not in ("close", "intrabar"):

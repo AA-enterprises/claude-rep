@@ -284,7 +284,7 @@ def main() -> int:
     sw_.add_argument("--limit", type=int, default=3000)
     sw_.add_argument("--quick", action="store_true")
     sw_.add_argument("--timeframe", choices=["15m", "1h", "4h"], help="cache 15m se resample hota hai")
-    sw_.add_argument("--mode", choices=["atr", "roi"], default="atr", help="atr: ATR stop/target + trailing, roi: purana 70/-20 rule")
+    sw_.add_argument("--mode", choices=["atr", "roi", "roi30"], default="atr", help="atr: ATR stop/target + trailing | roi: purana 70/-20 rule | roi30: 30% ROI profit book, kam leverage (door liquidation)")
     sw_.add_argument("--out", default="sweep_results.csv")
     sw_.add_argument("--entry", choices=["close", "close15", "intrabar"], default="close", help="close: band candle (exit bhi candle par) | close15: band candle par entry, exit 15m par | intrabar: har 15 min adhoori candle dekh kar")
     sw_.add_argument("--symbols", default="", help="chune hue coins, jaise BTC,ETH,SOL,BNB")

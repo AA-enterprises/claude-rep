@@ -25,8 +25,13 @@ ATR_SLOW_QUICK = dict(sl_atr=[2.0], tp_atr=[0.0, 4.0], trail_atr=[0.0, 2.5], min
                       max_hold_hours=[48], btc_filter=[False, True])
 
 
+ROI30 = dict(leverage=[2, 3, 5], tp_roi=[0.30], sl_roi=[0.10, 0.15, 0.30], min_gates=[3, 4], max_hold_hours=[6, 24])
+
+
 def grid_for(mode: str, quick: bool, slow: bool = False):
     """-> (grid, base overrides)"""
+    if mode == "roi30":                                  # 'har trade pe 30% ROI profit book': door liquidation (kam leverage) ke saath
+        return ROI30, {"exit_mode": "roi"}
     if slow and mode == "atr":
         return (ATR_SLOW_QUICK if quick else ATR_SLOW), {"exit_mode": "atr"}
     if mode == "roi":

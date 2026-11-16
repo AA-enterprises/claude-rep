@@ -28,7 +28,8 @@ class Position:
     trail_dist: float = 0.0
     best: float = 0.0            # favourable extreme abhi tak
     risk: float = 0.0            # stop lagne par (fees se pehle) USDT loss = 1R
-    notified_sl: float = 0.0     # Telegram par jis stop ki khabar di gayi
+    notified_sl: float = 0.0     # (purana, ab use nahi hota)
+    liq: float = 0.0             # liquidation price ka andaza (isolated margin)
 
     @property
     def d(self) -> int:
@@ -52,6 +53,13 @@ class PaperAccount:
     def equity(self, prices: dict[str, float]) -> float:
         return self.balance + sum(p.unrealized(prices.get(s, p.entry)) for s, p in self.positions.items())
 
+    def liq_distance(self) -> float:
+        """Entry se liquidation tak price ka % (andaza): 1/leverage - maintenance margin."""
+        return max(0.0, 1 / self.cfg.leverage - self.cfg.maint_margin_rate)
+
+    def liq_price(self, entry: float, d: int) -> float:
+        return entry * (1 - d * self.liq_distance())
+
     def reject_reason(self, sig: Signal, price: float) -> str | None:
         """Trade kyun nahi khul sakti (None = khul sakti hai). open() jin shartein par None deta hai, unka saaf kaaran."""
         cfg = self.cfg
@@ -61,6 +69,11 @@ class PaperAccount:
             return f"{cfg.max_open} trades pehle se open hain (max_open)"
         if self.balance <= 0 and not self.unlimited:
             return "balance khatam"
+        if cfg.min_liq_distance and self.liq_distance() < cfg.min_liq_distance:
+            return (f"liquidation sirf {self.liq_distance():.0%} door hai ({cfg.leverage:g}x), kam se kam "
+                    f"{cfg.min_liq_distance:.0%} chahiye: leverage kam karo")
+        if cfg.max_atr_pct and sig.atr_pct > cfg.max_atr_pct:
+            return f"coin bahut volatile: ATR {sig.atr_pct:.1%} > limit {cfg.max_atr_pct:.1%}"
         if cfg.exit_mode == "atr":
             sl_frac = cfg.sl_atr * sig.atr_pct * ((sig.price or price) / price)
             if sl_frac <= 0:
@@ -73,6 +86,8 @@ class PaperAccount:
     def open(self, sig: Signal, price: float, ts: int) -> Position | None:
         cfg = self.cfg
         if sig.symbol in self.positions or len(self.positions) >= cfg.max_open or (self.balance <= 0 and not self.unlimited):
+            return None
+        if self.reject_reason(sig, price) is not None:
             return None
         base = self.balance if cfg.compound else cfg.start_balance
         d = 1 if sig.side == "LONG" else -1
@@ -110,7 +125,7 @@ class PaperAccount:
             sig.symbol, sig.side, entry, qty, margin, cfg.leverage, tp=tp, sl=sl,
             opened_ts=ts, max_hold_ms=int(cfg.max_hold_hours * 3_600_000), entry_fee=fee,
             score=sig.score, gates=list(sig.gates), vol_ratio=sig.vol_ratio, atr_pct=sig.atr_pct,
-            trail_start=trail_start, trail_dist=trail_dist, best=entry, risk=risk, notified_sl=sl,
+            trail_start=trail_start, trail_dist=trail_dist, best=entry, risk=risk, notified_sl=sl, liq=self.liq_price(entry, d),
         )
         self.positions[sig.symbol] = pos
         return pos

@@ -352,6 +352,7 @@ def test_shipped_default_config_file_loads_and_is_the_validated_setup():
     cfg = sc.load(path)                                           # khali ya kharab file yahan fail hogi
     assert (cfg.timeframe, cfg.exit_mode, cfg.sl_atr, cfg.tp_atr, cfg.trail_atr, cfg.min_gates) == ("4h", "atr", 2.0, 0.0, 2.5, 3)
     assert cfg.risk_pct == 0.004 and cfg.max_hold_hours == 48 and cfg.symbols == [] and cfg.max_coins == 30
+    assert cfg.leverage == 3 and cfg.min_liq_distance == 0.30 and cfg.max_atr_pct == 0.04
     assert cfg.entry_mode == "intrabar" and cfg.btc_filter is False
 
 
@@ -384,3 +385,34 @@ def test_margin_sizing_uses_fixed_percent_of_equity_and_reports_actual_risk():
 def test_invalid_sizing_mode_rejected():
     with pytest.raises(ValueError):
         ScalpConfig(sizing_mode="lots").validate()
+
+
+def test_liquidation_price_distance_guard_and_display():
+    a10 = PaperAccount(atr_cfg(leverage=10, min_liq_distance=0.30))
+    a3 = PaperAccount(atr_cfg(leverage=3, min_liq_distance=0.30))
+    sig_ = atr_sig("LONG")
+    assert "liquidation sirf" in a10.reject_reason(sig_, 100.0) and a10.open(sig_, 100.0, 0) is None      # 10x: sirf ~9.5% door
+    p = a3.open(sig_, 100.0, 0)
+    assert p is not None and p.liq == pytest.approx(100.0 * (1 - (1 / 3 - 0.005)))                         # ~66.8: 33% door
+    s = PaperAccount(atr_cfg(leverage=3)).open(atr_sig("SHORT"), 100.0, 0)
+    assert s.liq == pytest.approx(100.0 * (1 + (1 / 3 - 0.005)))                                           # short: upar
+    assert "Liquidation:" in messages.opened(p, a3.cfg, a3.balance) and "door" in messages.opened(p, a3.cfg, a3.balance)
+
+
+def test_max_atr_pct_keeps_validated_universe():
+    a = PaperAccount(atr_cfg(leverage=3, max_atr_pct=0.04))
+    wild = Signal("W/USDT:USDT", "LONG", 3, [], 2.0, 0.05, 100.0)
+    calm = Signal("C/USDT:USDT", "LONG", 3, [], 2.0, 0.03, 100.0)
+    assert "volatile" in a.reject_reason(wild, 100.0) and a.open(wild, 100.0, 0) is None
+    assert a.open(calm, 100.0, 0) is not None
+
+
+def test_roi30_grid_has_low_leverage_and_30_percent_target():
+    from scalp import sweep
+    grid, over = sweep.grid_for("roi30", False)
+    assert over == {"exit_mode": "roi"} and grid["tp_roi"] == [0.30] and max(grid["leverage"]) <= 5
+    import math
+    assert math.prod(len(v) for v in grid.values()) == 36
+    cfg = ScalpConfig(exit_mode="roi", leverage=3, tp_roi=0.30, sl_roi=0.15, fee_rate=0.0, slippage_pct=0.0)
+    p = PaperAccount(cfg).open(sig("LONG"), 100.0, 0)
+    assert p.tp == pytest.approx(110.0) and p.sl == pytest.approx(95.0)       # 3x: 30% ROI = 10% price, 15% ROI stop = 5% price
