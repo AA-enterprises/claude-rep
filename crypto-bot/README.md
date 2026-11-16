@@ -210,3 +210,8 @@ Isolated margin mein liquidation entry se lagbhag `1/leverage - 0.5%` door hoti 
 - Ye andaza hai (Binance maintenance margin tier/coin ke hisaab se alag hota hai). Paper account asli liquidation simulate nahi karta; stop-loss hamesha liquidation se pehle lagta hai.
 
 `python main.py scalp-sweep --mode roi30 --timeframe 15m` : 30% ROI profit-book + kam leverage wale combos (36) ko test karta hai.
+
+## Dashboard ka CLOSE button
+Har open trade ke saamne `CLOSE` button hai. Dabane par (confirm ke baad) dashboard ek request file (`scalp_state_commands.jsonl`) mein likhta hai, aur bot agle ~10 second mein us trade ko market price par band karta hai (reason `MANUAL`) aur Telegram par "MANUAL CLOSE" bhejta hai.
+- Bot chalna zaroori hai (button sirf bot ko bolta hai, khud trade band nahi karta).
+- Safety: dashboard sirf aapke PC (127.0.0.1) par chalta hai; dusri website se bheji gayi request reject hoti hai (Host/Origin/custom header check).

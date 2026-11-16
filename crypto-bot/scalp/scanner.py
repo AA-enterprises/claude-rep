@@ -104,6 +104,7 @@ class Bot:
         self.candles: dict[str, list[tuple]] = {}     # har coin ki closed candles yaad (memory mein)
         self.forming: dict[str, tuple | None] = {}    # intrabar mode: abhi ki adhoori candle
         self.equity_path = state_path.replace(".json", "_equity.csv")
+        self.cmd_path = state_path.replace(".json", "_commands.jsonl")      # dashboard se aane wale commands (CLOSE)
         if os.path.exists(state_path):
             st = json.load(open(state_path))
             self.acct = PaperAccount.from_dict(cfg, st["account"])
@@ -139,8 +140,42 @@ class Bot:
                                          self.acct.balance + unreal, len(self.acct.positions), unreal))
             self.last_report = now
 
+    def process_commands(self) -> None:
+        """Dashboard ke CLOSE button se aayi requests: position ko market price par band karo."""
+        if not os.path.exists(self.cmd_path):
+            return
+        work = self.cmd_path + ".work"
+        try:
+            os.replace(self.cmd_path, work)                 # dashboard abhi likh raha ho to agli baar
+        except OSError:
+            return
+        try:
+            with open(work, encoding="utf-8") as f:
+                lines = f.read().splitlines()
+        finally:
+            try:
+                os.remove(work)
+            except OSError:
+                pass
+        for ln in lines:
+            try:
+                cmd = json.loads(ln)
+            except ValueError:
+                continue
+            pos = self.acct.positions.get(cmd.get("symbol", "")) if cmd.get("action") == "close" else None
+            if not pos:
+                continue
+            px = (self.ex.fetch_ticker(pos.symbol) or {}).get("last") or self.prices.get(pos.symbol) or pos.entry
+            px = px * (1 - pos.d * self.cfg.slippage_pct)          # market exit: slippage jaisa baaki exits mein
+            rec = self.acct.close(pos, "MANUAL", px, self.ex.milliseconds())
+            self.log_trade(rec)
+            print(f"MANUAL CLOSE {pos.symbol} roi {rec['roi']:+.1%} pnl {rec['pnl']:+.2f}")
+            self.tg.send(messages.closed(rec, self.acct.balance, stats_from_csv(self.trades_path)))
+            self.save()
+
     def heartbeat(self) -> None:
         """Har cycle: dashboard ke liye state + (har 60s) equity point + periodic report."""
+        self.process_commands()
         now = time.time()
         flush = getattr(self.tg, "flush", None)
         if flush:

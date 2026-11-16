@@ -320,3 +320,44 @@ def test_dashboard_shows_liquidation_price(tmp_path):
     p = st["positions"][0]
     assert p["liq"] < p["entry"] and 0.25 < p["liq_dist"] < 0.40                 # LONG: liquidation neeche, ~33% door
     assert "Liq. Price" in dashboard.PAGE
+
+
+def test_dashboard_close_button_flow_end_to_end(tmp_path):
+    import json
+    import threading
+    import urllib.error
+    import urllib.request
+    from http.server import ThreadingHTTPServer
+    from scalp import dashboard
+
+    cfg = ScalpConfig()
+    ex, tg = FakeEx(cfg), Rec()
+    sp, tp = str(tmp_path / "s.json"), str(tmp_path / "t.csv")
+    bot = scanner.Bot(cfg, sp, tp, tg, ex=ex)
+    bot.scan()
+    sym = next(iter(bot.acct.positions))
+    bot.heartbeat()
+    srv = ThreadingHTTPServer(("127.0.0.1", 0), dashboard.make_handler(sp, tp, sp.replace(".json", "_equity.csv")))
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    base = f"http://127.0.0.1:{srv.server_address[1]}"
+
+    def post(headers, body):
+        req = urllib.request.Request(base + "/api/close", data=json.dumps(body).encode(), headers=headers, method="POST")
+        try:
+            with urllib.request.urlopen(req) as r:
+                return r.status, json.load(r)
+        except urllib.error.HTTPError as e:
+            return e.code, json.load(e)
+    good = {"Content-Type": "application/json", "X-Requested-With": "scalp-dashboard"}
+    assert post({"Content-Type": "application/json"}, {"symbol": sym})[0] == 403                     # custom header ke bina: nahi
+    assert post({**good, "Origin": "http://evil.example"}, {"symbol": sym})[0] == 403                # dusri website: nahi
+    assert post(good, {"symbol": "NOPE/USDT:USDT"})[0] == 404                                         # open nahi hai
+    assert not os.path.exists(sp.replace(".json", "_commands.jsonl"))
+    assert post(good, {"symbol": sym}) == (200, {"ok": True})
+    st = dashboard.build_state(sp, tp, sp.replace(".json", "_equity.csv"))
+    assert st["positions"][0]["closing"] is True                                                      # UI 'band ho rahi...' dikhayega
+    n_msgs = len(tg.msgs)
+    bot.heartbeat()                                                                                    # bot agle cycle mein command uthata hai
+    assert not bot.acct.positions and "MANUAL CLOSE" in tg.msgs[-1] and len(tg.msgs) == n_msgs + 1
+    assert ",MANUAL," in open(tp).read() and not os.path.exists(sp.replace(".json", "_commands.jsonl"))
+    srv.shutdown()

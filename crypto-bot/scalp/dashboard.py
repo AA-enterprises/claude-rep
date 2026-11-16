@@ -33,6 +33,12 @@ def build_state(state_path: str, trades_path: str, equity_path: str, now: float 
     st = _read_json(state_path)
     if not st:
         return {"status": "no_state"}
+    pending = set()
+    try:
+        with open(state_path.replace(".json", "_commands.jsonl"), encoding="utf-8") as f:
+            pending = {json.loads(x).get("symbol") for x in f if x.strip()}
+    except (OSError, ValueError):
+        pass
     acct, prices = st["account"], st.get("prices", {})
     positions, unreal = [], 0.0
     for p in acct["positions"]:
@@ -42,7 +48,7 @@ def build_state(state_path: str, trades_path: str, equity_path: str, now: float 
         unreal += pnl
         liq = p.get("liq") or p["entry"] * (1 - d * max(0.0, 1 / p["leverage"] - 0.005))      # purani state mein liq nahi hota
         positions.append({
-            "liq": liq, "liq_dist": abs(liq / mark - 1),
+            "liq": liq, "liq_dist": abs(liq / mark - 1), "closing": p["symbol"] in pending,
             "symbol": p["symbol"], "side": p["side"], "leverage": p["leverage"], "qty": p["qty"],
             "notional": p["qty"] * p["entry"], "margin": p["margin"], "entry": p["entry"], "mark": mark,
             "tp": p["tp"], "sl": p["sl"], "pnl": pnl, "roi": pnl / p["margin"] if p["margin"] else 0.0,
@@ -105,6 +111,7 @@ main{padding:16px 20px;max-width:1300px;margin:auto}
 th{color:var(--mut);font-weight:400;font-size:12px;text-align:right;padding:10px 12px;white-space:nowrap}td{padding:10px 12px;text-align:right;border-top:1px solid var(--line);white-space:nowrap}
 th:first-child,td:first-child{text-align:left}.up{color:var(--up)}.dn{color:var(--dn)}.mut{color:var(--mut)}
 .tag{font-size:11px;padding:1px 6px;border-radius:4px;margin-left:6px}.tag.LONG{background:#0ecb8122;color:var(--up)}.tag.SHORT{background:#f6465d22;color:var(--dn)}
+.btn{background:none;border:1px solid var(--dn);color:var(--dn);border-radius:6px;padding:3px 10px;font:inherit;font-size:12px;cursor:pointer}.btn:hover{background:#f6465d22}.btn:disabled{opacity:.5;cursor:default}
 .empty{padding:28px;text-align:center;color:var(--mut)}canvas{width:100%;height:200px;display:block}
 </style></head><body>
 <header><h1>Scalp Bot</h1><span class="pill">Paper</span><span id="st" class="pill"><span class="dot"></span><span id="stt">...</span></span><span class="mut" id="upd"></span></header>
@@ -122,7 +129,7 @@ const cls=x=>x>0?"up":x<0?"dn":"";
 function el(t,c,x){const e=document.createElement(t);if(c)e.className=c;if(x!==undefined)e.textContent=x;return e}
 function card(k,v,c){const d=el("div","card");d.append(el("div","k",k),el("div","v "+(c||""),v));return d}
 function table(head,rows){const t=el("table"),h=el("tr");head.forEach(x=>h.append(el("th","",x)));t.append(h);
- rows.forEach(r=>{const tr=el("tr");r.forEach(c=>{const td=el("td",c.c||"");if(c.n){const s=el("span","",c.t);td.append(s,el("span","tag "+c.n,c.n))}else td.textContent=c.t??c;tr.append(td)});t.append(tr)});return t}
+ rows.forEach(r=>{const tr=el("tr");r.forEach(c=>{const td=el("td",c.c||"");if(c.btn){const b=el("button","btn",c.label);b.disabled=!!c.off;b.onclick=ev=>c.onclick(ev.target);td.append(b)}else if(c.n){const s=el("span","",c.t);td.append(s,el("span","tag "+c.n,c.n))}else td.textContent=c.t??c;tr.append(td)});t.append(tr)});return t}
 document.querySelectorAll(".tab").forEach(b=>b.onclick=()=>{document.querySelectorAll(".tab").forEach(x=>x.classList.toggle("on",x===b));
  ["pos","daily","hist","eq"].forEach(i=>$(i).hidden=i!==b.dataset.t);draw()});
 let S=null;
@@ -147,13 +154,20 @@ function render(s){S=s;const st=$("st");
  $("daily").replaceChildren(s.daily.length?table(["Date","Trades","Won / Lost","Profit","Loss","Net PnL"],
   s.daily.map(d=>[d.day+(d.day===T.day?"  (aaj)":""),d.n,d.wins+" / "+d.losses,{t:fm(d.profit),c:d.profit>0?"up":""},{t:fm(d.loss),c:d.loss<0?"dn":""},{t:fm(d.net),c:cls(d.net)}])):el("div","empty","Abhi koi closed trade nahi"));
  $("np").textContent=s.positions.length;
- $("pos").replaceChildren(s.positions.length?table(["Symbol","Size (USDT)","Margin","Entry","Mark","TP","SL","Liq. Price","PnL (ROI%)","Held"],
+ $("pos").replaceChildren(s.positions.length?table(["Symbol","Size (USDT)","Margin","Entry","Mark","TP","SL","Liq. Price","PnL (ROI%)","Held",""],
   s.positions.map(p=>[{t:nm(p.symbol)+" "+p.leverage+"x",n:p.side},fp(p.notional).replace(/\.\d+$/,""),p.margin.toFixed(2),fp(p.entry),fp(p.mark),{t:p.tp==null?"trail":fp(p.tp),c:"up"},{t:fp(p.sl),c:"dn"},{t:fp(p.liq)+" ("+(p.liq_dist*100).toFixed(0)+"%)",c:p.liq_dist<0.1?"dn":"mut"},
-   {t:fm(p.pnl)+" ("+fm(p.roi*100,1)+"%)",c:cls(p.pnl)},dur(p.held_min)+" / "+dur(p.max_hold_min)])):el("div","empty","Abhi koi open trade nahi"));
+   {t:fm(p.pnl)+" ("+fm(p.roi*100,1)+"%)",c:cls(p.pnl)},dur(p.held_min)+" / "+dur(p.max_hold_min),{btn:true,label:p.closing?"band ho rahi...":"CLOSE",off:p.closing,onclick:b=>closePos(p.symbol,b)}])):el("div","empty","Abhi koi open trade nahi"));
  $("hist").replaceChildren(s.trades.length?table(["Symbol","Entry","Exit","Result","PnL (ROI%)","Held","Closed (UTC)"],
   s.trades.map(t=>[{t:nm(t.symbol),n:t.side},fp(t.entry),fp(t.exit),{t:t.reason,c:(t.reason==="TP"||t.reason==="TRAIL")?"up":t.reason==="SL"?"dn":"mut"},
    {t:fm(t.pnl)+" ("+fm(t.roi*100,1)+"%)",c:cls(t.pnl)},dur(t.held_min),new Date(t.closed_ts).toISOString().slice(0,16).replace("T"," ")])):el("div","empty","Abhi koi closed trade nahi"));
  draw()}
+async function closePos(sym,btn){
+ if(!confirm(nm(sym)+" trade ko abhi market price par band karein?"))return;
+ btn.disabled=true;btn.textContent="bhej rahi...";
+ try{const r=await fetch("/api/close",{method:"POST",headers:{"Content-Type":"application/json","X-Requested-With":"scalp-dashboard"},body:JSON.stringify({symbol:sym})});
+  const j=await r.json();if(!j.ok){alert(j.error||"request fail");btn.disabled=false;btn.textContent="CLOSE";return}
+  btn.textContent="band ho rahi..."}catch(e){alert("Dashboard se connection nahi");btn.disabled=false;btn.textContent="CLOSE"}
+ setTimeout(tick,3000)}
 async function tick(){try{const r=await fetch("/api/state");render(await r.json())}catch(e){$("stt").textContent="Dashboard server se connection nahi"}}
 tick();setInterval(tick,3000);
 </script></body></html>"""
@@ -175,6 +189,40 @@ def make_handler(state_path: str, trades_path: str, equity_path: str):
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
             self.wfile.write(body)
+
+        def _safe(self) -> bool:
+            """Sirf aapke apne dashboard page se aayi request (dusri website se nahi): Host/Origin/custom header check."""
+            host = self.headers.get("Host", "")
+            origin = self.headers.get("Origin")
+            return (host.split(":")[0] in ("127.0.0.1", "localhost")
+                    and (origin is None or origin == f"http://{host}")
+                    and self.headers.get("X-Requested-With") == "scalp-dashboard"
+                    and self.headers.get("Content-Type", "").startswith("application/json"))
+
+        def _json(self, code: int, obj: dict) -> None:
+            body = json.dumps(obj).encode()
+            self.send_response(code)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def do_POST(self):  # noqa: N802
+            if self.path.split("?")[0] != "/api/close":
+                return self._json(404, {"ok": False, "error": "not found"})
+            if not self._safe():
+                return self._json(403, {"ok": False, "error": "forbidden"})
+            try:
+                n = int(self.headers.get("Content-Length", "0"))
+                sym = str(json.loads(self.rfile.read(min(n, 4096)) or b"{}").get("symbol", ""))
+            except (ValueError, TypeError):
+                return self._json(400, {"ok": False, "error": "bad request"})
+            st = _read_json(state_path) or {}
+            if sym not in {p["symbol"] for p in st.get("account", {}).get("positions", [])}:
+                return self._json(404, {"ok": False, "error": "ye position ab open nahi hai"})
+            with open(state_path.replace(".json", "_commands.jsonl"), "a", encoding="utf-8") as f:
+                f.write(json.dumps({"action": "close", "symbol": sym, "ts": time.time()}) + "\n")
+            self._json(200, {"ok": True})
 
         def log_message(self, *a):  # console shaant
             pass
