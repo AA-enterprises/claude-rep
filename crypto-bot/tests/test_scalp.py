@@ -464,7 +464,7 @@ def test_scalp1h_config_and_quiet_alerts(tmp_path):
     from scalp import config as sc, scanner
     base = os.path.dirname(os.path.dirname(__file__))
     c = sc.load(os.path.join(base, "scalp_config_1h.json"))
-    assert (c.label, c.timeframe, c.entry_mode, c.max_hold_hours, c.leverage, c.notify_trades, c.report_hours) == ("SCALP1H", "15m", "close", 1, 2, False, 6)
+    assert (c.label, c.timeframe, c.entry_mode, c.max_hold_hours, c.leverage, c.notify_trades, c.report_hours) == ("SCALP1H", "15m", "close", 1, 2, True, 6)
     assert (c.min_atr_pct, c.max_atr_pct, c.min_vol_ratio, c.lock_fees) == (0.015, 0.05, 5.0, True)        # backtest: sirf bade ATR + bade volume spike wali trades fees ke baad bachti hain
     assert sc.load(os.path.join(base, "scalp_config.json")).notify_trades is True                       # baaki bots ke alerts waise hi
 
@@ -498,3 +498,25 @@ def test_min_vol_ratio_filters_weak_volume():
     assert decide("X", f(2.0), cfg) is None
     assert decide("X", f(6.0), cfg) is not None
     assert decide("X", f(2.0), ScalpConfig(min_atr_pct=0.004)) is not None   # default 0 = band
+
+
+def test_discord_positions_reply(tmp_path):
+    import json
+    from scalp import discord_cmd
+    pos = {"symbol": "SOL/USDT:USDT", "side": "LONG", "leverage": 2, "qty": 20.0, "entry": 72.0, "margin": 720.0, "tp": 0, "sl": 70.0,
+           "liq": 40.0, "opened_ts": 0, "max_hold_ms": 3_600_000, "score": 3, "entry_fee": 0.75}
+    st = {"account": {"balance": 9900.0, "positions": [pos], "start_balance": 10000.0}, "prices": {"SOL/USDT:USDT": 73.0},
+          "updated": 0}
+    (tmp_path / "scalp_state_1h.json").write_text(json.dumps(st))
+    (tmp_path / "scalp_state_1h_commands.json").write_text("{}")      # commands file ko bot state na samjho
+    files = discord_cmd.state_files(str(tmp_path))
+    assert [f[0] for f in files] == ["1H"]
+    txt = discord_cmd.positions_reply(str(tmp_path))
+    assert "SOL" in txt and "LONG" in txt and "+20.00" in txt and len(txt) < 1900
+    assert "nahi mili" in discord_cmd.positions_reply(str(tmp_path / "nope"))
+
+
+def test_discord_start_without_token_is_safe(tmp_path, monkeypatch):
+    from scalp import discord_cmd
+    monkeypatch.delenv("DISCORD_BOT_TOKEN", raising=False)
+    assert discord_cmd.start(str(tmp_path), env_file=str(tmp_path / "none.env")) is None

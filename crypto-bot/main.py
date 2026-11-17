@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 import time
 
@@ -241,6 +242,9 @@ def cmd_scalp_paper(args) -> int:
     if not args.no_dashboard:
         from scalp import dashboard
         dashboard.start_background(args.state, args.trades, args.dashboard_port, open_browser=args.open)
+    if cfg.discord_commands:
+        from scalp import discord_cmd
+        discord_cmd.start(os.path.dirname(os.path.abspath(args.state)))
     scanner.Bot(cfg, args.state, args.trades, make_notifier()).run()
     return 0
 

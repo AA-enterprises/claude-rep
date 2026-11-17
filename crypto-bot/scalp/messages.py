@@ -102,3 +102,27 @@ def report(w: dict, since_ms: int, now_ms: int, balance: float, equity: float, n
         f"Balance: ${balance:,.2f} · Equity: ${equity:,.2f}",
     ]
     return "\n".join(lines)
+
+
+def positions_text(bots: list[tuple[str, dict]]) -> str:
+    """Discord /positions: har bot ki open trades (dashboard wale build_state se)."""
+    out = []
+    for label, st in bots:
+        if st.get("status") == "no_state":
+            out.append(f"**{label}**: abhi data nahi")
+            continue
+        pos = st.get("positions", [])
+        head = f"**{label}** · Open: {len(pos)}"
+        head += f" · Equity ${st['equity']:,.2f}"
+        t = st.get("today")
+        if t:
+            head += f" · Aaj: {t['n']} trades, net {t['net']:+,.2f}"
+        out.append(head)
+        if not pos:
+            out.append("  (koi open trade nahi)")
+        for p in pos:
+            icon = "🟢" if p["pnl"] >= 0 else "🔴"
+            out.append(f"{icon} {name(p['symbol'])} {p['side']} {p['leverage']:.0f}x · entry {fp(p['entry'])} → {fp(p['mark'])}\n"
+                       f"   PnL {p['pnl']:+,.2f} ({p['roi']:+.1%}) · fees {p['fees_est']:.2f} · band karein to {p['net_if_closed']:+,.2f}\n"
+                       f"   SL {fp(p['sl'])} · Liq {fp(p['liq'])} · {dur(p['held_min'])}/{dur(p['max_hold_min'])}")
+    return "\n".join(out)[:1900]
