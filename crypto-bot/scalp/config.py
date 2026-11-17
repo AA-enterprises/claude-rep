@@ -47,6 +47,7 @@ class ScalpConfig:
     fetch_workers: int = 5        # candles parallel mein itne coins ek saath mangta hai
     report_hours: float = 12.0    # Telegram par itne ghante mein ek report (0 = band)
     # --- ATR exit mode (default): stop/target har coin ki volatility ke hisaab se ---
+    lock_fees: bool = False       # True: trailing shuru hote hi stop kam se kam entry + fees (fees ke baad loss na ho)
     notify_trades: bool = True    # False: har trade open/close ka alert nahi (bahut trades wale bot ke liye), sirf report
     label: str = ""               # alert messages mein bot ka naam (jaise "FREQ"), do bot alag pehchanne ke liye
     entry_mode: str = "close"     # "close": band hui candle par (validate hua) | "intrabar": har 15 min adhoori candle dekh kar foran entry

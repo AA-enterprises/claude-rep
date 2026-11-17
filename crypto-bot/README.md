@@ -267,3 +267,7 @@ Telegram band karna: `.env` mein TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID / TELEGRA
 - **Daily P&L** tab mein har din ki `Fees` column. Closed trades ke CSV mein naya `fees` column (purani file automatic migrate hoti hai). "TRADE CLOSED" message mein bhi `Fees: $x`.
 - Fee/slippage ki dar bot ki config se aati hai (`fee_rate` 0.05%, `slippage_pct` 0.02% har taraf).
 - **Trade History** mein har trade ke saamne uski apni `Fees`. **Coins (fees)** tab mein har coin ki alag: trades, jeet, `Fees paid`, `Gross (fees se pehle)`, `Net (fees ke baad)`. "TRADE OPENED" message mein `Entry fee: $x`.
+
+## lock_fees (fees ke baad loss na ho)
+`"lock_fees": true`: trailing shuru hote hi stop kam se kam `entry + (entry fee + exit fee + slippage)` par jata hai, to stop lagne par fees ke baad bhi loss nahi.
+Backtest: validated bot par R/trade +0.063 -> +0.058 (return +154% -> +147%, "profit par par fees ke baad loss" wale 43 trail exits -> 0). SCALP1H par farak nagan (-0.104 -> -0.102 R) par 9,332 aise exits 0. Abhi sirf SCALP1H (`scalp_config_1h.json`) mein ON; baaki bots mein `"lock_fees": true` jod kar ON kar sakte ho.

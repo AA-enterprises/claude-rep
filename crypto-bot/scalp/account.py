@@ -130,6 +130,11 @@ class PaperAccount:
         self.positions[sig.symbol] = pos
         return pos
 
+    def breakeven_price(self, pos: Position) -> float:
+        """Wo price jis par band karne par fees ke baad ~0 bachta hai: entry + (entry fee + exit fee + slippage) per unit."""
+        cost = pos.entry_fee / pos.qty + pos.entry * (self.cfg.fee_rate + 2 * self.cfg.slippage_pct)
+        return pos.entry + pos.d * cost
+
     def check_exit(self, pos: Position, hi: float, lo: float, last: float, ts: int,
                    live: bool = False) -> tuple[str, float] | None:
         """SL pehle check hota hai (conservative: ek candle mein dono touch hon to SL maana jata hai).
@@ -147,14 +152,17 @@ class PaperAccount:
         if ts - pos.opened_ts >= pos.max_hold_ms:
             return "TIMEOUT", last * (1 - d * s)
         if pos.trail_dist > 0:                                   # ratchet: stop sirf favourable disha mein khiske
+            be = self.breakeven_price(pos) if self.cfg.lock_fees else None
             if d == 1:
                 pos.best = max(pos.best, hi)
                 if pos.best - pos.entry >= pos.trail_start:
-                    pos.sl = max(pos.sl, pos.best - pos.trail_dist)
+                    new_sl = pos.best - pos.trail_dist
+                    pos.sl = max(pos.sl, new_sl if be is None else max(new_sl, be))
             else:
                 pos.best = min(pos.best, lo)
                 if pos.entry - pos.best >= pos.trail_start:
-                    pos.sl = min(pos.sl, pos.best + pos.trail_dist)
+                    new_sl = pos.best + pos.trail_dist
+                    pos.sl = min(pos.sl, new_sl if be is None else min(new_sl, be))
         return None
 
     def close(self, pos: Position, reason: str, px: float, ts: int) -> dict:

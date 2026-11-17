@@ -25,5 +25,6 @@
   "label": "SCALP1H",
   "cooldown_candles": 4,
   "min_atr_pct": 0.004,
-  "notify_trades": false
+  "notify_trades": false,
+  "lock_fees": true
 }

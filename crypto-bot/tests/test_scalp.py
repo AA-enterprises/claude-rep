@@ -466,3 +466,24 @@ def test_scalp1h_config_and_quiet_alerts(tmp_path):
     c = sc.load(os.path.join(base, "scalp_config_1h.json"))
     assert (c.label, c.timeframe, c.entry_mode, c.max_hold_hours, c.leverage, c.notify_trades, c.report_hours) == ("SCALP1H", "15m", "close", 1, 2, False, 6)
     assert sc.load(os.path.join(base, "scalp_config.json")).notify_trades is True                       # baaki bots ke alerts waise hi
+
+
+def test_lock_fees_lifts_trailing_stop_to_entry_plus_fees():
+    kw = dict(fee_rate=0.0005, slippage_pct=0.0002, trail_start_atr=1.0, trail_atr=2.5)
+    a = PaperAccount(atr_cfg(lock_fees=True, **kw))
+    p = a.open(atr_sig("LONG"), 100.0, 0)
+    assert a.check_exit(p, 101.2, 100.5, 101.0, 1) is None          # +1.2 ATR: trailing shuru
+    be = a.breakeven_price(p)
+    assert p.sl >= be > p.entry                                     # stop entry + fees se neeche nahi
+    rec = a.close(p, "TRAIL", p.sl, 2)
+    assert rec["pnl"] >= 0                                          # stop lage to bhi fees ke baad loss nahi
+    b = PaperAccount(atr_cfg(lock_fees=False, **kw))
+    q = b.open(atr_sig("LONG"), 100.0, 0)
+    b.check_exit(q, 101.2, 100.5, 101.0, 1)
+    assert q.sl < q.entry                                           # lock ke bina stop abhi entry se neeche hi hai
+    s = PaperAccount(atr_cfg(lock_fees=True, **kw)).open(atr_sig("SHORT"), 100.0, 0)
+    a2 = PaperAccount(atr_cfg(lock_fees=True, **kw))
+    s = a2.open(atr_sig("SHORT"), 100.0, 0)
+    a2.check_exit(s, 99.6, 98.8, 99.0, 1)
+    assert s.sl <= a2.breakeven_price(s) < s.entry                  # short mein bhi (stop neeche, entry - fees par)
+    assert a2.close(s, "TRAIL", s.sl, 2)["pnl"] >= 0
