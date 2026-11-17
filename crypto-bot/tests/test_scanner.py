@@ -514,3 +514,36 @@ def test_closed_trade_records_fees_and_old_csv_is_migrated(tmp_path):
     from scalp import dashboard
     st = dashboard.build_state(str(tmp_path / "s.json"), str(tp), "none.csv")
     assert st["fees_all"] == float(rows[1]["fees"]) and st["trades"][0]["symbol"] == "UP/USDT:USDT"
+
+
+def test_per_trade_and_per_coin_fees_in_dashboard_and_open_message(tmp_path):
+    import csv
+    import json
+    import time
+    from scalp import dashboard
+    from scalp.scanner import TRADE_FIELDS
+
+    st = {"account": {"balance": 10000, "positions": [], "cooldown_until": {}}, "prices": {}, "updated": time.time(), "start_balance": 10000}
+    sp = tmp_path / "s.json"
+    sp.write_text(json.dumps(st))
+    now = int(time.time() * 1000)
+    rows = [("INJ/USDT:USDT", 5.0, 2.0), ("INJ/USDT:USDT", -3.0, 2.2), ("AAVE/USDT:USDT", 4.0, 1.5)]
+    with open(tmp_path / "t.csv", "w", newline="") as f:
+        w = csv.DictWriter(f, TRADE_FIELDS)
+        w.writeheader()
+        for i, (sym, pnl, fee) in enumerate(rows):
+            w.writerow(dict(closed_ts=now + i * 1000, symbol=sym, side="LONG", entry=1, exit=1, reason="TP", roi=0, pnl=pnl, r=0,
+                            held_min=5, score=3, gates="g", vol_ratio=1, atr_pct=0.01, fees=fee))
+    out = dashboard.build_state(str(sp), str(tmp_path / "t.csv"), "none.csv")
+    assert [round(t["fees"], 2) for t in out["trades"]] == [1.5, 2.2, 2.0]                         # har trade ki apni fees (nayi pehle)
+    by = {c["symbol"]: c for c in out["by_coin"]}
+    assert by["INJ/USDT:USDT"]["n"] == 2 and abs(by["INJ/USDT:USDT"]["fees"] - 4.2) < 1e-9          # coin-wise fees
+    assert abs(by["INJ/USDT:USDT"]["net"] - 2.0) < 1e-9 and abs(by["INJ/USDT:USDT"]["gross"] - 6.2) < 1e-9
+    assert out["by_coin"][0]["symbol"] == "INJ/USDT:USDT" and abs(out["fees_all"] - 5.7) < 1e-9
+    cfg = ScalpConfig()
+    from scalp.account import PaperAccount
+    from scalp.signals import Signal
+    a = PaperAccount(cfg)
+    p = a.open(Signal("A/USDT:USDT", "LONG", 3, ["g"], 2.0, 0.01, 100.0), 100.0, 0)
+    from scalp import messages
+    assert "Entry fee: $" in messages.opened(p, cfg, a.balance)

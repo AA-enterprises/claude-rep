@@ -266,3 +266,4 @@ Telegram band karna: `.env` mein TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID / TELEGRA
 - Upar cards: `Abhi sab band karein (fees ke baad)` (saari open trades abhi band karein to net kitna bachega), aur `Fees aaj / total`.
 - **Daily P&L** tab mein har din ki `Fees` column. Closed trades ke CSV mein naya `fees` column (purani file automatic migrate hoti hai). "TRADE CLOSED" message mein bhi `Fees: $x`.
 - Fee/slippage ki dar bot ki config se aati hai (`fee_rate` 0.05%, `slippage_pct` 0.02% har taraf).
+- **Trade History** mein har trade ke saamne uski apni `Fees`. **Coins (fees)** tab mein har coin ki alag: trades, jeet, `Fees paid`, `Gross (fees se pehle)`, `Net (fees ke baad)`. "TRADE OPENED" message mein `Entry fee: $x`.

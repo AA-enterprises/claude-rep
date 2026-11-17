@@ -66,7 +66,7 @@ def build_state(state_path: str, trades_path: str, equity_path: str, now: float 
     rows = _read_csv(trades_path)
     wins = sum(float(r["pnl"]) > 0 for r in rows)
     total = sum(float(r["pnl"]) for r in rows)
-    trades = [{**r, "pnl": float(r["pnl"]), "roi": float(r["roi"]), "entry": float(r["entry"]),
+    trades = [{**r, "fees": float(r.get("fees") or 0), "pnl": float(r["pnl"]), "roi": float(r["roi"]), "entry": float(r["entry"]),
                "exit": float(r["exit"]), "held_min": float(r["held_min"]), "closed_ts": int(float(r["closed_ts"]))}
               for r in rows[-100:]][::-1]
     days: dict[str, dict] = {}
@@ -86,6 +86,18 @@ def build_state(state_path: str, trades_path: str, equity_path: str, now: float 
     today_key = time.strftime("%Y-%m-%d", time.localtime(now))
     today = days.get(today_key, {"day": today_key, "n": 0, "wins": 0, "losses": 0, "profit": 0.0, "loss": 0.0, "net": 0.0, "fees": 0.0})
     all_fees = sum(float(r.get("fees") or 0) for r in rows)
+    coins: dict[str, dict] = {}
+    for r in rows:
+        c = coins.setdefault(r["symbol"], {"symbol": r["symbol"], "n": 0, "wins": 0, "fees": 0.0, "net": 0.0})
+        f = float(r.get("fees") or 0)
+        pnl = float(r["pnl"])
+        c["n"] += 1
+        c["wins"] += pnl > 0
+        c["fees"] += f
+        c["net"] += pnl                                          # pnl pehle se fees ke baad hai
+    for c in coins.values():
+        c["gross"] = c["net"] + c["fees"]                        # fees se pehle
+    by_coin = sorted(coins.values(), key=lambda c: -c["fees"])
     daily = sorted(days.values(), key=lambda d: d["day"], reverse=True)[:60]
     eq = [[int(r["ts"]), float(r["equity"])] for r in _read_csv(equity_path)[-1500:]]
     start = st.get("start_balance", acct["balance"])
@@ -93,7 +105,7 @@ def build_state(state_path: str, trades_path: str, equity_path: str, now: float 
     age = now - st.get("updated", 0)
     return {
         "status": "running" if age < 60 else "stale", "age_sec": age,
-        "fees_open": fees_open, "net_if_closed": net_if_closed, "fees_all": all_fees,
+        "fees_open": fees_open, "net_if_closed": net_if_closed, "fees_all": all_fees, "by_coin": by_coin,
         "balance": acct["balance"], "equity": equity, "unrealized": unreal, "start_balance": start,
         "return_pct": equity / start - 1 if start else 0.0,
         "today": today, "daily": daily, "positions": positions, "trades": trades, "equity_series": eq,
@@ -127,8 +139,8 @@ th:first-child,td:first-child{text-align:left}.up{color:var(--up)}.dn{color:var(
 <header><h1>Scalp Bot</h1><span class="pill">Paper</span><span id="st" class="pill"><span class="dot"></span><span id="stt">...</span></span><span class="mut" id="upd"></span></header>
 <main>
 <div class="cards" id="cards"></div>
-<div class="panel"><div class="tabs"><button class="tab on" data-t="pos">Open Positions (<span id="np">0</span>)</button><button class="tab" data-t="daily">Daily P&amp;L</button><button class="tab" data-t="hist">Trade History</button><button class="tab" data-t="eq">Equity</button></div>
-<div id="pos" class="tw"></div><div id="daily" class="tw" hidden></div><div id="hist" class="tw" hidden></div><div id="eq" hidden style="padding:12px"><canvas id="cv" width="1200" height="400"></canvas></div></div>
+<div class="panel"><div class="tabs"><button class="tab on" data-t="pos">Open Positions (<span id="np">0</span>)</button><button class="tab" data-t="daily">Daily P&amp;L</button><button class="tab" data-t="hist">Trade History</button><button class="tab" data-t="coins">Coins (fees)</button><button class="tab" data-t="eq">Equity</button></div>
+<div id="pos" class="tw"></div><div id="daily" class="tw" hidden></div><div id="hist" class="tw" hidden></div><div id="coins" class="tw" hidden></div><div id="eq" hidden style="padding:12px"><canvas id="cv" width="1200" height="400"></canvas></div></div>
 </main><script>
 const $=id=>document.getElementById(id);
 const fp=p=>p>=100?p.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}):p>=1?p.toFixed(4):p.toFixed(6);
@@ -141,7 +153,7 @@ function card(k,v,c){const d=el("div","card");d.append(el("div","k",k),el("div",
 function table(head,rows){const t=el("table"),h=el("tr");head.forEach(x=>h.append(el("th","",x)));t.append(h);
  rows.forEach(r=>{const tr=el("tr");r.forEach(c=>{const td=el("td",c.c||"");if(c.btn){const b=el("button","btn",c.label);b.disabled=!!c.off;b.onclick=ev=>c.onclick(ev.target);td.append(b)}else if(c.n){const s=el("span","",c.t);td.append(s,el("span","tag "+c.n,c.n))}else td.textContent=c.t??c;tr.append(td)});t.append(tr)});return t}
 document.querySelectorAll(".tab").forEach(b=>b.onclick=()=>{document.querySelectorAll(".tab").forEach(x=>x.classList.toggle("on",x===b));
- ["pos","daily","hist","eq"].forEach(i=>$(i).hidden=i!==b.dataset.t);draw()});
+ ["pos","daily","hist","coins","eq"].forEach(i=>$(i).hidden=i!==b.dataset.t);draw()});
 let S=null;
 function chart(){const cv=$("cv"),c=cv.getContext("2d"),w=cv.width,h=cv.height;c.clearRect(0,0,w,h);
  const d=S&&S.equity_series;if(!d||d.length<2){c.fillStyle="#848e9c";c.font="20px sans-serif";c.fillText("Equity data thodi der mein aayega (har 60s ek point)",20,40);return}
@@ -167,9 +179,11 @@ function render(s){S=s;const st=$("st");
  $("pos").replaceChildren(s.positions.length?table(["Symbol","Size (USDT)","Margin","Entry","Mark","TP","SL","Liq. Price","PnL (ROI%)","Fees (est.)","Net abhi band","Held",""],
   s.positions.map(p=>[{t:nm(p.symbol)+" "+p.leverage+"x",n:p.side},fp(p.notional).replace(/\.\d+$/,""),p.margin.toFixed(2),fp(p.entry),fp(p.mark),{t:p.tp==null?"trail":fp(p.tp),c:"up"},{t:fp(p.sl),c:"dn"},{t:fp(p.liq)+" ("+(p.liq_dist*100).toFixed(0)+"%)",c:p.liq_dist<0.1?"dn":"mut"},
    {t:fm(p.pnl)+" ("+fm(p.roi*100,1)+"%)",c:cls(p.pnl)},{t:"-"+p.fees_est.toFixed(2),c:"mut"},{t:fm(p.net_if_closed),c:cls(p.net_if_closed)},dur(p.held_min)+" / "+dur(p.max_hold_min),{btn:true,label:p.closing?"band ho rahi...":"CLOSE",off:p.closing,onclick:b=>closePos(p.symbol,b)}])):el("div","empty","Abhi koi open trade nahi"));
- $("hist").replaceChildren(s.trades.length?table(["Symbol","Entry","Exit","Result","PnL (ROI%)","Held","Closed (UTC)"],
+ $("coins").replaceChildren(s.by_coin.length?table(["Coin","Trades","Won","Fees paid","Gross (fees se pehle)","Net (fees ke baad)"],
+  s.by_coin.map(c=>[nm(c.symbol),c.n,c.wins+" / "+c.n,{t:"-"+c.fees.toFixed(2),c:"dn"},{t:fm(c.gross),c:cls(c.gross)},{t:fm(c.net),c:cls(c.net)}])):el("div","empty","Abhi koi closed trade nahi"));
+ $("hist").replaceChildren(s.trades.length?table(["Symbol","Entry","Exit","Result","PnL (ROI%)","Fees","Held","Closed (UTC)"],
   s.trades.map(t=>[{t:nm(t.symbol),n:t.side},fp(t.entry),fp(t.exit),{t:t.reason,c:(t.reason==="TP"||t.reason==="TRAIL")?"up":t.reason==="SL"?"dn":"mut"},
-   {t:fm(t.pnl)+" ("+fm(t.roi*100,1)+"%)",c:cls(t.pnl)},dur(t.held_min),new Date(t.closed_ts).toISOString().slice(0,16).replace("T"," ")])):el("div","empty","Abhi koi closed trade nahi"));
+   {t:fm(t.pnl)+" ("+fm(t.roi*100,1)+"%)",c:cls(t.pnl)},{t:"-"+t.fees.toFixed(2),c:"mut"},dur(t.held_min),new Date(t.closed_ts).toISOString().slice(0,16).replace("T"," ")])):el("div","empty","Abhi koi closed trade nahi"));
  draw()}
 async function closePos(sym,btn){
  if(!confirm(nm(sym)+" trade ko abhi market price par band karein?"))return;

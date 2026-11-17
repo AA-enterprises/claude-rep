@@ -47,7 +47,7 @@ def opened(pos: Position, cfg: ScalpConfig, equity: float) -> str:
         stop,
         tp_line,
         *extra,
-        f"Size: {pos.qty:,.4f} ≈ ${pos.qty * pos.entry:,.2f} (margin ${pos.margin:,.2f})",
+        f"Size: {pos.qty:,.4f} ≈ ${pos.qty * pos.entry:,.2f} (margin ${pos.margin:,.2f})" + (f" · Entry fee: ${pos.entry_fee:,.2f}" if pos.entry_fee else ""),
         *([f"Liquidation: {fp(pos.liq)} ({abs(pos.liq / pos.entry - 1):.0%} door)"] if pos.liq else []),
         f"Max hold: until {utc(pos.opened_ts + pos.max_hold_ms)}",
         f"Why: {pos.score}/4 gates — " + "; ".join(pos.gates),
