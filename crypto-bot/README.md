@@ -273,3 +273,5 @@ Telegram band karna: `.env` mein TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID / TELEGRA
 Backtest: validated bot par R/trade +0.063 -> +0.058 (return +154% -> +147%, "profit par par fees ke baad loss" wale 43 trail exits -> 0). SCALP1H par farak nagan (-0.104 -> -0.102 R) par 9,332 aise exits 0. Abhi sirf SCALP1H (`scalp_config_1h.json`) mein ON; baaki bots mein `"lock_fees": true` jod kar ON kar sakte ho.
 
 SCALP1H: `max_atr_pct` 1.5% (15m ATR): BLESS jaise bahut volatile naye coins skip, taaki stop ke aar-paar gap se planned risk se bada loss na ho.
+
+`risk_boost_4` (default 1.0 = band): sab 4 gates milne par `risk_pct` ko itne se guna karo. Backtest: x2 par return +154% -> +162% par return/drawdown 6.9 -> 6.5 (4/4 wale trades sirf ~12%, +0.084R vs 3 gates +0.060R). Zyada leverage (3x -> 10x) se bhi result lagbhag same (+$44 -> +$46/hafta), kyunki size risk se tay hota hai.

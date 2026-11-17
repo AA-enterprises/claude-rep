@@ -102,7 +102,8 @@ class PaperAccount:
             if cfg.sizing_mode == "margin":                          # equity ka margin_pct% margin, stop kitna bhi door ho
                 notional = base * cfg.margin_pct * cfg.leverage
             else:
-                notional = min(base * cfg.risk_pct / sl_frac, base * cfg.margin_pct * cfg.leverage)
+                risk_pct = cfg.risk_pct * (cfg.risk_boost_4 if sig.score >= 4 else 1.0)       # achhe signal par badi position
+                notional = min(base * risk_pct / sl_frac, base * cfg.margin_pct * cfg.leverage)
             margin = notional / cfg.leverage
             qty = notional / entry
             sl = entry - d * sl_dist

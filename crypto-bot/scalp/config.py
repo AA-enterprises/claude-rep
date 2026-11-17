@@ -47,6 +47,7 @@ class ScalpConfig:
     fetch_workers: int = 5        # candles parallel mein itne coins ek saath mangta hai
     report_hours: float = 12.0    # Telegram par itne ghante mein ek report (0 = band)
     # --- ATR exit mode (default): stop/target har coin ki volatility ke hisaab se ---
+    risk_boost_4: float = 1.0     # sab 4 gates mile to risk_pct ko itne se guna karo (1 = barabar). Achhe signal par badi position
     lock_fees: bool = False       # True: trailing shuru hote hi stop kam se kam entry + fees (fees ke baad loss na ho)
     notify_trades: bool = True    # False: har trade open/close ka alert nahi (bahut trades wale bot ke liye), sirf report
     label: str = ""               # alert messages mein bot ka naam (jaise "FREQ"), do bot alag pehchanne ke liye
@@ -83,6 +84,8 @@ class ScalpConfig:
             raise ValueError("report_hours >= 0")
         if not 0 <= self.min_liq_distance < 1 or self.max_atr_pct < 0:
             raise ValueError("min_liq_distance 0..1, max_atr_pct >= 0")
+        if not 0 < self.risk_boost_4 <= 5:
+            raise ValueError("risk_boost_4 0..5")
         if self.sizing_mode not in ("risk", "margin"):
             raise ValueError("sizing_mode: risk/margin")
         if self.entry_mode not in ("close", "intrabar"):
