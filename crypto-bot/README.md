@@ -271,3 +271,5 @@ Telegram band karna: `.env` mein TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID / TELEGRA
 ## lock_fees (fees ke baad loss na ho)
 `"lock_fees": true`: trailing shuru hote hi stop kam se kam `entry + (entry fee + exit fee + slippage)` par jata hai, to stop lagne par fees ke baad bhi loss nahi.
 Backtest: validated bot par R/trade +0.063 -> +0.058 (return +154% -> +147%, "profit par par fees ke baad loss" wale 43 trail exits -> 0). SCALP1H par farak nagan (-0.104 -> -0.102 R) par 9,332 aise exits 0. Abhi sirf SCALP1H (`scalp_config_1h.json`) mein ON; baaki bots mein `"lock_fees": true` jod kar ON kar sakte ho.
+
+SCALP1H: `max_atr_pct` 1.5% (15m ATR): BLESS jaise bahut volatile naye coins skip, taaki stop ke aar-paar gap se planned risk se bada loss na ho.

@@ -465,6 +465,7 @@ def test_scalp1h_config_and_quiet_alerts(tmp_path):
     base = os.path.dirname(os.path.dirname(__file__))
     c = sc.load(os.path.join(base, "scalp_config_1h.json"))
     assert (c.label, c.timeframe, c.entry_mode, c.max_hold_hours, c.leverage, c.notify_trades, c.report_hours) == ("SCALP1H", "15m", "close", 1, 2, False, 6)
+    assert c.max_atr_pct == 0.015 and c.lock_fees is True                                                  # bahut volatile coins (15m ATR > 1.5%) skip
     assert sc.load(os.path.join(base, "scalp_config.json")).notify_trades is True                       # baaki bots ke alerts waise hi
 
 

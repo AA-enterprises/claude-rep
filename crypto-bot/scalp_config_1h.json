@@ -4,7 +4,7 @@
   "exit_mode": "atr",
   "leverage": 2,
   "min_liq_distance": 0.3,
-  "max_atr_pct": 0.0,
+  "max_atr_pct": 0.015,
   "sl_atr": 1.5,
   "tp_atr": 0.0,
   "trail_start_atr": 1.0,
