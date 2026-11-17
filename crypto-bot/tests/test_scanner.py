@@ -476,3 +476,41 @@ def test_notify_trades_false_suppresses_open_and_close_alerts(tmp_path):
     bot.monitor()
     assert not bot.acct.positions and scanner.stats_from_csv(str(tmp_path / "t.csv"))["n"] == 1        # trade khuli aur band hui
     assert tg.msgs == []                                                                              # par koi alert nahi
+
+
+def test_dashboard_fees_and_net_if_closed_now(tmp_path):
+    import json
+    import time
+    from scalp import dashboard
+
+    pos = dict(symbol="A/USDT:USDT", side="LONG", entry=100.0, qty=10.0, margin=500.0, leverage=2.0, tp=None, sl=95.0,
+               opened_ts=int(time.time() * 1000) - 60_000, max_hold_ms=3_600_000, entry_fee=0.5, score=3, gates=[],
+               vol_ratio=1.0, atr_pct=0.01, liq=50.0)
+    st = {"account": {"balance": 9999.5, "positions": [pos], "cooldown_until": {}}, "prices": {"A/USDT:USDT": 101.0},
+          "updated": time.time(), "start_balance": 10000, "fee_rate": 0.0005, "slippage_pct": 0.0002}
+    sp = tmp_path / "s.json"
+    sp.write_text(json.dumps(st))
+    out = dashboard.build_state(str(sp), str(tmp_path / "t.csv"), "none.csv")
+    p = out["positions"][0]
+    assert p["pnl"] == 10.0 and abs(p["fees_est"] - (0.5 + 10 * 101 * 0.0007)) < 1e-9          # entry fee + exit fee + slippage
+    assert abs(p["net_if_closed"] - (10.0 - p["fees_est"])) < 1e-9 and abs(out["net_if_closed"] - p["net_if_closed"]) < 1e-9
+    assert abs(out["fees_open"] - p["fees_est"]) < 1e-9
+
+
+def test_closed_trade_records_fees_and_old_csv_is_migrated(tmp_path):
+    cfg = ScalpConfig()
+    ex = FakeEx(cfg)
+    tp = tmp_path / "t.csv"
+    tp.write_text("closed_ts,symbol,side,entry,exit,reason,roi,pnl,r,held_min,score,gates,vol_ratio,atr_pct\n"
+                  "1,OLD/USDT:USDT,LONG,1,2,TP,0.5,10,1,5,3,g,1,0.01\n")                              # fees column ke bina purani file
+    bot = scanner.Bot(cfg, str(tmp_path / "s.json"), str(tp), Rec(), ex=ex)
+    bot.scan()
+    pos = next(iter(bot.acct.positions.values()))
+    ex.price = pos.tp * 1.001
+    bot.monitor()
+    rows = list(__import__("csv").DictReader(open(tp)))
+    assert [r["symbol"] for r in rows] == ["OLD/USDT:USDT", "UP/USDT:USDT"] and "fees" in rows[0]      # purana row bacha, column judi
+    assert float(rows[1]["fees"]) > pos.entry_fee > 0 and rows[0]["fees"] == ""
+    from scalp import dashboard
+    st = dashboard.build_state(str(tmp_path / "s.json"), str(tp), "none.csv")
+    assert st["fees_all"] == float(rows[1]["fees"]) and st["trades"][0]["symbol"] == "UP/USDT:USDT"

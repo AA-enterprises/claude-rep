@@ -16,7 +16,7 @@ from .features import MIN_CANDLES, atr_series, compute, regime_series
 from .signals import LIVE_CANDLES, Signal, evaluate
 
 TRADE_FIELDS = ["closed_ts", "symbol", "side", "entry", "exit", "reason", "roi", "pnl", "r", "held_min",
-                "score", "gates", "vol_ratio", "atr_pct"]
+                "score", "gates", "vol_ratio", "atr_pct", "fees"]
 
 
 def make_exchange():
@@ -118,7 +118,8 @@ class Bot:
         tmp = self.state_path + ".tmp"
         with open(tmp, "w") as f:
             json.dump({"account": self.acct.to_dict(), "day": self.day, "day_start": self.day_start,
-                       "prices": self.prices, "updated": self.updated, "last_report": self.last_report, "start_balance": self.cfg.start_balance}, f)
+                       "prices": self.prices, "updated": self.updated, "last_report": self.last_report,
+                       "fee_rate": self.cfg.fee_rate, "slippage_pct": self.cfg.slippage_pct, "start_balance": self.cfg.start_balance}, f)
         for _ in range(10):                      # Windows: dashboard file padh raha ho to replace fail ho sakta hai
             try:
                 os.replace(tmp, self.state_path)
@@ -204,12 +205,22 @@ class Bot:
         self.save()
 
     def log_trade(self, rec: dict) -> None:
+        if os.path.exists(self.trades_path):                      # purani file mein 'fees' column nahi: ek baar migrate
+            with open(self.trades_path, newline="") as f:
+                rd = list(csv.reader(f))
+            if rd and "fees" not in rd[0]:
+                old = [dict(zip(rd[0], r)) for r in rd[1:]]
+                with open(self.trades_path, "w", newline="") as f:
+                    w = csv.DictWriter(f, TRADE_FIELDS)
+                    w.writeheader()
+                    for r in old:
+                        w.writerow({k: r.get(k, "") for k in TRADE_FIELDS})
         new = not os.path.exists(self.trades_path)
         with open(self.trades_path, "a", newline="") as f:
             w = csv.DictWriter(f, TRADE_FIELDS)
             if new:
                 w.writeheader()
-            w.writerow({k: rec[k] for k in TRADE_FIELDS})
+            w.writerow({k: rec.get(k, "") for k in TRADE_FIELDS})
 
     def equity(self, prices: dict[str, float]) -> float:
         return self.acct.equity(prices)

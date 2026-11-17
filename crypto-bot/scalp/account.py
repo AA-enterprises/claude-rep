@@ -166,6 +166,7 @@ class PaperAccount:
         self.cooldown_until[pos.symbol] = ts + self.cfg.cooldown_candles * self.cfg.tf_ms
         return {
             "closed_ts": ts, "symbol": pos.symbol, "side": pos.side, "entry": pos.entry, "exit": px,
+            "fees": pos.entry_fee + exit_fee,
             "reason": reason, "roi": net / pos.margin, "pnl": net, "r": net / pos.risk if pos.risk else 0.0,
             "held_min": (ts - pos.opened_ts) / 60_000, "score": pos.score,
             "gates": "|".join(pos.gates), "vol_ratio": pos.vol_ratio, "atr_pct": pos.atr_pct,

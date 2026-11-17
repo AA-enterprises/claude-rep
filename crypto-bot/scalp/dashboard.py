@@ -41,14 +41,20 @@ def build_state(state_path: str, trades_path: str, equity_path: str, now: float 
     except (OSError, ValueError):
         pass
     acct, prices = st["account"], st.get("prices", {})
-    positions, unreal = [], 0.0
+    fee_rate, slip = st.get("fee_rate", 0.0005), st.get("slippage_pct", 0.0002)
+    positions, unreal, fees_open, net_if_closed = [], 0.0, 0.0, 0.0
     for p in acct["positions"]:
         mark = prices.get(p["symbol"], p["entry"])
         d = 1 if p["side"] == "LONG" else -1
         pnl = d * (mark - p["entry"]) * p["qty"]
         unreal += pnl
         liq = p.get("liq") or p["entry"] * (1 - d * max(0.0, 1 / p["leverage"] - 0.005))      # purani state mein liq nahi hota
+        exit_cost = p["qty"] * mark * (fee_rate + slip)                 # abhi band karein to: exit fee + slippage
+        fees_est = p.get("entry_fee", 0.0) + exit_cost                  # entry fee pehle hi balance se kat chuki hai
+        fees_open += fees_est
+        net_if_closed += pnl - fees_est
         positions.append({
+            "entry_fee": p.get("entry_fee", 0.0), "fees_est": fees_est, "net_if_closed": pnl - fees_est,
             "liq": liq, "liq_dist": abs(liq / mark - 1), "closing": p["symbol"] in pending,
             "symbol": p["symbol"], "side": p["side"], "leverage": p["leverage"], "qty": p["qty"],
             "notional": p["qty"] * p["entry"], "margin": p["margin"], "entry": p["entry"], "mark": mark,
@@ -67,8 +73,9 @@ def build_state(state_path: str, trades_path: str, equity_path: str, now: float 
     for r in rows:
         pnl = float(r["pnl"])
         day = time.strftime("%Y-%m-%d", time.localtime(float(r["closed_ts"]) / 1000))
-        d = days.setdefault(day, {"day": day, "n": 0, "wins": 0, "losses": 0, "profit": 0.0, "loss": 0.0, "net": 0.0})
+        d = days.setdefault(day, {"day": day, "n": 0, "wins": 0, "losses": 0, "profit": 0.0, "loss": 0.0, "net": 0.0, "fees": 0.0})
         d["n"] += 1
+        d["fees"] += float(r.get("fees") or 0)
         d["net"] += pnl
         if pnl > 0:
             d["wins"] += 1
@@ -77,7 +84,8 @@ def build_state(state_path: str, trades_path: str, equity_path: str, now: float 
             d["losses"] += 1
             d["loss"] += pnl
     today_key = time.strftime("%Y-%m-%d", time.localtime(now))
-    today = days.get(today_key, {"day": today_key, "n": 0, "wins": 0, "losses": 0, "profit": 0.0, "loss": 0.0, "net": 0.0})
+    today = days.get(today_key, {"day": today_key, "n": 0, "wins": 0, "losses": 0, "profit": 0.0, "loss": 0.0, "net": 0.0, "fees": 0.0})
+    all_fees = sum(float(r.get("fees") or 0) for r in rows)
     daily = sorted(days.values(), key=lambda d: d["day"], reverse=True)[:60]
     eq = [[int(r["ts"]), float(r["equity"])] for r in _read_csv(equity_path)[-1500:]]
     start = st.get("start_balance", acct["balance"])
@@ -85,6 +93,7 @@ def build_state(state_path: str, trades_path: str, equity_path: str, now: float 
     age = now - st.get("updated", 0)
     return {
         "status": "running" if age < 60 else "stale", "age_sec": age,
+        "fees_open": fees_open, "net_if_closed": net_if_closed, "fees_all": all_fees,
         "balance": acct["balance"], "equity": equity, "unrealized": unreal, "start_balance": start,
         "return_pct": equity / start - 1 if start else 0.0,
         "today": today, "daily": daily, "positions": positions, "trades": trades, "equity_series": eq,
@@ -148,16 +157,16 @@ function render(s){S=s;const st=$("st");
  $("upd").textContent="update "+Math.round(s.age_sec)+"s pehle";
  const T=s.today,c=$("cards");c.replaceChildren(
   card("Aaj ka Profit ("+T.wins+" trades)",fm(T.profit),T.profit>0?"up":""),card("Aaj ka Loss ("+T.losses+" trades)",fm(T.loss),T.loss<0?"dn":""),
-  card("Aaj ka Net (closed)",fm(T.net),cls(T.net)),card("Unrealized PnL",fm(s.unrealized),cls(s.unrealized)),
+  card("Aaj ka Net (closed)",fm(T.net),cls(T.net)),card("Unrealized PnL",fm(s.unrealized),cls(s.unrealized)),card("Abhi sab band karein (fees ke baad)",fm(s.net_if_closed),cls(s.net_if_closed)),card("Fees aaj / total",T.fees.toFixed(2)+" / "+s.fees_all.toFixed(2),"dn"),
   card("Equity (USDT)",s.equity.toLocaleString(undefined,{maximumFractionDigits:2}),cls(s.return_pct)),
   card("Total Return",fm(s.return_pct*100)+"%",cls(s.return_pct)),card("All-time Closed PnL",fm(s.stats.pnl),cls(s.stats.pnl)),
   card("Win rate (all-time)",s.stats.n?(s.stats.win_rate*100).toFixed(0)+"% ("+s.stats.wins+"/"+s.stats.n+")":"-"));
- $("daily").replaceChildren(s.daily.length?table(["Date","Trades","Won / Lost","Profit","Loss","Net PnL"],
-  s.daily.map(d=>[d.day+(d.day===T.day?"  (aaj)":""),d.n,d.wins+" / "+d.losses,{t:fm(d.profit),c:d.profit>0?"up":""},{t:fm(d.loss),c:d.loss<0?"dn":""},{t:fm(d.net),c:cls(d.net)}])):el("div","empty","Abhi koi closed trade nahi"));
+ $("daily").replaceChildren(s.daily.length?table(["Date","Trades","Won / Lost","Profit","Loss","Fees","Net PnL"],
+  s.daily.map(d=>[d.day+(d.day===T.day?"  (aaj)":""),d.n,d.wins+" / "+d.losses,{t:fm(d.profit),c:d.profit>0?"up":""},{t:fm(d.loss),c:d.loss<0?"dn":""},{t:"-"+(d.fees||0).toFixed(2),c:"mut"},{t:fm(d.net),c:cls(d.net)}])):el("div","empty","Abhi koi closed trade nahi"));
  $("np").textContent=s.positions.length;
- $("pos").replaceChildren(s.positions.length?table(["Symbol","Size (USDT)","Margin","Entry","Mark","TP","SL","Liq. Price","PnL (ROI%)","Held",""],
+ $("pos").replaceChildren(s.positions.length?table(["Symbol","Size (USDT)","Margin","Entry","Mark","TP","SL","Liq. Price","PnL (ROI%)","Fees (est.)","Net abhi band","Held",""],
   s.positions.map(p=>[{t:nm(p.symbol)+" "+p.leverage+"x",n:p.side},fp(p.notional).replace(/\.\d+$/,""),p.margin.toFixed(2),fp(p.entry),fp(p.mark),{t:p.tp==null?"trail":fp(p.tp),c:"up"},{t:fp(p.sl),c:"dn"},{t:fp(p.liq)+" ("+(p.liq_dist*100).toFixed(0)+"%)",c:p.liq_dist<0.1?"dn":"mut"},
-   {t:fm(p.pnl)+" ("+fm(p.roi*100,1)+"%)",c:cls(p.pnl)},dur(p.held_min)+" / "+dur(p.max_hold_min),{btn:true,label:p.closing?"band ho rahi...":"CLOSE",off:p.closing,onclick:b=>closePos(p.symbol,b)}])):el("div","empty","Abhi koi open trade nahi"));
+   {t:fm(p.pnl)+" ("+fm(p.roi*100,1)+"%)",c:cls(p.pnl)},{t:"-"+p.fees_est.toFixed(2),c:"mut"},{t:fm(p.net_if_closed),c:cls(p.net_if_closed)},dur(p.held_min)+" / "+dur(p.max_hold_min),{btn:true,label:p.closing?"band ho rahi...":"CLOSE",off:p.closing,onclick:b=>closePos(p.symbol,b)}])):el("div","empty","Abhi koi open trade nahi"));
  $("hist").replaceChildren(s.trades.length?table(["Symbol","Entry","Exit","Result","PnL (ROI%)","Held","Closed (UTC)"],
   s.trades.map(t=>[{t:nm(t.symbol),n:t.side},fp(t.entry),fp(t.exit),{t:t.reason,c:(t.reason==="TP"||t.reason==="TRAIL")?"up":t.reason==="SL"?"dn":"mut"},
    {t:fm(t.pnl)+" ("+fm(t.roi*100,1)+"%)",c:cls(t.pnl)},dur(t.held_min),new Date(t.closed_ts).toISOString().slice(0,16).replace("T"," ")])):el("div","empty","Abhi koi closed trade nahi"));

@@ -260,3 +260,9 @@ Apne data par check: `python main.py scalp-validate --entry intrabar --set min_g
 **Backtest (sandbox 30 coins): har variant loss mein**, ~64 trades/din, -0.10 R/trade, ~ -$700/hafta. Sirf paper mein dekhne ke liye; asli paise se mat chalana.
 `start_bot_1h.bat`, dashboard `http://127.0.0.1:8080`.
 Telegram band karna: `.env` mein TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID / TELEGRAM_PROXY lines ke aage `#` laga do, bot restart.
+
+## Dashboard: Fees
+- **Open Positions** mein do naye column: `Fees (est.)` (entry fee jo kat chuki + abhi band karne par exit fee + slippage) aur `Net abhi band` (PnL minus ye fees).
+- Upar cards: `Abhi sab band karein (fees ke baad)` (saari open trades abhi band karein to net kitna bachega), aur `Fees aaj / total`.
+- **Daily P&L** tab mein har din ki `Fees` column. Closed trades ke CSV mein naya `fees` column (purani file automatic migrate hoti hai). "TRADE CLOSED" message mein bhi `Fees: $x`.
+- Fee/slippage ki dar bot ki config se aati hai (`fee_rate` 0.05%, `slippage_pct` 0.02% har taraf).

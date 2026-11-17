@@ -66,7 +66,7 @@ def closed(rec: dict, equity: float, stats: dict, bot_label: str = "") -> str:
         "──────────────",
         f"Entry: {fp(rec['entry'])} → Exit: {fp(rec['exit'])}",
         (f"💰 Profit booked: {rec['pnl']:+,.2f} USDT" if rec["pnl"] > 0 else f"Loss: {rec['pnl']:+,.2f} USDT") + f" (after fees) · {rec['roi']:+.1%} ROI" + (f" · {rec['r']:+.2f}R" if rec.get("r") else ""),
-        f"Held: {dur(rec['held_min'])}",
+        f"Held: {dur(rec['held_min'])}" + (f" · Fees: ${rec['fees']:,.2f}" if rec.get("fees") else ""),
         f"Equity: ${equity:,.2f}",
         f"Total: {stats['n']} trades · win rate {stats['win_rate']:.0%} · net {stats['pnl']:+,.2f} USDT",
         "──────────────",
