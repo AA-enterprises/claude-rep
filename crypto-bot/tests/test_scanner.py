@@ -463,3 +463,16 @@ def test_network_error_while_opening_or_manually_closing_does_not_lose_signal_or
         f.write(json.dumps({"action": "close", "symbol": sym}) + "\n")
     bot.heartbeat()                                                         # CLOSE command, ticker fail: phir bhi band
     assert not bot.acct.positions and "MANUAL CLOSE" in tg.msgs[-1]
+
+
+def test_notify_trades_false_suppresses_open_and_close_alerts(tmp_path):
+    from dataclasses import replace
+    cfg = replace(ScalpConfig(), notify_trades=False)
+    ex, tg = FakeEx(cfg), Rec()
+    bot = scanner.Bot(cfg, str(tmp_path / "s.json"), str(tmp_path / "t.csv"), tg, ex=ex)
+    bot.scan()
+    pos = next(iter(bot.acct.positions.values()))
+    ex.price = pos.tp * 1.001
+    bot.monitor()
+    assert not bot.acct.positions and scanner.stats_from_csv(str(tmp_path / "t.csv"))["n"] == 1        # trade khuli aur band hui
+    assert tg.msgs == []                                                                              # par koi alert nahi

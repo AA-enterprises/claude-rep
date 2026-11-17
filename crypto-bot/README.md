@@ -254,3 +254,9 @@ Aapne ke coins par validate karne ke liye: `python main.py scalp-validate --entr
 Sandbox backtest (30 coins): ~10.7 trades/hafta, +0.094 R/trade, ~$52/hafta ($10,000 par), +183%, worst drawdown ~35% (validated bot: 18/hafta, +0.063R, $44/hafta, dd 23%).
 `start_bot_big.bat` ya `python main.py --scalp-config scalp_config_big.json scalp-paper --state scalp_state_big.json --trades scalp_trades_big.csv --dashboard-port 8070`. Dashboard `http://127.0.0.1:8070`, alerts mein "· BIG".
 Apne data par check: `python main.py scalp-validate --entry intrabar --set min_gates=4 --set max_new_per_scan=1 --set risk_pct=0.006`
+
+## SCALP1H (experiment): max 1 ghante hold, ~2-3 trades/ghanta
+`scalp_config_1h.json`: 15m candles, hold <= 1 ghanta, 2x leverage, badi position (cap $1,500), trailing stop 1 ATR, trade-alerts band (`notify_trades: false`), report har 6 ghante.
+**Backtest (sandbox 30 coins): har variant loss mein**, ~64 trades/din, -0.10 R/trade, ~ -$700/hafta. Sirf paper mein dekhne ke liye; asli paise se mat chalana.
+`start_bot_1h.bat`, dashboard `http://127.0.0.1:8080`.
+Telegram band karna: `.env` mein TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID / TELEGRAM_PROXY lines ke aage `#` laga do, bot restart.

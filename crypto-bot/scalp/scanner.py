@@ -181,7 +181,8 @@ class Bot:
             rec = self.acct.close(pos, "MANUAL", px, self.ex.milliseconds())
             self.log_trade(rec)
             print(f"MANUAL CLOSE {pos.symbol} roi {rec['roi']:+.1%} pnl {rec['pnl']:+.2f}")
-            self.tg.send(messages.closed(rec, self.acct.balance, stats_from_csv(self.trades_path), self.cfg.label))
+            if self.cfg.notify_trades:
+                self.tg.send(messages.closed(rec, self.acct.balance, stats_from_csv(self.trades_path), self.cfg.label))
             self.save()
 
     def heartbeat(self) -> None:
@@ -247,7 +248,8 @@ class Bot:
                 rec = self.acct.close(pos, res[0], res[1], now)
                 self.log_trade(rec)
                 print(f"CLOSE {sym} {rec['reason']} roi {rec['roi']:+.1%}")
-                self.tg.send(messages.closed(rec, self.acct.balance, stats_from_csv(self.trades_path), self.cfg.label))
+                if self.cfg.notify_trades:
+                    self.tg.send(messages.closed(rec, self.acct.balance, stats_from_csv(self.trades_path), self.cfg.label))
                 self.save()
 
     def _update_candles(self, sym: str) -> bool:
@@ -358,7 +360,8 @@ class Bot:
                 opened += 1
                 self.scan_stats["opened"] += 1
                 print(f"OPEN {pos.side} {s.symbol} @ {px}")
-                self.tg.send(messages.opened(pos, self.cfg, self.acct.balance))
+                if self.cfg.notify_trades:
+                    self.tg.send(messages.opened(pos, self.cfg, self.acct.balance))
         self.save()
 
     def run(self) -> None:

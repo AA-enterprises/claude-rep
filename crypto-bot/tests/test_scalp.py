@@ -457,3 +457,12 @@ def test_big_config_loads_and_sizes_trades_between_1000_and_1500_notional():
     assert 1000 <= p.qty * p.entry <= 1500 + 1e-6                                              # risk $60 / 3% = $2,000, margin-cap $1,500
     q = PaperAccount(b).open(Signal("B/USDT:USDT", "LONG", 4, ["g"] * 4, 2.0, 0.03, 100.0), 100.0, 0)   # ATR 3% -> stop 6%
     assert 900 <= q.qty * q.entry <= 1100                                                      # risk $60 / 6% = $1,000
+
+
+def test_scalp1h_config_and_quiet_alerts(tmp_path):
+    import os
+    from scalp import config as sc, scanner
+    base = os.path.dirname(os.path.dirname(__file__))
+    c = sc.load(os.path.join(base, "scalp_config_1h.json"))
+    assert (c.label, c.timeframe, c.entry_mode, c.max_hold_hours, c.leverage, c.notify_trades, c.report_hours) == ("SCALP1H", "15m", "close", 1, 2, False, 6)
+    assert sc.load(os.path.join(base, "scalp_config.json")).notify_trades is True                       # baaki bots ke alerts waise hi
