@@ -465,7 +465,7 @@ def test_scalp1h_config_and_quiet_alerts(tmp_path):
     base = os.path.dirname(os.path.dirname(__file__))
     c = sc.load(os.path.join(base, "scalp_config_1h.json"))
     assert (c.label, c.timeframe, c.entry_mode, c.max_hold_hours, c.leverage, c.notify_trades, c.report_hours) == ("SCALP1H", "15m", "close", 1, 2, False, 6)
-    assert c.max_atr_pct == 0.015 and c.lock_fees is True                                                  # bahut volatile coins (15m ATR > 1.5%) skip
+    assert (c.min_atr_pct, c.max_atr_pct, c.min_vol_ratio, c.lock_fees) == (0.015, 0.05, 5.0, True)        # backtest: sirf bade ATR + bade volume spike wali trades fees ke baad bachti hain
     assert sc.load(os.path.join(base, "scalp_config.json")).notify_trades is True                       # baaki bots ke alerts waise hi
 
 
@@ -488,3 +488,13 @@ def test_lock_fees_lifts_trailing_stop_to_entry_plus_fees():
     a2.check_exit(s, 99.6, 98.8, 99.0, 1)
     assert s.sl <= a2.breakeven_price(s) < s.entry                  # short mein bhi (stop neeche, entry - fees par)
     assert a2.close(s, "TRAIL", s.sl, 2)["pnl"] >= 0
+
+
+def test_min_vol_ratio_filters_weak_volume():
+    from scalp.features import Feat
+    from scalp.signals import decide
+    f = lambda v: Feat(100.0, 0.02, v, 3, 0, (True, True, True, False), (False,) * 4)
+    cfg = ScalpConfig(min_vol_ratio=5.0, min_atr_pct=0.004)
+    assert decide("X", f(2.0), cfg) is None
+    assert decide("X", f(6.0), cfg) is not None
+    assert decide("X", f(2.0), ScalpConfig(min_atr_pct=0.004)) is not None   # default 0 = band

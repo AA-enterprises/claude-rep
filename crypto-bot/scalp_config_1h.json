@@ -4,7 +4,7 @@
   "exit_mode": "atr",
   "leverage": 2,
   "min_liq_distance": 0.3,
-  "max_atr_pct": 0.015,
+  "max_atr_pct": 0.05,
   "sl_atr": 1.5,
   "tp_atr": 0.0,
   "trail_start_atr": 1.0,
@@ -24,7 +24,8 @@
   "start_balance": 10000,
   "label": "SCALP1H",
   "cooldown_candles": 4,
-  "min_atr_pct": 0.004,
+  "min_atr_pct": 0.015,
   "notify_trades": false,
-  "lock_fees": true
+  "lock_fees": true,
+  "min_vol_ratio": 5.0
 }

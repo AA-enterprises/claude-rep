@@ -37,6 +37,7 @@ class ScalpConfig:
     max_coins: int = 30           # volume ke hisaab se top N coins (backtest 30 coins par validate hua). 0 = sab
     min_quote_volume: float = 20_000_000   # 24h volume (USDT) se kam wale coins skip
     min_atr_pct: float = 0.004    # candle ATR/price: itni volatility ho tabhi TP reach ho sakta hai
+    min_vol_ratio: float = 0.0    # signal candle ka volume average se itne guna ho tabhi trade (0 = band). 1H bot: bade volume spike wali trades hi
     max_hold_hours: float = 6.0
     cooldown_candles: int = 4     # trade band hone ke baad us coin par itni candles wait
     max_daily_loss_pct: float = 0.05  # din ka loss itna ho to naye trades band

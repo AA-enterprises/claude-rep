@@ -27,6 +27,8 @@ class Signal:
 def decide(symbol: str, f: Feat, cfg: ScalpConfig, regime: int | None = None) -> Signal | None:
     if f.atr_pct < cfg.min_atr_pct or max(f.ls, f.ss) < cfg.min_gates or f.ls == f.ss:
         return None
+    if cfg.min_vol_ratio and f.vol_ratio < cfg.min_vol_ratio:
+        return None
     side = "LONG" if f.ls > f.ss else "SHORT"
     if cfg.sides != "both" and cfg.sides.upper() != side:
         return None
