@@ -249,6 +249,20 @@ def cmd_scalp_paper(args) -> int:
     return 0
 
 
+def cmd_scalp_reset(args) -> int:
+    from scalp import reset
+    n = reset.open_positions(args.state)
+    if n and not args.yes:
+        print(f"{n} trade abhi khuli hain (paper). Archive ke baad ye bhi band ho jayengi. Pakka karna hai to --yes lagao.")
+        return 1
+    folder, moved = reset.archive(args.state, args.trades)
+    if not folder:
+        print("Kuch archive karne ko nahi mila (files pehle se saaf hain).")
+        return 0
+    print(f"Purani files yahan rakh di gayin: {folder}\n  ({', '.join(moved)})\nAb bot dobara chalao: naya $ balance, 0 trades se shuru hoga.")
+    return 0
+
+
 def cmd_scalp_stats(args) -> int:
     import csv
     rows = list(csv.DictReader(open(args.trades)))
@@ -339,6 +353,11 @@ def main() -> int:
     sp_.add_argument("--dashboard-port", type=int, default=8050)
     sp_.add_argument("--open", action="store_true", help="shuru hote hi dashboard browser mein khol do")
     sp_.set_defaults(fn=cmd_scalp_paper)
+    rs_ = sub.add_parser("scalp-reset", help="Bot band karke chalao: purani state/trades archive karke naya shuru")
+    rs_.add_argument("--state", default="scalp_state.json")
+    rs_.add_argument("--trades", default="scalp_trades.csv")
+    rs_.add_argument("--yes", action="store_true", help="khuli trades hon tab bhi archive karo")
+    rs_.set_defaults(fn=cmd_scalp_reset)
     ss_ = sub.add_parser("scalp-stats")
     ss_.add_argument("--trades", default="scalp_trades.csv")
     ss_.set_defaults(fn=cmd_scalp_stats)
