@@ -1,4 +1,4 @@
-"""Discord slash commands (read-only): /positions, /today.
+"""Discord slash commands (read-only): /positions, /report, /today.
 
 Webhook sirf bhejta hai, sun nahi sakta. Command ke liye ek Discord *bot* chahiye:
   .env mein:  DISCORD_BOT_TOKEN=...   (aur optional: DISCORD_GUILD_ID=server id, DISCORD_ALLOWED_USER_ID=aapki id,
@@ -14,7 +14,9 @@ import threading
 
 from gridbot.notify import load_dotenv
 
-from . import dashboard, messages
+import time
+
+from . import dashboard, messages, schedule
 
 
 def state_files(folder: str = ".") -> list[tuple[str, str, str, str]]:
@@ -45,7 +47,27 @@ def positions_reply(folder: str = ".", which: str = "") -> str:
     return messages.positions_text(snap) if snap else "Koi bot state file nahi mili (bot chal raha hai?)"
 
 
-def start(folder: str = ".", env_file: str = ".env") -> threading.Thread | None:
+def report_reply(folder: str = ".", report_at: str = "08:00", tz_hours: float = schedule.PKT_HOURS, which: str = "",
+                 now: float | None = None) -> str:
+    """/report: aaj subah `report_at` (Pakistan) se abhi tak ki report. Har bot ki alag."""
+    from .scanner import window_stats
+    now = time.time() if now is None else now
+    since_ms, now_ms = int(schedule.last_slot(now, report_at, tz_hours) * 1000), int(now * 1000)
+    out = []
+    for label, sp, tp, ep in state_files(folder):
+        if which and which.lower() != label.lower():
+            continue
+        st = dashboard.build_state(sp, tp, ep)
+        if st.get("status") == "no_state":
+            out.append(f"**{label}**: abhi data nahi")
+            continue
+        out.append(messages.report(window_stats(tp, since_ms), since_ms, now_ms, st["balance"], st["equity"],
+                                   len(st["positions"]), st["unrealized"], bot_label=label, tz_hours=tz_hours))
+    return "\n\n".join(out)[:1900] if out else "Koi bot state file nahi mili (bot chal raha hai?)"
+
+
+def start(folder: str = ".", env_file: str = ".env", report_at: str = "08:00",
+          tz_hours: float = schedule.PKT_HOURS) -> threading.Thread | None:
     f = load_dotenv(env_file)
     token = f.get("DISCORD_BOT_TOKEN") or os.environ.get("DISCORD_BOT_TOKEN")
     if not token:
@@ -77,6 +99,12 @@ def start(folder: str = ".", env_file: str = ".env") -> threading.Thread | None:
         if await guard(inter):
             await inter.response.send_message(positions_reply(folder, bot.strip()), ephemeral=True)
 
+    @tree.command(name="report", description="Aaj subah 8 baje (Pakistan) se abhi tak ki report", guild=target)
+    @app_commands.describe(bot="Kaun sa bot (khali = sab)")
+    async def report(inter, bot: str = ""):
+        if await guard(inter):
+            await inter.response.send_message(report_reply(folder, report_at, tz_hours, bot.strip()), ephemeral=True)
+
     @tree.command(name="today", description="Aaj ka P&L aur equity", guild=target)
     async def today(inter):
         if await guard(inter):
@@ -92,7 +120,7 @@ def start(folder: str = ".", env_file: str = ".env") -> threading.Thread | None:
     @client.event
     async def on_ready():
         await tree.sync(guild=target)
-        print(f"Discord commands ready: /positions, /today ({client.user})")
+        print(f"Discord commands ready: /positions, /report, /today ({client.user})")
 
     def run():
         try:

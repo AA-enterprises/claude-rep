@@ -9,7 +9,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 from gridbot.notify import TelegramNotifier
 
-from . import messages
+from . import messages, schedule
 from .account import PaperAccount
 from .config import ScalpConfig
 from .features import MIN_CANDLES, atr_series, compute, regime_series
@@ -132,21 +132,35 @@ class Bot:
         return {"scans": 0, "signals": 0, "skipped": 0, "opened": 0, "last_scan_ms": 0, "last_skip": ""}
 
     def _maybe_report(self, now: float) -> None:
-        """Har `report_hours` ghante mein Telegram report. Pehli baar sirf baseline set hota hai (turant report nahi)."""
-        hrs = self.cfg.report_hours
-        if hrs <= 0:
-            return
-        if not self.last_report:
-            self.last_report = now
-            return
-        if now - self.last_report >= hrs * 3600:
-            since_ms, now_ms = int(self.last_report * 1000), int(now * 1000)
-            unreal = sum(p.unrealized(self.prices.get(sym, p.entry)) for sym, p in self.acct.positions.items())
-            self.tg.send(messages.report(window_stats(self.trades_path, since_ms), since_ms, now_ms, self.acct.balance,
-                                         self.acct.balance + unreal, len(self.acct.positions), unreal,
-                                         scan=self.scan_stats, bot_label=self.cfg.label))
-            self.scan_stats = self._new_stats()
-            self.last_report = now
+        """Report bhejna. `report_daily_at` set ho to roz us time (Pakistan) par pichhle 24h ki report; warna har `report_hours`.
+        Pehli baar sirf baseline set hota hai (turant report nahi)."""
+        cfg = self.cfg
+        if cfg.report_daily_at:
+            slot = schedule.last_slot(now, cfg.report_daily_at, cfg.report_tz_hours)
+            if not self.last_report:
+                self.last_report = now
+                return
+            if self.last_report >= slot:
+                return
+            since = slot - 86400
+        else:
+            hrs = cfg.report_hours
+            if hrs <= 0:
+                return
+            if not self.last_report:
+                self.last_report = now
+                return
+            if now - self.last_report < hrs * 3600:
+                return
+            since = self.last_report
+        since_ms, now_ms = int(since * 1000), int(now * 1000)
+        unreal = sum(p.unrealized(self.prices.get(sym, p.entry)) for sym, p in self.acct.positions.items())
+        self.tg.send(messages.report(window_stats(self.trades_path, since_ms), since_ms, now_ms, self.acct.balance,
+                                     self.acct.balance + unreal, len(self.acct.positions), unreal,
+                                     scan=self.scan_stats, bot_label=cfg.label,
+                                     tz_hours=cfg.report_tz_hours if cfg.report_daily_at else None))
+        self.scan_stats = self._new_stats()
+        self.last_report = now
 
     def process_commands(self) -> None:
         """Dashboard ke CLOSE button se aayi requests: position ko market price par band karo."""

@@ -244,7 +244,8 @@ def cmd_scalp_paper(args) -> int:
         dashboard.start_background(args.state, args.trades, args.dashboard_port, open_browser=args.open)
     if cfg.discord_commands:
         from scalp import discord_cmd
-        discord_cmd.start(os.path.dirname(os.path.abspath(args.state)))
+        discord_cmd.start(os.path.dirname(os.path.abspath(args.state)), report_at=cfg.report_daily_at or "08:00",
+                          tz_hours=cfg.report_tz_hours)
     scanner.Bot(cfg, args.state, args.trades, make_notifier()).run()
     return 0
 

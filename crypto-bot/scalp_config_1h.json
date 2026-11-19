@@ -28,5 +28,7 @@
   "notify_trades": true,
   "lock_fees": true,
   "min_vol_ratio": 5.0,
-  "discord_commands": true
+  "discord_commands": true,
+  "report_daily_at": "08:00",
+  "report_tz_hours": 5.0
 }

@@ -19,6 +19,9 @@ def utc(ms: int) -> str:
     return time.strftime("%Y-%m-%d %H:%M UTC", time.gmtime(ms / 1000))
 
 
+from .schedule import fmt_local  # noqa: E402
+
+
 def dur(minutes: float) -> str:
     m = int(minutes)
     return f"{m // 60}h {m % 60}m" if m >= 60 else f"{m}m"
@@ -76,11 +79,12 @@ def closed(rec: dict, equity: float, stats: dict, bot_label: str = "") -> str:
 
 
 def report(w: dict, since_ms: int, now_ms: int, balance: float, equity: float, n_open: int, unrealized: float,
-           scan: dict | None = None, bot_label: str = "") -> str:
+           scan: dict | None = None, bot_label: str = "", tz_hours: float | None = None) -> str:
     hours = (now_ms - since_ms) / 3_600_000
+    span = f"{utc(since_ms)} → {utc(now_ms)}" if tz_hours is None else f"{fmt_local(since_ms, tz_hours)} → {fmt_local(now_ms, tz_hours)}"
     lines = [
         f"📊 {hours:.0f}h REPORT" + (f" · {bot_label}" if bot_label else ""),
-        f"{utc(since_ms)} → {utc(now_ms)}",
+        span,
         "──────────────",
         f"Trades closed: {w['n']} (won {w['wins']} / lost {w['losses']})" + (f" · win rate {w['wins'] / w['n']:.0%}" if w["n"] else ""),
         f"💰 Profit booked: {w['profit']:+,.2f} USDT",

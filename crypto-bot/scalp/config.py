@@ -48,6 +48,8 @@ class ScalpConfig:
     poll_seconds: float = 10.0
     fetch_workers: int = 5        # candles parallel mein itne coins ek saath mangta hai
     report_hours: float = 12.0    # Telegram par itne ghante mein ek report (0 = band)
+    report_daily_at: str = ""      # "08:00": roz is time (Pakistan) par 24h report; khali = report_hours wala
+    report_tz_hours: float = 5.0  # Pakistan = UTC+5
     # --- ATR exit mode (default): stop/target har coin ki volatility ke hisaab se ---
     risk_boost_4: float = 1.0     # sab 4 gates mile to risk_pct ko itne se guna karo (1 = barabar). Achhe signal par badi position
     lock_fees: bool = False       # True: trailing shuru hote hi stop kam se kam entry + fees (fees ke baad loss na ho)
@@ -82,6 +84,9 @@ class ScalpConfig:
             raise ValueError("tp_roi > 0")
         if any(not x.endswith('/USDT:USDT') for x in self.symbols):
             raise ValueError("symbols: BTC jaisa naam ya BTC/USDT:USDT")
+        if self.report_daily_at:
+            from .schedule import parse_hhmm
+            parse_hhmm(self.report_daily_at)
         if self.report_hours < 0:
             raise ValueError("report_hours >= 0")
         if not 0 <= self.min_liq_distance < 1 or self.max_atr_pct < 0:

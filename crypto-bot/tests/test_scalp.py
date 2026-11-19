@@ -535,3 +535,49 @@ def test_scalp_reset_archives_files(tmp_path):
     assert not st.exists() and not tr.exists() and (tmp_path / "archive").is_dir()
     assert (os.path.join(folder, "scalp_trades_1h.csv") and os.path.exists(os.path.join(folder, "scalp_trades_1h.csv")))
     assert reset.archive(str(st), str(tr))[0] is None          # dobara: kuch nahi bacha
+
+
+def test_daily_report_slot_and_report_command(tmp_path):
+    import calendar, json, time as _t
+    from scalp import discord_cmd, schedule
+    utc = lambda y, mo, d, h, mi: calendar.timegm((y, mo, d, h, mi, 0))
+    # 08:00 PKT = 03:00 UTC
+    assert schedule.last_slot(utc(2026, 11, 19, 5, 0), "08:00") == utc(2026, 11, 19, 3, 0)    # 10:00 PKT -> aaj 08:00
+    assert schedule.last_slot(utc(2026, 11, 19, 2, 0), "08:00") == utc(2026, 11, 18, 3, 0)    # 07:00 PKT -> kal 08:00
+    assert "PKT" in schedule.fmt_local(utc(2026, 11, 19, 3, 0) * 1000)
+    with pytest.raises(ValueError):
+        ScalpConfig(report_daily_at="25:00").validate()
+    # /report sirf aaj 08:00 PKT ke baad ki trade gine
+    pos = {"symbol": "SOL/USDT:USDT", "side": "LONG", "leverage": 2, "qty": 1.0, "entry": 70.0, "margin": 35.0, "tp": 0, "sl": 60.0,
+           "liq": 40.0, "opened_ts": 0, "max_hold_ms": 3_600_000, "score": 3, "entry_fee": 0.1}
+    st = {"account": {"balance": 10000.0, "positions": [pos], "start_balance": 10000.0}, "prices": {"SOL/USDT:USDT": 71.0}, "updated": 0}
+    (tmp_path / "scalp_state_1h.json").write_text(json.dumps(st))
+    now = utc(2026, 11, 19, 8, 0)
+    old_ts, new_ts = (utc(2026, 11, 19, 2, 0)) * 1000, (utc(2026, 11, 19, 4, 0)) * 1000
+    hdr = "closed_ts,symbol,side,entry,exit,reason,roi,pnl,r,held_min,score,gates,vol_ratio,atr_pct,fees\n"
+    row = lambda ts, pnl: f"{ts},SOL/USDT:USDT,LONG,70,71,TRAIL,0.1,{pnl},1,10,3,g,5,0.02,1.5\n"
+    (tmp_path / "scalp_trades_1h.csv").write_text(hdr + row(old_ts, -50.0) + row(new_ts, 12.5))
+    txt = discord_cmd.report_reply(str(tmp_path), "08:00", 5.0, now=now)
+    assert "1H" in txt and "Trades closed: 1" in txt and "+12.50" in txt and "PKT" in txt and "-50" not in txt
+
+
+def test_bot_sends_daily_report_once_per_slot(tmp_path):
+    import calendar
+    from types import SimpleNamespace
+    from scalp import scanner
+    utc = lambda d, h, mi: calendar.timegm((2026, 11, d, h, mi, 0))
+    sent = []
+    bot = SimpleNamespace(cfg=ScalpConfig(report_daily_at="08:00", label="1H"), last_report=0.0, prices={},
+                          acct=SimpleNamespace(balance=10000.0, positions={}), trades_path=str(tmp_path / "t.csv"),
+                          tg=SimpleNamespace(send=lambda m: sent.append(m)), scan_stats=None, _new_stats=lambda: None)
+    f = lambda now: scanner.Bot._maybe_report(bot, now)
+    f(utc(19, 5, 0))                      # pehli baar: sirf baseline
+    assert sent == []
+    f(utc(19, 20, 0))                     # 01:00 PKT: abhi 08:00 nahi hui
+    assert sent == []
+    f(utc(20, 3, 1))                      # 08:01 PKT: report
+    assert len(sent) == 1 and "24h REPORT" in sent[0] and "PKT" in sent[0]
+    f(utc(20, 9, 0))                      # usi din dobara nahi
+    assert len(sent) == 1
+    f(utc(21, 3, 1))                      # agle din phir
+    assert len(sent) == 2
