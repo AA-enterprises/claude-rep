@@ -29,6 +29,8 @@ BOT_DEFS = [("asli", "scalp_config.json", "scalp_state.json", "scalp_trades.csv"
 SYMBOL_RE = re.compile(r"^[A-Z0-9]{2,20}/USDT:USDT$")
 DAY_MS = 86_400_000
 PAPER_BUDGET = 2000.0      # terminal ka poora paper budget (teeno sections ka milakar)
+AUTO_MARGIN = (200.0, 300.0)   # Auto: har trade ka margin (USDT): normal signal $200, sabse mazboot signal $300
+AUTO_LEVERAGE = (3, 4)         # Auto: normal signal 3x, sabse mazboot signal 4x
 TRADE_FIELDS = ["closed_ts", "symbol", "side", "entry", "exit", "reason", "roi", "pnl", "r", "held_min", "score", "gates",
                 "vol_ratio", "atr_pct", "fees", "manual", "method"]
 
@@ -98,9 +100,11 @@ def _num(r: dict, k: str) -> float:
 
 
 class Terminal:
-    def __init__(self, folder: str = ".", ex_factory=None, bot_defs=BOT_DEFS, budget: float = PAPER_BUDGET):
+    def __init__(self, folder: str = ".", ex_factory=None, bot_defs=BOT_DEFS, budget: float = PAPER_BUDGET,
+                 auto_margin: tuple[float, float] = AUTO_MARGIN, auto_leverage: tuple[int, int] = AUTO_LEVERAGE):
         self.folder = os.path.abspath(folder)
         self.budget = budget
+        self.auto_margin, self.auto_leverage = auto_margin, auto_leverage
         self.bots = {}
         for bid, cfgf, _stf, _trf, label in bot_defs:
             cfg_path = os.path.join(self.folder, cfgf)
@@ -216,11 +220,12 @@ class Terminal:
         return {"ok": True, "enabled": bool(enabled)}
 
     def auto_size(self, cfg: sc.ScalpConfig, cand: dict) -> tuple[int, float]:
-        """Bot ka risk rule, $budget par: risk_pct x budget / stop ki doori, margin-cap ke andar. Return (leverage, margin)."""
-        lev = max(1, min(20, int(cfg.leverage)))
-        risk_pct = cfg.risk_pct * (cfg.risk_boost_4 if cand["score"] >= 4 else 1.0)
-        notional = min(self.budget * risk_pct / cand["sl_pct"], self.budget * cfg.margin_pct * cfg.leverage)
-        return lev, notional / lev
+        """Auto ka amount: normal signal par margin $200 aur 3x, sabse mazboot signal (sabhi 4 shartein) par $300 aur 4x.
+        Leverage kabhi bhi us se zyada nahi jo is trade ke stop ke liye safe ho. Return (leverage, margin)."""
+        strong = cand["score"] >= 4
+        lev = self.auto_leverage[1] if strong else self.auto_leverage[0]
+        lev = max(1, min(lev, cand["max_safe_leverage"]))
+        return lev, (self.auto_margin[1] if strong else self.auto_margin[0])
 
     def _today_pnl(self, now: float) -> float:
         today = pkt_day(int(now * 1000))
@@ -257,7 +262,7 @@ class Terminal:
                     continue
                 lev, margin = self.auto_size(cfg, it)
                 if margin < 1 or margin > self.acct.free_margin():
-                    why_skip = "budget mein jagah nahi"
+                    why_skip = f"budget mein jagah nahi (${self.acct.free_margin():,.0f} free)"
                     continue
                 try:
                     ex = self._exchange("auto")
@@ -497,7 +502,11 @@ def make_handler(term: Terminal):
     return H
 
 
-def serve(folder: str = ".", port: int = 8090, open_browser: bool = True, budget: float = PAPER_BUDGET) -> None:
+def serve(folder: str = ".", port: int = 8090, open_browser: bool = True, budget: float = PAPER_BUDGET, fresh: bool = False) -> None:
+    if fresh:
+        from .reset import archive_terminal
+        dest, moved = archive_terminal(os.path.abspath(folder))
+        print(f"Terminal pura fresh: purani files yahan rakh di gayin: {dest}" if dest else "Terminal pehle se fresh hai.")
     term = Terminal(folder, budget=budget)
     threading.Thread(target=term.run_engine, daemon=True).start()
     threading.Thread(target=term.run_auto, daemon=True).start()

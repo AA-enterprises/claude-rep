@@ -208,12 +208,12 @@ function strip(b) {
 function paintAuto(b) {
   const ab = $("#auto-btn"), an = $("#auto-note"); if (!ab) return; const a = b.auto || {enabled: false, note: ""};
   ab.textContent = a.enabled ? "Auto: ON" : "Auto: OFF"; ab.classList.toggle("on", !!a.enabled);
-  an.textContent = a.enabled ? "Har 15 min scan · bot ke risk rule se trade · aakhri: " + (a.last_ms ? pk(a.last_ms) + " PKT, " + a.note : "abhi scan ho raha hai")
+  an.textContent = a.enabled ? "Har 15 min scan · har trade $200 margin 3x (sabse mazboot signal $300, 4x) · aakhri:" + (a.last_ms ? pk(a.last_ms) + " PKT, " + a.note : "abhi scan ho raha hai")
                              : "Band hai: bot khud trade nahi kholega (haath se Find Trades se le sakte ho)";
 }
 async function toggleAuto(b) {
   const on = !(b.auto && b.auto.enabled);
-  if (!confirm(on ? `${b.label} ka Auto ON karein? Terminal ${b.label} ke rules se KHUD paper trades kholega aur band karega (amount bot ke risk rule se, budget $${DATA.account.budget}).` : `${b.label} ka Auto band karein? Khuli trades chalti rahengi, naye trades nahi khulengi.`)) return;
+  if (!confirm(on ? `${b.label} ka Auto ON karein? Terminal ${b.label} ke rules se KHUD paper trades kholega aur band karega (har trade $200 margin, 3x; sabse mazboot signal par $300, 4x; budget $${DATA.account.budget}).` : `${b.label} ka Auto band karein? Khuli trades chalti rahengi, naye trades nahi khulengi.`)) return;
   try { const j = await api("/api/auto", {bot: b.id, enabled: on}); if (!j.ok) { toast(j.error || "fail"); return; } toast(`${b.label} Auto ${on ? "ON" : "OFF"}`); await refresh(); } catch (e) { toast("Terminal se connection nahi"); }
 }
 function fillBot() {

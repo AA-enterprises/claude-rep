@@ -662,9 +662,8 @@ def test_terminal_auto_mode_uses_bot_risk_rule(tmp_path):
     term.auto_step()
     assert len(term.acct.positions) == 1
     p = next(iter(term.acct.positions.values()))
-    assert p.method == "asli" and not p.manual and p.leverage == 3 and p.gates[0] == "AUTO"
-    assert 0 < p.qty * p.entry <= 2000 * 0.05 * 3 + 1e-6                  # bot ka cap, $2000 budget par ($300)
-    assert abs(p.risk - 2000 * 0.004) < 0.5 or p.qty * p.entry >= 299      # risk rule ya margin-cap
+    assert p.method == "asli" and not p.manual and p.gates[0] == "AUTO"
+    assert p.score == 3 and p.leverage == 3 and abs(p.margin - 200) < 1e-9 and abs(p.qty * p.entry - 600) < 1e-6   # normal signal: $200 margin, 3x
     n_before = len(term.acct.positions)
     term._auto_next["asli"] = 0.0
     term.auto_step()
@@ -684,6 +683,24 @@ def test_terminal_auto_mode_uses_bot_risk_rule(tmp_path):
     term._auto_next["asli"] = 0.0
     term.auto_step()
     assert not term.acct.positions and "loss limit" in term.overview()["sections"][0]["auto"]["note"]
+
+
+def test_terminal_auto_strong_signal_and_fresh_reset(tmp_path):
+    import json
+    import time
+    from scalp import terminal
+    from scalp.config import ScalpConfig as C
+    term = terminal.Terminal(str(tmp_path), ex_factory=lambda: None, bot_defs=[("asli", "none.json", "x", "y", "ASLI")], budget=2000)
+    cfg = C()
+    assert term.auto_size(cfg, {"score": 3, "max_safe_leverage": 20}) == (3, 200.0)
+    assert term.auto_size(cfg, {"score": 4, "max_safe_leverage": 20}) == (4, 300.0)
+    assert term.auto_size(cfg, {"score": 4, "max_safe_leverage": 2}) == (2, 300.0)        # stop ke liye safe leverage se zyada nahi
+    term.set_auto("asli", True)
+    term.save()
+    dest, moved = __import__("scalp.reset", fromlist=["x"]).archive_terminal(str(tmp_path))
+    assert dest and set(moved) >= {"terminal_state.json", "terminal_auto.json"} and not (tmp_path / "terminal_state.json").exists()
+    fresh = terminal.Terminal(str(tmp_path), ex_factory=lambda: None, bot_defs=[("asli", "none.json", "x", "y", "ASLI")], budget=2000)
+    assert fresh.auto["asli"] is False and fresh.acct.balance == 2000 and not fresh.acct.positions
 
 
 def term2_enabled(d, defs, ex):

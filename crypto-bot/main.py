@@ -266,7 +266,7 @@ def cmd_scalp_reset(args) -> int:
 
 def cmd_scalp_terminal(args) -> int:
     from scalp import terminal
-    terminal.serve(args.folder, args.port, open_browser=not args.no_open, budget=args.budget)
+    terminal.serve(args.folder, args.port, open_browser=not args.no_open, budget=args.budget, fresh=args.fresh)
     return 0
 
 
@@ -369,6 +369,7 @@ def main() -> int:
     tm_.add_argument("--folder", default=".", help="jahan bots ki state files hain")
     tm_.add_argument("--port", type=int, default=8090)
     tm_.add_argument("--budget", type=float, default=2000.0, help="haath wali trades ka total paper budget (teeno bots ka milakar)")
+    tm_.add_argument("--fresh", action="store_true", help="purani terminal state/trades/auto archive karke naya $budget account")
     tm_.add_argument("--no-open", action="store_true", help="browser na kholo")
     tm_.set_defaults(fn=cmd_scalp_terminal)
     ss_ = sub.add_parser("scalp-stats")
