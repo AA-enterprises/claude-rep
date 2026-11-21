@@ -2,7 +2,7 @@
 const $ = (s, r = document) => r.querySelector(s);
 const PKT = 5 * 3600;
 let DATA = null, VIEW = "overview", TOAST_T;
-const ui = {lastT: 0, chart: null, candles: null, volume: null, sym: null, tf: "5m", lines: [], timer: null, msg: null};
+const ui = {rows: [], ma: [], lastT: 0, chart: null, candles: null, volume: null, sym: null, tf: "5m", lines: [], timer: null, msg: null};
 const sel = {cand: null, cands: null, loading: false, tab: "pos", day: null};
 
 /* ---------- helpers ---------- */
@@ -37,39 +37,68 @@ function table(head, rows) {
 const empty = (t, s) => { const d = el("div", "empty-state"); d.append(el("strong", "", t)); if (s) d.append(el("small", "", s)); return d; };
 const botById = id => DATA && DATA.bots.find(b => b.id === id);
 
-/* ---------- chart ---------- */
+/* ---------- chart (Binance jaisa) ---------- */
+const TF_SEC = {"1m": 60, "3m": 180, "5m": 300, "15m": 900, "30m": 1800, "1h": 3600, "2h": 7200, "4h": 14400};
+const COL = {bg: "#181a20", grid: "#1e2329", text: "#848e9c", up: "#0ecb81", down: "#f6465d", ma7: "#f0b90b", ma25: "#e0529c", ma99: "#8f6ff0"};
+function precisionFor(p) { return p >= 100 ? 2 : p >= 10 ? 3 : p >= 1 ? 4 : p >= 0.1 ? 5 : p >= 0.01 ? 6 : 7; }
 function initChart(container) {
   if (ui.chart) { ui.chart.remove(); ui.chart = null; }
   const LW = window.LightweightCharts;
   if (!LW) { container.textContent = "Chart library load nahi hui"; return; }
   const tickFmt = t => { const d = new Date((t + PKT) * 1000); return `${pad2(d.getUTCHours())}:${pad2(d.getUTCMinutes())}`; };
   ui.chart = LW.createChart(container, {
-    layout: {background: {color: "#11161d"}, textColor: "#85909e", fontFamily: "Consolas, monospace", fontSize: 11},
-    grid: {vertLines: {color: "#1a222b"}, horzLines: {color: "#1a222b"}}, rightPriceScale: {borderColor: "#252d38"},
-    timeScale: {borderColor: "#252d38", timeVisible: true, secondsVisible: false, tickMarkFormatter: tickFmt},
+    layout: {background: {color: COL.bg}, textColor: COL.text, fontFamily: "Arial, sans-serif", fontSize: 11},
+    grid: {vertLines: {color: COL.grid}, horzLines: {color: COL.grid}}, rightPriceScale: {borderColor: COL.grid, scaleMargins: {top: 0.08, bottom: 0.22}},
+    timeScale: {borderColor: COL.grid, timeVisible: true, secondsVisible: false, rightOffset: 6, tickMarkFormatter: tickFmt},
     localization: {timeFormatter: t => { const d = new Date((t + PKT) * 1000); return `${pad2(d.getUTCMonth() + 1)}-${pad2(d.getUTCDate())} ${tickFmt(t)} PKT`; }},
-    crosshair: {mode: 0}, autoSize: true,
+    crosshair: {mode: 0, vertLine: {color: "#5e6673", labelBackgroundColor: "#2b3139"}, horzLine: {color: "#5e6673", labelBackgroundColor: "#2b3139"}}, autoSize: true,
   });
-  ui.candles = ui.chart.addCandlestickSeries({upColor: "#13b981", downColor: "#f15b68", wickUpColor: "#13b981", wickDownColor: "#f15b68", borderVisible: false});
-  ui.volume = ui.chart.addHistogramSeries({priceFormat: {type: "volume"}, priceScaleId: "vol"});
-  ui.chart.priceScale("vol").applyOptions({scaleMargins: {top: 0.85, bottom: 0}});
-  ui.lines = [];
+  ui.candles = ui.chart.addCandlestickSeries({upColor: COL.up, downColor: COL.down, wickUpColor: COL.up, wickDownColor: COL.down, borderVisible: false,
+    priceLineVisible: true, priceLineWidth: 1, priceLineStyle: 2, lastValueVisible: true});
+  ui.volume = ui.chart.addHistogramSeries({priceFormat: {type: "volume"}, priceScaleId: "vol", lastValueVisible: false, priceLineVisible: false});
+  ui.chart.priceScale("vol").applyOptions({scaleMargins: {top: 0.82, bottom: 0}});
+  ui.ma = [[7, COL.ma7], [25, COL.ma25], [99, COL.ma99]].map(([n, c]) => ({n, series: ui.chart.addLineSeries({color: c, lineWidth: 1, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false})}));
+  ui.lines = {}; ui.rows = [];
+  ui.chart.subscribeCrosshairMove(param => { const r = param && param.time ? ui.rows.find(x => x[0] === param.time) : null; legend(r || ui.rows[ui.rows.length - 1]); });
 }
-function setLines(defs) {
-  if (!ui.candles) return;
-  ui.lines.forEach(l => { try { ui.candles.removePriceLine(l); } catch (e) {} }); ui.lines = [];
-  defs.forEach(d => ui.lines.push(ui.candles.createPriceLine({price: d.price, color: d.color, lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: d.title})));
+function smaAt(rows, i, n) { if (i < n - 1) return null; let t = 0; for (let k = i - n + 1; k <= i; k++) t += rows[k][4]; return t / n; }
+function paintMA(full) {
+  ui.ma.forEach(m => { if (full) m.series.setData(ui.rows.map((r, i) => { const v = smaAt(ui.rows, i, m.n); return v == null ? null : {time: r[0], value: v}; }).filter(Boolean));
+    else { const i = ui.rows.length - 1, v = smaAt(ui.rows, i, m.n); if (v != null) m.series.update({time: ui.rows[i][0], value: v}); } });
+}
+/* lines: entry / SL / liq (trade ke baad) ya signal / stop (candidate); diff se update, flicker nahi */
+function wantedLines() {
+  if (!ui.sym || !DATA) return [];
+  let pos = null; DATA.bots.forEach(b => (b.state.positions || []).forEach(p => { if (p.symbol === ui.sym) pos = p; }));
+  if (pos) {
+    const pl = (pos.pnl >= 0 ? "+" : "") + pos.pnl.toFixed(2) + " (" + (pos.roi >= 0 ? "+" : "") + (pos.roi * 100).toFixed(1) + "%)";
+    const L = [{id: "entry", price: pos.entry, color: "#f0b90b", title: "Entry " + pos.side + " " + pos.leverage + "x · PnL " + pl},
+      {id: "sl", price: pos.sl, color: COL.down, title: pos.trail_active ? "SL (profit locked)" : "SL"}, {id: "liq", price: pos.liq, color: "#a35bd6", title: "Liq."}];
+    if (pos.tp != null) L.push({id: "tp", price: pos.tp, color: COL.up, title: "TP"});
+    return L;
+  }
+  const c = sel.cand; if (c && c.symbol === ui.sym) return [{id: "sig", price: c.price, color: "#f0b90b", title: "Signal price"}, {id: "csl", price: c.sl_price, color: COL.down, title: "Stop (bot rule)"}];
+  return [];
+}
+function syncLines() {
+  if (!ui.candles) return; const want = wantedLines(), ids = new Set(want.map(w => w.id));
+  Object.keys(ui.lines).forEach(k => { if (!ids.has(k)) { try { ui.candles.removePriceLine(ui.lines[k]); } catch (e) {} delete ui.lines[k]; } });
+  want.forEach(w => { const o = {price: w.price, color: w.color, lineWidth: 1, lineStyle: 0, axisLabelVisible: true, title: w.title};
+    if (ui.lines[w.id]) ui.lines[w.id].applyOptions(o); else ui.lines[w.id] = ui.candles.createPriceLine(o); });
 }
 const candle = r => ({time: r[0], open: r[1], high: r[2], low: r[3], close: r[4]});
-const vol = r => ({time: r[0], value: r[5], color: r[4] >= r[1] ? "#13b98155" : "#f15b6855"});
+const vol = r => ({time: r[0], value: r[5], color: r[4] >= r[1] ? "#0ecb8155" : "#f6465d55"});
 async function loadChart() {
   if (!ui.sym || !ui.candles) return;
   const my = ui.sym + "|" + ui.tf;
   try {
     const rows = await api(`/api/klines?symbol=${encodeURIComponent(ui.sym)}&tf=${ui.tf}&limit=300`);
     if (ui.sym + "|" + ui.tf !== my || !Array.isArray(rows)) { if (rows && rows.error) chartMsg(rows.error); return; }
-    ui.lastT = rows.length ? rows[rows.length - 1][0] : 0; ui.candles.setData(rows.map(candle)); ui.volume.setData(rows.map(vol)); ui.chart.timeScale().fitContent(); chartMsg("");
-    legend(rows[rows.length - 1]);
+    ui.rows = rows; ui.lastT = rows.length ? rows[rows.length - 1][0] : 0;
+    const last = rows.length ? rows[rows.length - 1][4] : 1, pr = precisionFor(last);
+    ui.candles.applyOptions({priceFormat: {type: "price", precision: pr, minMove: Math.pow(10, -pr)}});
+    ui.candles.setData(rows.map(candle)); ui.volume.setData(rows.map(vol)); paintMA(true);
+    ui.chart.timeScale().fitContent(); ui.chart.timeScale().scrollToRealTime(); chartMsg(""); legend(rows[rows.length - 1]); syncLines();
   } catch (e) { chartMsg("Chart ka data nahi mila (Binance se connection?)"); }
 }
 async function tickChart() {
@@ -77,22 +106,26 @@ async function tickChart() {
   const my = ui.sym + "|" + ui.tf;
   try {
     const rows = await api(`/api/klines?symbol=${encodeURIComponent(ui.sym)}&tf=${ui.tf}&limit=2`);
-    if (ui.sym + "|" + ui.tf !== my || !Array.isArray(rows)) return;
-    rows.forEach(r => { if (r[0] >= ui.lastT) { ui.candles.update(candle(r)); ui.volume.update(vol(r)); ui.lastT = r[0]; } }); chartMsg(""); legend(rows[rows.length - 1]);
+    if (ui.sym + "|" + ui.tf !== my || !Array.isArray(rows) || !rows.length) return;
+    if (rows[rows.length - 1][0] - ui.lastT > (TF_SEC[ui.tf] || 300) * 3) { loadChart(); return; }          // der se wapas aaye: poora chart dobara
+    rows.forEach(r => { if (r[0] >= ui.lastT) {
+      const i = ui.rows.length - 1; if (i >= 0 && ui.rows[i][0] === r[0]) ui.rows[i] = r; else ui.rows.push(r);
+      ui.candles.update(candle(r)); ui.volume.update(vol(r)); ui.lastT = r[0]; paintMA(false); } });
+    chartMsg(""); legend(rows[rows.length - 1]);
   } catch (e) { chartMsg("live data ruk gaya, dobara koshish..."); }
 }
 function chartMsg(t) { if (ui.msg) ui.msg.textContent = t; }
 function legend(r) {
-  const l = $("#legend"); if (!l || !r) return;
-  l.replaceChildren(); [["O", r[1]], ["H", r[2]], ["L", r[3]], ["C", r[4]]].forEach(([k, v]) => { const s = el("span", "", k + " "); s.append(el("b", "", fp(v))); l.append(s); });
-  const p = $("#last-price"); if (p) p.textContent = fp(r[4]);
+  const l = $("#legend"); if (!l || !r) return; const pr = precisionFor(r[4]), f = v => v.toFixed(pr);
+  l.replaceChildren(); [["O", r[1]], ["H", r[2]], ["L", r[3]], ["C", r[4]]].forEach(([k, v]) => { const s = el("span", "", k + " "); s.append(el("b", r[4] >= r[1] ? "up" : "dn", f(v))); l.append(s); });
+  const i = ui.rows.findIndex(x => x[0] === r[0]); if (i >= 0) { ui.ma.forEach((m, k) => { const v = smaAt(ui.rows, i, m.n); if (v != null) { const s = el("span", "", "MA(" + m.n + ") "); s.append(el("b", "", f(v))); s.style.color = [COL.ma7, COL.ma25, COL.ma99][k]; l.append(s); } }); }
+  const vs = el("span", "", "Vol "); vs.append(el("b", "", r[5].toLocaleString(undefined, {maximumFractionDigits: 1}))); l.append(vs);
+  const p = $("#last-price"); if (p) { p.textContent = f(r[4]); p.className = r[4] >= r[1] ? "up" : "dn"; }
 }
-function selectSymbol(sym, lines) {
-  ui.sym = sym; $("#chart-sym").textContent = nm(sym) + " · Perp"; setLines([]); loadChart().then(() => setLines(lines || []));
+function selectSymbol(sym) {
+  ui.sym = sym; $("#chart-sym").textContent = nm(sym) + " · Perp"; syncLines(); loadChart();
 }
-function linesForPos(p) {
-  return [{price: p.entry, color: "#e5b54e", title: "Entry"}, {price: p.sl, color: "#f15b68", title: "SL"}, {price: p.liq, color: "#a35bd6", title: "Liq"}];
-}
+document.addEventListener("visibilitychange", () => { if (!document.hidden) loadChart(); });
 
 /* ---------- navigation ---------- */
 function nav() {
@@ -160,7 +193,7 @@ function buildBotView(id) {
   left.append(cp, pp);
   right.append(buildTakePanel(b), buildFindPanel(b)); grid.append(left, right); v.append(grid);
   initChart(ch); fillBot();
-  const first = (b.state.positions || [])[0]; selectSymbol(first ? first.symbol : "BTC/USDT:USDT", first ? linesForPos(first) : []);
+  const first = (b.state.positions || [])[0]; selectSymbol(first ? first.symbol : "BTC/USDT:USDT");
   ui.timer = setInterval(tickChart, 2000);
 }
 function strip(b) {
@@ -185,7 +218,7 @@ function fillTabs() {
     body.append(table(["SYMBOL", "SIZE", "ENTRY", "MARK", "LIQ. PRICE", "MARGIN", "TP / SL", "PNL (ROE%)", "FEES (EST.)", "HELD", ""],
       s.positions.map(p => [{t: nm(p.symbol) + " " + p.leverage + "x", side: p.side, manual: p.manual}, money(p.notional).replace(/\.\d+$/, ""), fp(p.entry), fp(p.mark), {t: fp(p.liq) + " (" + (p.liq_dist * 100).toFixed(0) + "%)", c: p.liq_dist < 0.1 ? "dn" : "mut"},
         p.margin.toFixed(2), {t: (p.tp == null ? "trail" : fp(p.tp)) + " / " + fp(p.sl), c: "mut"}, {t: fm(p.pnl) + " (" + fm(p.roi * 100, 1) + "%)", c: cls(p.pnl)}, {t: "-" + p.fees_est.toFixed(2), c: "mut"}, dur(p.held_min) + " / " + dur(p.max_hold_min),
-        {nodes: [btn("Open graph", false, () => { selectSymbol(p.symbol, linesForPos(p)); $("#chart").scrollIntoView({behavior: "smooth", block: "center"}); }),
+        {nodes: [btn("Open graph", false, () => { selectSymbol(p.symbol); $("#chart").scrollIntoView({behavior: "smooth", block: "center"}); }),
                  btn(p.closing ? "band ho rahi..." : "CLOSE", p.closing, e => closePos(b, p, e.target), true)]}])));
   } else if (sel.tab === "hist") {
     const tr = s.trades24 || [];
@@ -252,7 +285,7 @@ function renderCands(b) {
 function pickCand(b, c) {
   sel.cand = c; renderCands(b); const lv = $("#lev"); lv.value = c.suggested_leverage; $("#lev-r").value = c.suggested_leverage;
   const pool = DATA.pool; const free = pool.free; const mg = $("#margin"); if (!mg.dataset.touched) mg.value = Math.max(0, Math.min(100, Math.floor(free))) || "";
-  selectSymbol(c.symbol, [{price: c.price, color: "#e5b54e", title: "Signal price"}, {price: c.sl_price, color: "#f15b68", title: "Stop (bot rule)"}]); preview();
+  selectSymbol(c.symbol); preview();
 }
 function buildTakePanel(b) {
   const p = el("section", "panel order-panel"); const h = el("div", "panel-heading order-title"); h.append(el("strong", "", "Trade lo (paper) · " + b.label + " method"), el("span", "paper-small", "PAPER")); p.append(h);
@@ -292,7 +325,7 @@ async function takeTrade(b) {
   const c = sel.cand; if (!c) return; const lev = parseInt($("#lev").value, 10), mar = parseFloat($("#margin").value);
   if (!confirm(`${nm(c.symbol)} ${c.side} · ${lev}x · margin ${mar} USDT (paper). Lein?`)) return;
   const bt = $("#take-btn"); bt.disabled = true;
-  try { const j = await api("/api/take", {bot: b.id, symbol: c.symbol, side: c.side, leverage: lev, margin: mar}); toast(j.ok ? j.message : (j.error || "request fail")); if (j.ok) { sel.cand = null; $("#sel-coin").textContent = "Trade khul gayi: neeche Positions mein dekho"; refresh(); renderCands(b); preview(); } }
+  try { const j = await api("/api/take", {bot: b.id, symbol: c.symbol, side: c.side, leverage: lev, margin: mar}); toast(j.ok ? j.message : (j.error || "request fail")); if (j.ok) { sel.cand = null; $("#sel-coin").textContent = "Trade khul gayi: chart par Entry / SL / Liq lines aur neeche Positions mein dekho"; sel.cand = null; await refresh(); syncLines(); renderCands(b); preview(); } }
   catch (e) { toast("Terminal se connection nahi"); }
   bt.disabled = false;
 }
@@ -312,7 +345,7 @@ async function refresh() {
   try {
     DATA = normalize(await api("/api/overview")); paintPool();
     if (!$("#nav").children.length || $("#nav").children.length !== DATA.bots.length + 1) nav();
-    if (VIEW === "overview") fillOverview(); else if (botById(VIEW)) { fillBot(); preview(); }
+    if (VIEW === "overview") fillOverview(); else if (botById(VIEW)) { fillBot(); preview(); syncLines(); }
     if (VIEW === "overview") { $("#conn-text").textContent = "Terminal chal raha hai"; $("#conn-dot").style.background = "#24c98d"; }
   } catch (e) { $("#conn-text").textContent = "Terminal server se connection nahi"; $("#conn-dot").style.background = "#f15b68"; }
 }

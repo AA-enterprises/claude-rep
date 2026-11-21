@@ -56,7 +56,7 @@ def build_state(state_path: str, trades_path: str, equity_path: str, now: float 
         positions.append({
             "entry_fee": p.get("entry_fee", 0.0), "fees_est": fees_est, "net_if_closed": pnl - fees_est,
             "liq": liq, "liq_dist": abs(liq / mark - 1), "closing": p["symbol"] in pending,
-            "manual": bool(p.get("manual")), "method": p.get("method", ""), "symbol": p["symbol"], "side": p["side"], "leverage": p["leverage"], "qty": p["qty"],
+            "manual": bool(p.get("manual")), "method": p.get("method", ""), "trail_active": p.get("trail_dist", 0) > 0 and ((p["side"] == "LONG" and p["sl"] > p["entry"]) or (p["side"] == "SHORT" and p["sl"] < p["entry"])), "symbol": p["symbol"], "side": p["side"], "leverage": p["leverage"], "qty": p["qty"],
             "notional": p["qty"] * p["entry"], "margin": p["margin"], "entry": p["entry"], "mark": mark,
             "tp": p["tp"], "sl": p["sl"], "pnl": pnl, "roi": pnl / p["margin"] if p["margin"] else 0.0,
             "held_min": (now * 1000 - p["opened_ts"]) / 60000, "score": p.get("score", 0),
