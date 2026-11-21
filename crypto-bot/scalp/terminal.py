@@ -1,9 +1,9 @@
-"""Futures Terminal: Asli / Freq / Big teeno bots ek alag dashboard par (alag port, bots ko nahi rokta).
+"""Futures Terminal: bilkul alag, fresh paper account ($2000), jisme Asli / Freq / Big teeno bots ke TAREEQE (method) alag sections mein hain.
 
-- Har bot ka apna section: bot kaise kaam karta hai, uske apne rules se Find Trades, uski open trades.
-- Trade lene par terminal sirf bot ki command file mein request likhta hai; trade bot khud kholta hai (paper).
-- Candles sirf Binance ke apne timeframes ke (koi nakli 10m/20m nahi).
-- 24 ghante se purani trades dated files mein alag folder (trade_archive/) mein save hoti hain."""
+- Ye chalte hue bots se juda nahi: apni state/trades files (terminal_*), apna engine (stop/trailing/timeout khud sambhalta hai).
+- Har section: bot kaise kaam karta hai, uske rules se Find Trades, aur usi method se li gayi trades.
+- Trade turant khulti hai (bot restart ki zaroorat nahi). Candles sirf Binance ke apne timeframes ke.
+- 24 ghante se purani trades dated files mein trade_archive/<section>/ mein save hoti hain."""
 from __future__ import annotations
 
 import csv
@@ -16,6 +16,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from . import config as sc
 from . import dashboard, finder, schedule
+from .account import PaperAccount
 
 UI_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "terminal_ui")
 STATIC = {"/": ("index.html", "text/html; charset=utf-8"), "/styles.css": ("styles.css", "text/css; charset=utf-8"),
@@ -27,7 +28,9 @@ BOT_DEFS = [("asli", "scalp_config.json", "scalp_state.json", "scalp_trades.csv"
             ("big", "scalp_config_big.json", "scalp_state_big.json", "scalp_trades_big.csv", "BIG")]
 SYMBOL_RE = re.compile(r"^[A-Z0-9]{2,20}/USDT:USDT$")
 DAY_MS = 86_400_000
-PAPER_BUDGET = 2000.0      # terminal se li gayi (haath wali) trades ka poora paper budget: teeno bots ka milakar
+PAPER_BUDGET = 2000.0      # terminal ka poora paper budget (teeno sections ka milakar)
+TRADE_FIELDS = ["closed_ts", "symbol", "side", "entry", "exit", "reason", "roi", "pnl", "r", "held_min", "score", "gates",
+                "vol_ratio", "atr_pct", "fees", "manual", "method"]
 
 
 def describe(cfg: sc.ScalpConfig) -> list[str]:
@@ -59,14 +62,14 @@ def _rows(path: str) -> list[dict]:
         return []
 
 
-def archive_old(trades_path: str, out_dir: str, now_ms: int | None = None) -> dict[str, int]:
+def archive_old(trades_path: str, out_dir: str, now_ms: int | None = None, method: str | None = None) -> dict[str, int]:
     """24 ghante se purani trades ko din (Pakistan date) ke hisaab se out_dir/<din>.csv mein save karo. Bot ki apni CSV ko nahi chhedta.
     Dobara chalane par wahi files wahi content ke saath banti hain. Return {din: trades}."""
     now_ms = int(time.time() * 1000) if now_ms is None else now_ms
-    rows = _rows(trades_path)
+    rows = [r for r in _rows(trades_path) if method is None or r.get("method") == method]
     if not rows:
         return {}
-    fields = list(rows[0].keys())
+    fields = TRADE_FIELDS
     days: dict[str, list[dict]] = {}
     for r in rows:
         ts = int(float(r["closed_ts"]))
@@ -80,7 +83,7 @@ def archive_old(trades_path: str, out_dir: str, now_ms: int | None = None) -> di
             continue
         tmp = path + ".tmp"
         with open(tmp, "w", newline="") as f:
-            w = csv.DictWriter(f, fields)
+            w = csv.DictWriter(f, fields, extrasaction="ignore")
             w.writeheader()
             w.writerows(rs)
         os.replace(tmp, path)
@@ -99,74 +102,131 @@ class Terminal:
         self.folder = os.path.abspath(folder)
         self.budget = budget
         self.bots = {}
-        for bid, cfgf, stf, trf, label in bot_defs:
+        for bid, cfgf, _stf, _trf, label in bot_defs:
             cfg_path = os.path.join(self.folder, cfgf)
             cfg = sc.load(cfg_path) if os.path.exists(cfg_path) else sc.ScalpConfig(label=label)
             self.bots[bid] = {"id": bid, "label": cfg.label or label, "cfg": cfg,
-                              "state": os.path.join(self.folder, stf), "trades": os.path.join(self.folder, trf),
-                              "equity": os.path.join(self.folder, stf.replace(".json", "_equity.csv")),
                               "archive": os.path.join(self.folder, "trade_archive", bid)}
+        self.state_path = os.path.join(self.folder, "terminal_state.json")
+        self.trades_path = os.path.join(self.folder, "terminal_trades.csv")
+        self.equity_path = os.path.join(self.folder, "terminal_state_equity.csv")
+        self.cfg = sc.ScalpConfig(start_balance=budget, label="TERMINAL")
+        self.lock = threading.RLock()
+        self.prices: dict[str, float] = {}
+        self.last_eq = 0.0
+        st = dashboard._read_json(self.state_path)
+        self.acct = PaperAccount.from_dict(self.cfg, st["account"]) if st and "account" in st else PaperAccount(self.cfg)
         self._ex_factory = ex_factory
-        self._ex_find = self._ex_klines = None
+        self._ex: dict[str, object] = {}
         self._sig_cache: dict[str, dict] = {}
         self._sig_lock = {b: threading.Lock() for b in self.bots}
         self._kl_cache: dict[tuple, tuple[float, list]] = {}
         self._kl_lock = threading.Lock()
+        self.save()
 
     def _exchange(self, which: str):
         if self._ex_factory is None:
             from .scanner import make_exchange
             self._ex_factory = make_exchange
-        attr = "_ex_find" if which == "find" else "_ex_klines"
-        if getattr(self, attr) is None:
-            setattr(self, attr, self._ex_factory())
-        return getattr(self, attr)
+        if which not in self._ex:                      # ccxt thread-safe nahi: har kaam ka apna exchange object
+            self._ex[which] = self._ex_factory()
+        return self._ex[which]
 
     def bot(self, bid: str) -> dict:
         if bid not in self.bots:
-            raise KeyError("bot nahi mila")
+            raise KeyError("section nahi mila")
         return self.bots[bid]
 
-    def pool(self) -> dict:
-        """Teeno bots ka milakar ek paper budget: budget + haath wali band trades ka net, minus haath wali khuli trades ka margin."""
-        used = 0.0
-        realized = 0.0
-        for b in self.bots.values():
-            st = dashboard._read_json(b["state"]) or {}
-            used += sum(p["margin"] for p in st.get("account", {}).get("positions", []) if p.get("manual"))
-            realized += sum(_num(r, "pnl") for r in _rows(b["trades"]) if str(r.get("manual", "")).strip() in ("1", "True"))
-        total = self.budget + realized
-        return {"budget": self.budget, "realized": realized, "total": total, "used": used, "free": max(0.0, total - used)}
+    # ---------- engine: khuli trades ka stop / trailing / timeout ----------
+    def save(self) -> None:
+        with self.lock:
+            tmp = self.state_path + ".tmp"
+            with open(tmp, "w") as f:
+                json.dump({"account": self.acct.to_dict(), "prices": self.prices, "updated": time.time(),
+                           "fee_rate": self.cfg.fee_rate, "slippage_pct": self.cfg.slippage_pct, "start_balance": self.budget}, f)
+            for _ in range(10):
+                try:
+                    os.replace(tmp, self.state_path)
+                    return
+                except PermissionError:
+                    time.sleep(0.1)
+
+    def _log(self, rec: dict) -> None:
+        new = not os.path.exists(self.trades_path)
+        with open(self.trades_path, "a", newline="") as f:
+            w = csv.DictWriter(f, TRADE_FIELDS, extrasaction="ignore")
+            if new:
+                w.writeheader()
+            w.writerow(rec)
+
+    def tick(self) -> None:
+        """Khuli trades ki live price lo, exit rules (SL / trailing / timeout) lagao. Engine thread har ~5 second chalata hai."""
+        with self.lock:
+            if self.acct.positions:
+                try:
+                    ex = self._exchange("engine")
+                    tick = ex.fetch_tickers(list(self.acct.positions))
+                    now = ex.milliseconds()
+                except Exception as e:  # noqa: BLE001
+                    print(f"engine: price nahi mili ({type(e).__name__}), agli baar")
+                    return
+                last_px = {s: (tick.get(s) or {}).get("last") for s in self.acct.positions}
+                self.prices.update({k: v for k, v in last_px.items() if v})
+                for sym, pos in list(self.acct.positions.items()):
+                    last = last_px.get(sym)
+                    if not last:
+                        continue
+                    res = self.acct.check_exit(pos, last, last, last, now, live=True)
+                    if res:
+                        rec = self.acct.close(pos, res[0], res[1], now)
+                        self._log(rec)
+                        print(f"CLOSE {sym} ({pos.method}) {rec['reason']} pnl {rec['pnl']:+.2f}")
+            if time.time() - self.last_eq >= 60:
+                self.last_eq = time.time()
+                new = not os.path.exists(self.equity_path)
+                with open(self.equity_path, "a", newline="") as f:
+                    if new:
+                        f.write("ts,balance,equity\n")
+                    f.write(f"{int(time.time() * 1000)},{self.acct.balance:.4f},{self.acct.equity(self.prices):.4f}\n")
+            self.save()
+
+    def run_engine(self, every: float = 5.0) -> None:
+        while True:
+            try:
+                self.tick()
+            except Exception as e:  # noqa: BLE001
+                print(f"engine error: {type(e).__name__}")
+            time.sleep(every)
 
     # ---------- read ----------
     def overview(self, now: float | None = None) -> dict:
         now = time.time() if now is None else now
         now_ms = int(now * 1000)
+        with self.lock:
+            self.save()
+            st = dashboard.build_state(self.state_path, self.trades_path, self.equity_path, now=now)
+            free = self.acct.free_margin()
         out = []
         for b in self.bots.values():
-            st = dashboard.build_state(b["state"], b["trades"], b["equity"], now=now)
             cfg = b["cfg"]
-            info = {"id": b["id"], "label": b["label"], "about": describe(cfg),
-                    "rules": {"leverage": cfg.leverage, "min_gates": cfg.min_gates, "timeframe": cfg.timeframe,
-                              "sl_atr": cfg.sl_atr, "max_hold_hours": cfg.max_hold_hours, "max_open": cfg.max_open,
-                              "maint_margin_rate": cfg.maint_margin_rate, "fee_rate": cfg.fee_rate}}
-            if st.get("status") == "no_state":
-                info["state"] = {"status": "no_state"}
-            else:
-                recent = [t for t in st["trades"] if t["closed_ts"] > now_ms - DAY_MS]
-                free = st["balance"] - sum(p["margin"] for p in st["positions"])
-                info["state"] = {k: st[k] for k in ("status", "age_sec", "balance", "equity", "unrealized", "return_pct",
-                                                    "positions", "today", "stats", "fees_all", "net_if_closed")}
-                info["state"]["free_margin"] = free + st["unrealized"]
-                info["state"]["trades24"] = recent
-                info["state"]["margin_used"] = sum(p["margin"] for p in st["positions"])
-            info["archive_days"] = self.archive_days(b["id"], now_ms)
-            out.append(info)
-        return {"bots": out, "timeframes": list(TIMEFRAMES), "now_ms": now_ms, "pool": self.pool()}
+            pos = [p for p in st["positions"] if p.get("method") == b["id"]]
+            tr24 = [t for t in st["trades"] if t.get("method") == b["id"] and t["closed_ts"] > now_ms - DAY_MS]
+            out.append({"id": b["id"], "label": b["label"], "about": describe(cfg),
+                        "rules": {"leverage": cfg.leverage, "min_gates": cfg.min_gates, "timeframe": cfg.timeframe,
+                                  "sl_atr": cfg.sl_atr, "max_hold_hours": cfg.max_hold_hours,
+                                  "maint_margin_rate": self.cfg.maint_margin_rate, "fee_rate": self.cfg.fee_rate},
+                        "positions": pos, "trades24": tr24, "unrealized": sum(p["pnl"] for p in pos),
+                        "net24": sum(t["pnl"] for t in tr24), "archive_days": self.archive_days(b["id"], now_ms)})
+        acct = {k: st[k] for k in ("balance", "equity", "unrealized", "return_pct", "today", "stats", "fees_all")}
+        acct.update({"budget": self.budget, "free_margin": free, "margin_used": self.budget_used(), "status": st["status"]})
+        return {"sections": out, "account": acct, "timeframes": list(TIMEFRAMES), "now_ms": now_ms}
+
+    def budget_used(self) -> float:
+        return sum(p.margin for p in self.acct.positions.values())
 
     def archive_days(self, bid: str, now_ms: int | None = None) -> list[dict]:
         b = self.bot(bid)
-        archive_old(b["trades"], b["archive"], now_ms)
+        archive_old(self.trades_path, b["archive"], now_ms, method=bid)
         days = []
         if os.path.isdir(b["archive"]):
             for fn in sorted(os.listdir(b["archive"]), reverse=True):
@@ -190,8 +250,8 @@ class Terminal:
             c = self._sig_cache.get(bid)
             if c and not refresh and time.time() - c["at"] < 60:
                 return c["data"]
-            st = dashboard._read_json(b["state"]) or {}
-            open_syms = {p["symbol"] for p in st.get("account", {}).get("positions", [])}
+            with self.lock:
+                open_syms = set(self.acct.positions)
             data = finder.find(self._exchange("find"), b["cfg"], open_syms)
             self._sig_cache[bid] = {"at": time.time(), "data": data}
             return data
@@ -211,11 +271,7 @@ class Terminal:
             self._kl_cache[key] = (time.time(), rows)
             return rows
 
-    # ---------- write (bot ki command file) ----------
-    def _push(self, b: dict, cmd: dict) -> None:
-        with open(b["state"].replace(".json", "_commands.jsonl"), "a", encoding="utf-8") as f:
-            f.write(json.dumps({**cmd, "ts": time.time()}) + "\n")
-
+    # ---------- trade lena / band karna ----------
     def take(self, bid: str, symbol: str, side: str, leverage: int, margin: float, now: float | None = None) -> dict:
         now = time.time() if now is None else now
         b = self.bot(bid)
@@ -223,40 +279,54 @@ class Terminal:
             return {"ok": False, "error": "leverage 1x se 20x ke beech ek poora number hona chahiye"}
         if not isinstance(margin, (int, float)) or isinstance(margin, bool) or not 1 <= margin <= 1_000_000:
             return {"ok": False, "error": "margin (USDT) kam se kam 1 hona chahiye"}
-        st = dashboard._read_json(b["state"])
-        if not st or now - st.get("updated", 0) > 60:
-            return {"ok": False, "error": f"{b['label']} bot chal nahi raha (ya data purana hai): pehle bot chalao"}
-        if not st.get("manual_ok"):
-            return {"ok": False, "error": f"{b['label']} bot purane code par chal raha hai: git pull karke bot restart karo (tab terminal se trade khulegi)"}
-        acct = st["account"]
-        if symbol in {p["symbol"] for p in acct["positions"]}:
-            return {"ok": False, "error": "ye coin is bot mein pehle se open hai"}
-        free = acct["balance"] - sum(p["margin"] for p in acct["positions"])
-        if margin > free:
-            return {"ok": False, "error": f"is bot mein free margin sirf ${free:,.2f} hai"}
-        pool = self.pool()
-        if margin > pool["free"]:
-            return {"ok": False, "error": f"dashboard ka paper budget (${pool['total']:,.2f}) mein sirf ${pool['free']:,.2f} free hai"}
         cand = next((x for x in (self._sig_cache.get(bid, {}).get("data", {}).get("items", []))
                      if x["symbol"] == symbol and x["side"] == side), None)
         if not cand or cand["valid_until_ms"] < now * 1000:
             return {"ok": False, "error": "ye candidate purana ho gaya: Find Trades dobara dabao"}
-        liq_dist = 1 / leverage - b["cfg"].maint_margin_rate
+        liq_dist = 1 / leverage - self.cfg.maint_margin_rate
         if liq_dist <= cand["sl_pct"]:
             return {"ok": False, "error": f"{leverage}x par liquidation ({liq_dist:.1%} door) stop ({cand['sl_pct']:.1%} door) se pehle "
                                           f"lag jayegi. Zyada se zyada {cand['max_safe_leverage']}x lo"}
-        self._push(b, {"action": "open", "symbol": symbol, "side": side, "leverage": leverage, "margin": float(margin),
-                       "atr_pct": cand["atr_pct"], "price": cand["price"], "score": cand["score"],
-                       "gates": ["MANUAL (terminal)"] + cand["gates"], "vol_ratio": cand["vol_ratio"]})
-        return {"ok": True, "message": f"{b['label']} ko request bhej di: ~10 second mein trade khul jayegi"}
+        with self.lock:
+            if symbol in self.acct.positions:
+                return {"ok": False, "error": "ye coin terminal mein pehle se open hai"}
+            free = self.acct.free_margin()
+            if margin > free:
+                return {"ok": False, "error": f"paper budget mein sirf ${free:,.2f} free hai (budget ${self.budget:,.0f})"}
+            try:
+                px = (self._exchange("engine").fetch_ticker(symbol) or {}).get("last") or cand["price"]
+                ts = self._exchange("engine").milliseconds()
+            except Exception:  # noqa: BLE001
+                px, ts = cand["price"], int(now * 1000)
+            pos, why = self.acct.open_manual(symbol, side, float(px), ts, leverage, float(margin), cand["atr_pct"], cand["score"],
+                                             ["MANUAL (terminal)"] + cand["gates"], cand["vol_ratio"], method_cfg=b["cfg"], method=bid)
+            if not pos:
+                return {"ok": False, "error": why}
+            self.prices[symbol] = float(px)
+            self.save()
+        return {"ok": True, "message": f"{nm_(symbol)} {side} khul gayi ({leverage}x, margin ${margin:,.2f}) @ {pos.entry:,.6g}"}
 
     def close(self, bid: str, symbol: str) -> dict:
-        b = self.bot(bid)
-        st = dashboard._read_json(b["state"]) or {}
-        if symbol not in {p["symbol"] for p in st.get("account", {}).get("positions", [])}:
-            return {"ok": False, "error": "ye position ab open nahi hai"}
-        self._push(b, {"action": "close", "symbol": symbol})
-        return {"ok": True}
+        self.bot(bid)
+        with self.lock:
+            pos = self.acct.positions.get(symbol)
+            if not pos or pos.method != bid:
+                return {"ok": False, "error": "ye position ab open nahi hai"}
+            try:
+                ex = self._exchange("engine")
+                px = (ex.fetch_ticker(symbol) or {}).get("last") or self.prices.get(symbol) or pos.entry
+                ts = ex.milliseconds()
+            except Exception:  # noqa: BLE001
+                px, ts = self.prices.get(symbol) or pos.entry, int(time.time() * 1000)
+            px = px * (1 - pos.d * self.cfg.slippage_pct)
+            rec = self.acct.close(pos, "MANUAL", px, ts)
+            self._log(rec)
+            self.save()
+        return {"ok": True, "message": f"band: pnl {rec['pnl']:+.2f} USDT"}
+
+
+def nm_(sym: str) -> str:
+    return sym.split(":")[0].replace("/", "")
 
 
 def make_handler(term: Terminal):
@@ -331,11 +401,12 @@ def make_handler(term: Terminal):
 
 def serve(folder: str = ".", port: int = 8090, open_browser: bool = True, budget: float = PAPER_BUDGET) -> None:
     term = Terminal(folder, budget=budget)
+    threading.Thread(target=term.run_engine, daemon=True).start()
     srv = ThreadingHTTPServer(("127.0.0.1", port), make_handler(term))
     url = f"http://127.0.0.1:{port}"
     print(f"Futures Terminal: {url}  (sirf aapke PC par; band karne ke liye Ctrl+C)")
-    print(f"Paper budget (teeno bots ka milakar, haath wali trades ke liye): ${budget:,.0f}")
-    print("Bots: " + ", ".join(f"{b['label']}" for b in term.bots.values()) + "  (bots ko chalta rehne do)")
+    print(f"Fresh paper account: ${budget:,.0f} (teeno sections ka milakar). Sections: " + ", ".join(b["label"] for b in term.bots.values()))
+    print("Ye chalte hue bots se alag hai: bots ko restart karne ki zaroorat nahi.")
     if open_browser:
         import webbrowser
         threading.Timer(1.5, webbrowser.open, args=(url,)).start()
