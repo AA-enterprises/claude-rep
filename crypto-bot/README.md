@@ -285,6 +285,7 @@ SCALP1H: `max_atr_pct` 1.5% (15m ATR): BLESS jaise bahut volatile naye coins ski
 - Teeno bots (Asli/Freq/Big) ke **tareeqe** alag sections mein: bot kaise kaam karta hai, uske rules se **Find Trades**, aur usi method (stop / trailing / hold) se li gayi trades.
 - Candidate chuno, leverage (1x-20x) aur margin (USDT) likho, **Paper trade lo**: trade turant khulti hai, stop-loss / trailing / timeout terminal khud sambhalta hai.
 - Paper budget teeno sections ka milakar `--budget` (default $2000). Naya shuru karna ho to: `python main.py scalp-reset --state terminal_state.json --trades terminal_trades.csv`.
+- **Auto ON/OFF (har section ka alag, default OFF):** ON hone par terminal har 15 minute us section ke method se scan karta hai aur pakke "Signal" par khud trade kholta hai: leverage bot ki apni setting, amount bot ke risk rule se ($budget par), trailing stop se exit, din ka loss limit 5%. Haath wali aur auto trades alag tag (MANUAL / AUTO) ke saath dikhti hain.
 - Live chart: Binance futures candles (sirf Binance ke apne timeframes: 1m 3m 5m 15m 30m 1h 2h 4h), har position ke saath **Open graph**.
 - Trade History = pichhle 24 ghante. Us se purani trades `trade_archive/<section>/<tareekh>.csv` mein save hoti hain (Pakistan ki tareekh); "Purani Trades" tab mein din dabao.
 - Sab PAPER hai: asli Binance order nahi jata.

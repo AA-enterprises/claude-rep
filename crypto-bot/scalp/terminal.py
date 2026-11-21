@@ -111,6 +111,11 @@ class Terminal:
         self.trades_path = os.path.join(self.folder, "terminal_trades.csv")
         self.equity_path = os.path.join(self.folder, "terminal_state_equity.csv")
         self.cfg = sc.ScalpConfig(start_balance=budget, label="TERMINAL")
+        self.auto_path = os.path.join(self.folder, "terminal_auto.json")
+        saved = dashboard._read_json(self.auto_path) or {}
+        self.auto = {bid: bool(saved.get(bid)) for bid in self.bots}
+        self.auto_info = {bid: {"last_ms": 0, "note": "abhi tak scan nahi hua"} for bid in self.bots}
+        self._auto_next = {bid: 0.0 for bid in self.bots}
         self.lock = threading.RLock()
         self.prices: dict[str, float] = {}
         self.last_eq = 0.0
@@ -198,6 +203,96 @@ class Terminal:
                 print(f"engine error: {type(e).__name__}")
             time.sleep(every)
 
+    # ---------- Auto: bot ke risk rule se khud trade ----------
+    def set_auto(self, bid: str, enabled: bool) -> dict:
+        self.bot(bid)
+        with self.lock:
+            self.auto[bid] = bool(enabled)
+            self._auto_next[bid] = 0.0                      # ON karte hi foran scan
+            tmp = self.auto_path + ".tmp"
+            with open(tmp, "w") as f:
+                json.dump(self.auto, f)
+            os.replace(tmp, self.auto_path)
+        return {"ok": True, "enabled": bool(enabled)}
+
+    def auto_size(self, cfg: sc.ScalpConfig, cand: dict) -> tuple[int, float]:
+        """Bot ka risk rule, $budget par: risk_pct x budget / stop ki doori, margin-cap ke andar. Return (leverage, margin)."""
+        lev = max(1, min(20, int(cfg.leverage)))
+        risk_pct = cfg.risk_pct * (cfg.risk_boost_4 if cand["score"] >= 4 else 1.0)
+        notional = min(self.budget * risk_pct / cand["sl_pct"], self.budget * cfg.margin_pct * cfg.leverage)
+        return lev, notional / lev
+
+    def _today_pnl(self, now: float) -> float:
+        today = pkt_day(int(now * 1000))
+        return sum(_num(r, "pnl") for r in _rows(self.trades_path) if pkt_day(int(float(r["closed_ts"]))) == today)
+
+    def auto_scan(self, bid: str, now: float | None = None) -> None:
+        now = time.time() if now is None else now
+        b = self.bot(bid)
+        cfg = b["cfg"]
+        with self.lock:
+            open_syms = set(self.acct.positions)
+        try:
+            data = finder.find(self._exchange("auto"), cfg, open_syms, include_weak=False)
+        except Exception as e:  # noqa: BLE001
+            self.auto_info[bid] = {"last_ms": int(now * 1000), "note": f"scan fail ({type(e).__name__}), agli baar dobara"}
+            return
+        opened, why_skip = 0, ""
+        with self.lock:
+            if self._today_pnl(now) <= -cfg.max_daily_loss_pct * self.budget:
+                self.auto_info[bid] = {"last_ms": int(now * 1000), "note": f"aaj ka loss limit ({cfg.max_daily_loss_pct:.0%}) lag gaya: naye trades band"}
+                return
+            mine = sum(1 for p in self.acct.positions.values() if p.method == bid)
+            for it in data["items"]:
+                if it["kind"] != "signal" or it["already_open"]:
+                    continue
+                if opened >= cfg.max_new_per_scan or mine + opened >= cfg.max_open:
+                    why_skip = "limit (max trades) pahunch gayi"
+                    break
+                sym = it["symbol"]
+                if sym in self.acct.positions or now * 1000 < self.acct.cooldown_until.get(sym, 0):
+                    continue
+                if cfg.max_atr_pct and it["atr_pct"] > cfg.max_atr_pct:
+                    why_skip = f"{nm_(sym)} bahut volatile"
+                    continue
+                lev, margin = self.auto_size(cfg, it)
+                if margin < 1 or margin > self.acct.free_margin():
+                    why_skip = "budget mein jagah nahi"
+                    continue
+                try:
+                    ex = self._exchange("auto")
+                    px, ts = (ex.fetch_ticker(sym) or {}).get("last") or it["price"], ex.milliseconds()
+                except Exception:  # noqa: BLE001
+                    px, ts = it["price"], int(now * 1000)
+                pos, why = self.acct.open_manual(sym, it["side"], float(px), ts, lev, margin, it["atr_pct"], it["score"],
+                                                 ["AUTO"] + it["gates"], it["vol_ratio"], method_cfg=cfg, method=bid, manual=False)
+                if pos:
+                    opened += 1
+                    self.prices[sym] = float(px)
+                    print(f"AUTO OPEN {pos.side} {sym} ({bid}) {lev}x margin {margin:,.2f}")
+                else:
+                    why_skip = why
+            if opened:
+                self.save()
+        sigs = sum(1 for x in data["items"] if x["kind"] == "signal")
+        note = f"{sigs} signal, {opened} trade khuli" + (f" ({why_skip})" if why_skip else "")
+        self.auto_info[bid] = {"last_ms": int(now * 1000), "note": note}
+
+    def auto_step(self, now: float | None = None) -> None:
+        now = time.time() if now is None else now
+        for bid in list(self.bots):
+            if self.auto.get(bid) and now >= self._auto_next[bid]:
+                self._auto_next[bid] = (int(now // 900) + 1) * 900 + 5          # agla scan: agli 15 minute ki candle band hone par
+                self.auto_scan(bid, now)
+
+    def run_auto(self, every: float = 5.0) -> None:
+        while True:
+            try:
+                self.auto_step()
+            except Exception as e:  # noqa: BLE001
+                print(f"auto error: {type(e).__name__}")
+            time.sleep(every)
+
     # ---------- read ----------
     def overview(self, now: float | None = None) -> dict:
         now = time.time() if now is None else now
@@ -216,7 +311,8 @@ class Terminal:
                                   "sl_atr": cfg.sl_atr, "max_hold_hours": cfg.max_hold_hours,
                                   "maint_margin_rate": self.cfg.maint_margin_rate, "fee_rate": self.cfg.fee_rate},
                         "positions": pos, "trades24": tr24, "unrealized": sum(p["pnl"] for p in pos),
-                        "net24": sum(t["pnl"] for t in tr24), "archive_days": self.archive_days(b["id"], now_ms)})
+                        "net24": sum(t["pnl"] for t in tr24), "archive_days": self.archive_days(b["id"], now_ms),
+                        "auto": {"enabled": self.auto.get(b["id"], False), **self.auto_info[b["id"]]}})
         acct = {k: st[k] for k in ("balance", "equity", "unrealized", "return_pct", "today", "stats", "fees_all")}
         acct.update({"budget": self.budget, "free_margin": free, "margin_used": self.budget_used(), "status": st["status"]})
         return {"sections": out, "account": acct, "timeframes": list(TIMEFRAMES), "now_ms": now_ms}
@@ -377,13 +473,15 @@ def make_handler(term: Terminal):
 
         def do_POST(self):  # noqa: N802
             path = self.path.split("?")[0]
-            if path not in ("/api/take", "/api/close"):
+            if path not in ("/api/take", "/api/close", "/api/auto"):
                 return self._json(404, {"ok": False, "error": "not found"})
             if not self._safe():
                 return self._json(403, {"ok": False, "error": "forbidden"})
             try:
                 n = int(self.headers.get("Content-Length", "0"))
                 body = json.loads(self.rfile.read(min(n, 4096)) or b"{}")
+                if path == "/api/auto":
+                    return self._json(200, term.set_auto(str(body.get("bot", "")), body.get("enabled") is True))
                 if path == "/api/close":
                     return self._json(200, term.close(str(body.get("bot", "")), str(body.get("symbol", ""))))
                 lev, mar = body.get("leverage"), body.get("margin")
@@ -402,6 +500,7 @@ def make_handler(term: Terminal):
 def serve(folder: str = ".", port: int = 8090, open_browser: bool = True, budget: float = PAPER_BUDGET) -> None:
     term = Terminal(folder, budget=budget)
     threading.Thread(target=term.run_engine, daemon=True).start()
+    threading.Thread(target=term.run_auto, daemon=True).start()
     srv = ThreadingHTTPServer(("127.0.0.1", port), make_handler(term))
     url = f"http://127.0.0.1:{port}"
     print(f"Futures Terminal: {url}  (sirf aapke PC par; band karne ke liye Ctrl+C)")

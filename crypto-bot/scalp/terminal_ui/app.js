@@ -28,7 +28,7 @@ function table(head, rows) {
   rows.forEach(r => { const tr = el("tr", r.cls || ""); (r.cells || r).forEach(c => {
     const td = el("td", c.c || "");
     if (c.nodes) c.nodes.forEach(n => td.append(n));
-    else if (c.side) { td.append(el("span", "", c.t), el("span", "tag " + c.side, c.side)); if (c.manual) td.append(el("span", "tag MANUAL", "MANUAL")); }
+    else if (c.side) { td.append(el("span", "", c.t), el("span", "tag " + c.side, c.side)); if (c.manual) td.append(el("span", "tag MANUAL", "MANUAL")); else if (c.auto) td.append(el("span", "tag AUTO", "AUTO")); }
     else td.textContent = c.t !== undefined ? c.t : c;
     tr.append(td); });
     if (r.onclick) tr.onclick = r.onclick; tb.append(tr); });
@@ -162,7 +162,8 @@ function fillOverview() {
     c.append(el("h2", "", b.label + " method"));
     const kv = (k, v, cl) => { const d = el("div", "kv"); d.append(el("span", "", k)); const b2 = el("b", cl || "", v); d.append(b2); c.append(d); };
     kv("Khuli trades", String(s.positions.length)); kv("Unrealized", fm(s.unrealized), cls(s.unrealized));
-    kv("Pichhle 24h ka net", fm(s.today.net), cls(s.today.net)); kv("Default leverage", b.rules.leverage + "x"); g.append(c);
+    kv("Pichhle 24h ka net", fm(s.today.net), cls(s.today.net)); kv("Default leverage", b.rules.leverage + "x");
+    kv("Auto", b.auto && b.auto.enabled ? "ON" : "OFF", b.auto && b.auto.enabled ? "up" : "mut"); g.append(c);
   });
 }
 
@@ -170,7 +171,8 @@ function fillOverview() {
 function buildBotView(id) {
   const b = botById(id), v = $("#view"); v.replaceChildren(); clearInterval(ui.timer);
   if (!b) { v.append(empty("Bot nahi mila")); return; }
-  const t = el("div", "view-title"); t.append(el("h1", "", b.label), el("span", "", `${b.rules.timeframe} · ${b.rules.leverage}x default · paper`)); v.append(t);
+  const t = el("div", "view-title"); t.append(el("h1", "", b.label), el("span", "", `${b.rules.timeframe} · ${b.rules.leverage}x default · paper`));
+  const ab = el("button", "auto-btn", "Auto: ..."); ab.id = "auto-btn"; ab.onclick = () => toggleAuto(b); const an = el("span", "auto-note"); an.id = "auto-note"; t.append(ab, an); v.append(t);
   const about = el("section", "panel about-panel"); about.append(el("h3", "", b.label + " ka method: ye bot kaise kaam karta hai"));
   const ul = el("ul"); b.about.forEach(x => ul.append(el("li", "", x))); about.append(ul); v.append(about);
   const strip = el("section", "account-strip"); strip.id = "strip"; strip.style.marginTop = "12px"; v.append(strip);
@@ -203,8 +205,19 @@ function strip(b) {
   m("ACCOUNT EQUITY", money(A.equity)); m("FREE BUDGET", money(A.free_margin)); m("IS SECTION KA UNREALIZED", fm(s.unrealized), cls(s.unrealized));
   m("PICHHLE 24H NET", fm(s.today.net), cls(s.today.net)); m("KHULI TRADES", String(s.positions.length)); m("RETURN", fm(s.return_pct * 100) + "%", cls(s.return_pct));
 }
+function paintAuto(b) {
+  const ab = $("#auto-btn"), an = $("#auto-note"); if (!ab) return; const a = b.auto || {enabled: false, note: ""};
+  ab.textContent = a.enabled ? "Auto: ON" : "Auto: OFF"; ab.classList.toggle("on", !!a.enabled);
+  an.textContent = a.enabled ? "Har 15 min scan · bot ke risk rule se trade · aakhri: " + (a.last_ms ? pk(a.last_ms) + " PKT, " + a.note : "abhi scan ho raha hai")
+                             : "Band hai: bot khud trade nahi kholega (haath se Find Trades se le sakte ho)";
+}
+async function toggleAuto(b) {
+  const on = !(b.auto && b.auto.enabled);
+  if (!confirm(on ? `${b.label} ka Auto ON karein? Terminal ${b.label} ke rules se KHUD paper trades kholega aur band karega (amount bot ke risk rule se, budget $${DATA.account.budget}).` : `${b.label} ka Auto band karein? Khuli trades chalti rahengi, naye trades nahi khulengi.`)) return;
+  try { const j = await api("/api/auto", {bot: b.id, enabled: on}); if (!j.ok) { toast(j.error || "fail"); return; } toast(`${b.label} Auto ${on ? "ON" : "OFF"}`); await refresh(); } catch (e) { toast("Terminal se connection nahi"); }
+}
 function fillBot() {
-  const b = botById(VIEW); if (!b) return; strip(b); if (sel.tab !== "old") fillTabs();
+  const b = botById(VIEW); if (!b) return; strip(b); paintAuto(b); if (sel.tab !== "old") fillTabs();
   const s = b.state, dot = $("#conn-dot"), tx = $("#conn-text");
   tx.textContent = s.status === "running" ? "Terminal engine chal raha hai" : "Terminal engine ruka hua / data purana";
   dot.style.background = s.status === "running" ? "#24c98d" : "#f15b68";
@@ -216,7 +229,7 @@ function fillTabs() {
   if (sel.tab === "pos") {
     if (!s.positions.length) { body.append(empty("Is section mein abhi koi open trade nahi", "Find Trades dabao, coin chuno, margin aur leverage likho, Trade lo")); return; }
     body.append(table(["SYMBOL", "SIZE", "ENTRY", "MARK", "LIQ. PRICE", "MARGIN", "TP / SL", "PNL (ROE%)", "FEES (EST.)", "HELD", ""],
-      s.positions.map(p => [{t: nm(p.symbol) + " " + p.leverage + "x", side: p.side, manual: p.manual}, money(p.notional).replace(/\.\d+$/, ""), fp(p.entry), fp(p.mark), {t: fp(p.liq) + " (" + (p.liq_dist * 100).toFixed(0) + "%)", c: p.liq_dist < 0.1 ? "dn" : "mut"},
+      s.positions.map(p => [{t: nm(p.symbol) + " " + p.leverage + "x", side: p.side, manual: p.manual, auto: !p.manual}, money(p.notional).replace(/\.\d+$/, ""), fp(p.entry), fp(p.mark), {t: fp(p.liq) + " (" + (p.liq_dist * 100).toFixed(0) + "%)", c: p.liq_dist < 0.1 ? "dn" : "mut"},
         p.margin.toFixed(2), {t: (p.tp == null ? "trail" : fp(p.tp)) + " / " + fp(p.sl), c: "mut"}, {t: fm(p.pnl) + " (" + fm(p.roi * 100, 1) + "%)", c: cls(p.pnl)}, {t: "-" + p.fees_est.toFixed(2), c: "mut"}, dur(p.held_min) + " / " + dur(p.max_hold_min),
         {nodes: [btn("Open graph", false, () => { selectSymbol(p.symbol); $("#chart").scrollIntoView({behavior: "smooth", block: "center"}); }),
                  btn(p.closing ? "band ho rahi..." : "CLOSE", p.closing, e => closePos(b, p, e.target), true)]}])));
@@ -236,7 +249,7 @@ function fillTabs() {
 function btn(label, off, fn, danger) { const b = el("button", "mini-btn" + (danger ? " danger" : ""), label); b.disabled = !!off; b.onclick = fn; return b; }
 function tradeTable(tr) {
   return table(["SYMBOL", "ENTRY", "EXIT", "RESULT", "PNL (ROI%)", "FEES", "HELD", "CLOSED (PKT)"],
-    tr.map(t => [{t: nm(t.symbol), side: t.side, manual: String(t.manual) === "1" || t.manual === "True"}, fp(t.entry), fp(t.exit),
+    tr.map(t => [{t: nm(t.symbol), side: t.side, manual: String(t.manual) === "1" || t.manual === "True", auto: !(String(t.manual) === "1" || t.manual === "True")}, fp(t.entry), fp(t.exit),
       {t: t.reason, c: (t.reason === "TP" || t.reason === "TRAIL") ? "up" : t.reason === "SL" ? "dn" : "mut"}, {t: fm(t.pnl) + " (" + fm(t.roi * 100, 1) + "%)", c: cls(t.pnl)},
       {t: "-" + Number(t.fees).toFixed(2), c: "mut"}, dur(t.held_min), pk(t.closed_ts)]));
 }

@@ -135,7 +135,7 @@ class PaperAccount:
 
     def open_manual(self, symbol: str, side: str, price: float, ts: int, leverage: int, margin: float, atr_pct: float,
                     score: int = 0, gates: list[str] | None = None, vol_ratio: float = 0.0,
-                    method_cfg: ScalpConfig | None = None, method: str = "") -> tuple[Position | None, str]:
+                    method_cfg: ScalpConfig | None = None, method: str = "", manual: bool = True) -> tuple[Position | None, str]:
         """Terminal se haath se kholi gayi paper trade. Margin aur leverage user ka, stop/trailing chune hue bot (method_cfg) ke ATR rules ka.
         Return (position, "") ya (None, kaaran)."""
         cfg = method_cfg or self.cfg
@@ -167,7 +167,7 @@ class PaperAccount:
             sl=entry - d * sl_dist, opened_ts=ts, max_hold_ms=int(cfg.max_hold_hours * 3_600_000), entry_fee=fee,
             score=score, gates=list(gates or ["MANUAL (terminal)"]), vol_ratio=vol_ratio, atr_pct=atr_pct,
             trail_start=trail_start, trail_dist=trail_dist, best=entry, risk=qty * sl_dist,
-            liq=entry * (1 - d * liq_dist), manual=True, method=method,
+            liq=entry * (1 - d * liq_dist), manual=manual, method=method,
         )
         pos.notified_sl = pos.sl
         self.positions[symbol] = pos

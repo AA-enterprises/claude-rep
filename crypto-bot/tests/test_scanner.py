@@ -638,3 +638,54 @@ def test_terminal_is_separate_fresh_account(tmp_path):
         except urllib.error.HTTPError as e:
             assert e.code == 403
     srv.shutdown()
+
+
+def test_terminal_auto_mode_uses_bot_risk_rule(tmp_path):
+    import csv
+    import time
+    from scalp import terminal
+
+    d = str(tmp_path)
+    cfg = ScalpConfig()
+    ex = FakeEx(cfg)
+    ex.milliseconds = lambda: int(time.time() * 1000)
+    import shutil
+    root = os.path.dirname(os.path.dirname(__file__))
+    shutil.copy(os.path.join(root, "scalp_config.json"), tmp_path / "asli.json")           # asli bot ki asli settings
+    shutil.copy(os.path.join(root, "scalp_config_big.json"), tmp_path / "big.json")
+    defs = [("asli", "asli.json", "x", "y", "ASLI"), ("big", "big.json", "x", "y", "BIG")]
+    term = terminal.Terminal(d, ex_factory=lambda: ex, bot_defs=defs, budget=2000)
+    term.auto_step()
+    assert not term.acct.positions                                  # Auto OFF: kuch nahi
+    assert term.overview()["sections"][0]["auto"]["enabled"] is False
+    term.set_auto("asli", True)
+    term.auto_step()
+    assert len(term.acct.positions) == 1
+    p = next(iter(term.acct.positions.values()))
+    assert p.method == "asli" and not p.manual and p.leverage == 3 and p.gates[0] == "AUTO"
+    assert 0 < p.qty * p.entry <= 2000 * 0.05 * 3 + 1e-6                  # bot ka cap, $2000 budget par ($300)
+    assert abs(p.risk - 2000 * 0.004) < 0.5 or p.qty * p.entry >= 299      # risk rule ya margin-cap
+    n_before = len(term.acct.positions)
+    term._auto_next["asli"] = 0.0
+    term.auto_step()
+    assert len(term.acct.positions) == n_before                      # duplicate nahi
+    a = term.overview()["sections"][0]["auto"]
+    assert a["enabled"] and "signal" in a["note"] and term.overview()["sections"][1]["auto"]["enabled"] is False
+    assert term2_enabled(d, defs, ex)                                 # restart par ON yaad rehta hai
+    # din ka loss limit: lag jaye to naye trades band
+    for sym in list(term.acct.positions):
+        term.acct.close(term.acct.positions[sym], "SL", 1.0, int(time.time() * 1000))
+    with open(term.trades_path, "a", newline="") as f:
+        w = csv.DictWriter(f, terminal.TRADE_FIELDS)
+        if f.tell() == 0:
+            w.writeheader()
+        w.writerow({"closed_ts": int(time.time() * 1000), "symbol": "Z/USDT:USDT", "side": "LONG", "entry": 1, "exit": 1, "reason": "SL", "roi": 0,
+                    "pnl": -150.0, "r": 0, "held_min": 5, "score": 3, "gates": "g", "vol_ratio": 1, "atr_pct": 0.01, "fees": 1, "manual": 0, "method": "asli"})
+    term._auto_next["asli"] = 0.0
+    term.auto_step()
+    assert not term.acct.positions and "loss limit" in term.overview()["sections"][0]["auto"]["note"]
+
+
+def term2_enabled(d, defs, ex):
+    from scalp import terminal
+    return terminal.Terminal(d, ex_factory=lambda: ex, bot_defs=defs, budget=2000).auto["asli"] is True

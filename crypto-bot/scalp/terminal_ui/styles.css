@@ -30,3 +30,8 @@ table{min-width:760px}thead th{font-size:10px;letter-spacing:.3px}tbody td{paddi
 .timeframes button{font-size:12px;padding:6px 9px}.chart-legend{font:11px var(--mono);gap:14px;padding:10px 14px 4px;flex-wrap:wrap}.chart-legend b{font-weight:600}
 .chart-footer{font-size:10px}.trading-grid{grid-template-columns:minmax(520px,1fr) 310px}
 #legend .up,#last-price.up{color:#0ecb81}#legend .dn,#last-price.dn{color:#f6465d}
+
+.auto-btn{margin-left:auto;background:#1b2028;border:1px solid #333c48;color:#9aa5b1;border-radius:6px;padding:8px 16px;font-weight:700;font-size:12px;letter-spacing:.3px}
+.auto-btn.on{background:#103a2c;border-color:#1f7a58;color:#2fe0a0}.auto-btn:hover{filter:brightness(1.2)}
+.auto-note{color:#74808d;font-size:11px;max-width:520px}.tag.AUTO{background:#14263a;color:#5aa9ff}
+.view-title{flex-wrap:wrap}
