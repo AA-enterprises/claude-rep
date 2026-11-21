@@ -16,7 +16,7 @@ from .features import MIN_CANDLES, atr_series, compute, regime_series
 from .signals import LIVE_CANDLES, Signal, evaluate
 
 TRADE_FIELDS = ["closed_ts", "symbol", "side", "entry", "exit", "reason", "roi", "pnl", "r", "held_min",
-                "score", "gates", "vol_ratio", "atr_pct", "fees"]
+                "score", "gates", "vol_ratio", "atr_pct", "fees", "manual"]
 
 
 def make_exchange():
@@ -119,7 +119,8 @@ class Bot:
         with open(tmp, "w") as f:
             json.dump({"account": self.acct.to_dict(), "day": self.day, "day_start": self.day_start,
                        "prices": self.prices, "updated": self.updated, "last_report": self.last_report,
-                       "fee_rate": self.cfg.fee_rate, "slippage_pct": self.cfg.slippage_pct, "start_balance": self.cfg.start_balance}, f)
+                       "fee_rate": self.cfg.fee_rate, "slippage_pct": self.cfg.slippage_pct, "start_balance": self.cfg.start_balance,
+                       "manual_ok": True}, f)
         for _ in range(10):                      # Windows: dashboard file padh raha ho to replace fail ho sakta hai
             try:
                 os.replace(tmp, self.state_path)
@@ -184,6 +185,9 @@ class Bot:
                 cmd = json.loads(ln)
             except ValueError:
                 continue
+            if cmd.get("action") == "open":
+                self._open_manual(cmd)
+                continue
             pos = self.acct.positions.get(cmd.get("symbol", "")) if cmd.get("action") == "close" else None
             if not pos:
                 continue
@@ -199,6 +203,29 @@ class Bot:
             if self.cfg.notify_trades:
                 self.tg.send(messages.closed(rec, self.acct.balance, stats_from_csv(self.trades_path), self.cfg.label))
             self.save()
+
+    def _open_manual(self, cmd: dict) -> None:
+        """Terminal ki "Take trade" request: user ka margin + leverage, bot ke apne stop/trailing rules."""
+        sym = str(cmd.get("symbol", ""))
+        now = self.ex.milliseconds()
+        if now - int(float(cmd.get("ts", 0)) * 1000) > 600_000:
+            print(f"MANUAL OPEN {sym}: request 10 minute se purani, ignore")
+            return
+        try:
+            px = (self.ex.fetch_ticker(sym) or {}).get("last") or float(cmd.get("price", 0))
+            pos, why = self.acct.open_manual(sym, str(cmd.get("side", "")), float(px), now, int(cmd.get("leverage", 0)),
+                                             float(cmd.get("margin", 0)), float(cmd.get("atr_pct", 0)),
+                                             int(cmd.get("score", 0)), cmd.get("gates"), float(cmd.get("vol_ratio", 0)))
+        except Exception as e:  # noqa: BLE001
+            print(f"MANUAL OPEN {sym}: error {type(e).__name__}")
+            return
+        if not pos:
+            print(f"MANUAL OPEN {sym} reject: {why}")
+            return
+        print(f"MANUAL OPEN {pos.side} {sym} @ {pos.entry} ({pos.leverage:g}x, margin {pos.margin:,.2f})")
+        if self.cfg.notify_trades:
+            self.tg.send(messages.opened(pos, self.cfg, self.acct.balance))
+        self.save()
 
     def heartbeat(self) -> None:
         """Har cycle: dashboard ke liye state + (har 60s) equity point + periodic report."""
@@ -222,7 +249,7 @@ class Bot:
         if os.path.exists(self.trades_path):                      # purani file mein 'fees' column nahi: ek baar migrate
             with open(self.trades_path, newline="") as f:
                 rd = list(csv.reader(f))
-            if rd and "fees" not in rd[0]:
+            if rd and rd[0] != TRADE_FIELDS:
                 old = [dict(zip(rd[0], r)) for r in rd[1:]]
                 with open(self.trades_path, "w", newline="") as f:
                     w = csv.DictWriter(f, TRADE_FIELDS)

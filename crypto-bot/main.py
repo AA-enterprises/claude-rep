@@ -264,6 +264,12 @@ def cmd_scalp_reset(args) -> int:
     return 0
 
 
+def cmd_scalp_terminal(args) -> int:
+    from scalp import terminal
+    terminal.serve(args.folder, args.port, open_browser=not args.no_open, budget=args.budget)
+    return 0
+
+
 def cmd_scalp_stats(args) -> int:
     import csv
     rows = list(csv.DictReader(open(args.trades)))
@@ -359,6 +365,12 @@ def main() -> int:
     rs_.add_argument("--trades", default="scalp_trades.csv")
     rs_.add_argument("--yes", action="store_true", help="khuli trades hon tab bhi archive karo")
     rs_.set_defaults(fn=cmd_scalp_reset)
+    tm_ = sub.add_parser("scalp-terminal", help="Asli/Freq/Big ka ek dashboard: Find Trades, leverage/margin, live chart (paper)")
+    tm_.add_argument("--folder", default=".", help="jahan bots ki state files hain")
+    tm_.add_argument("--port", type=int, default=8090)
+    tm_.add_argument("--budget", type=float, default=2000.0, help="haath wali trades ka total paper budget (teeno bots ka milakar)")
+    tm_.add_argument("--no-open", action="store_true", help="browser na kholo")
+    tm_.set_defaults(fn=cmd_scalp_terminal)
     ss_ = sub.add_parser("scalp-stats")
     ss_.add_argument("--trades", default="scalp_trades.csv")
     ss_.set_defaults(fn=cmd_scalp_stats)

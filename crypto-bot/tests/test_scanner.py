@@ -547,3 +547,97 @@ def test_per_trade_and_per_coin_fees_in_dashboard_and_open_message(tmp_path):
     p = a.open(Signal("A/USDT:USDT", "LONG", 3, ["g"], 2.0, 0.01, 100.0), 100.0, 0)
     from scalp import messages
     assert "Entry fee: $" in messages.opened(p, cfg, a.balance)
+
+
+def test_manual_open_command_opens_user_sized_trade(tmp_path):
+    import json
+    import time
+    from scalp import dashboard
+    cfg = ScalpConfig()
+    ex, tg = FakeEx(cfg), Rec()
+    sp, tp = str(tmp_path / "s.json"), str(tmp_path / "t.csv")
+    bot = scanner.Bot(cfg, sp, tp, tg, ex=ex)
+    cmd = {"action": "open", "symbol": "UP/USDT:USDT", "side": "LONG", "leverage": 5, "margin": 100.0, "atr_pct": 0.02,
+           "price": ex.price, "score": 3, "gates": ["MANUAL (terminal)"], "vol_ratio": 4.0, "ts": ex.milliseconds() / 1000}
+    bot._open_manual({**cmd, "ts": ex.milliseconds() / 1000 - 3600})        # purani request ignore
+    assert not bot.acct.positions
+    bot._open_manual(cmd)
+    p = bot.acct.positions["UP/USDT:USDT"]
+    assert p.manual and p.leverage == 5 and abs(p.margin - 100) < 1e-9 and abs(p.qty * p.entry - 500) < 1e-6
+    assert p.liq < p.entry and (p.entry - p.liq) / p.entry < 0.2             # 5x: ~19.5% door
+    bot.heartbeat()
+    assert dashboard.build_state(sp, tp, sp.replace(".json", "_equity.csv"))["positions"][0]["manual"] is True
+    bot.acct.close(p, "SL", p.entry * 0.99, ex.milliseconds())
+    # liquidation stop se pehle lagti ho to reject
+    pos, why = bot.acct.open_manual("X/USDT:USDT", "LONG", 100.0, 0, 20, 50.0, 0.05)
+    assert pos is None and "liquidation" in why
+    pos, why = bot.acct.open_manual("X/USDT:USDT", "LONG", 100.0, 0, 21, 50.0, 0.02)
+    assert pos is None and "20x" in why
+
+
+def test_terminal_archive_take_and_security(tmp_path):
+    import csv
+    import json
+    import threading
+    import time
+    import urllib.error
+    import urllib.request
+    from http.server import ThreadingHTTPServer
+    from scalp import terminal
+
+    d = str(tmp_path)
+    now = time.time()
+    rows = [(now - 2 * 3600, 10.0), (now - 30 * 3600, -5.0), (now - 31 * 3600, 7.0), (now - 80 * 3600, 3.0)]
+    with open(tmp_path / "scalp_trades.csv", "w", newline="") as f:
+        w = csv.DictWriter(f, scanner.TRADE_FIELDS)
+        w.writeheader()
+        for ts, pnl in rows:
+            w.writerow({"closed_ts": int(ts * 1000), "symbol": "A/USDT:USDT", "side": "LONG", "entry": 1, "exit": 1, "reason": "SL", "roi": 0,
+                        "pnl": pnl, "r": 0, "held_min": 5, "score": 3, "gates": "g", "vol_ratio": 1, "atr_pct": 0.01, "fees": 1, "manual": 0})
+    cfg = ScalpConfig()
+    ex, tg = FakeEx(cfg), Rec()
+    bot = scanner.Bot(cfg, str(tmp_path / "scalp_state.json"), str(tmp_path / "scalp_trades.csv"), tg, ex=ex)
+    bot.heartbeat()
+    term = terminal.Terminal(d, ex_factory=lambda: ex, bot_defs=[("asli", "none.json", "scalp_state.json", "scalp_trades.csv", "ASLI")], budget=2000)
+    days = term.archive_days("asli")
+    assert sum(x["n"] for x in days) == 3 and all(x["day"] != time.strftime("%Y-%m-%d") or x["n"] < 4 for x in days)
+    assert term.archive_days("asli") == days                                  # dobara chalane par wahi (koi duplicate nahi)
+    ov = term.overview()
+    assert len(ov["bots"][0]["state"]["trades24"]) == 1 and ov["pool"]["free"] == 2000
+    assert "30 coins" in " ".join(ov["bots"][0]["about"]) or ov["bots"][0]["about"]
+    for bad in ("10m", "20m", "7m"):                                            # sirf Binance ke apne timeframes
+        try:
+            term.klines("UP/USDT:USDT", bad)
+            assert False
+        except ValueError:
+            pass
+    try:
+        term.klines("../etc/passwd", "5m")
+        assert False
+    except ValueError:
+        pass
+    # take: candidate cache ke bina reject; cache ke saath command file mein likha jaye
+    assert not term.take("asli", "UP/USDT:USDT", "LONG", 3, 100.0)["ok"]
+    sigs = term.signals("asli", refresh=True)
+    assert sigs["items"] and sigs["items"][0]["max_safe_leverage"] >= 1
+    sigs["items"][0]["valid_until_ms"] = int(time.time() * 1000) + 600_000     # fake clock ke liye
+    assert not term.take("asli", "UP/USDT:USDT", "LONG", 21, 100.0)["ok"]         # 20x se zyada
+    assert not term.take("asli", "UP/USDT:USDT", "LONG", 3, 5000.0)["ok"]         # budget/margin se zyada
+    ok = term.take("asli", "UP/USDT:USDT", "LONG", 3, 100.0)
+    assert ok["ok"]
+    cmd = json.loads(open(str(tmp_path / "scalp_state_commands.jsonl")).read().splitlines()[-1])
+    assert cmd["action"] == "open" and cmd["leverage"] == 3 and cmd["margin"] == 100.0
+    # HTTP: static page, API, aur POST ke security checks
+    srv = ThreadingHTTPServer(("127.0.0.1", 0), terminal.make_handler(term))
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    base = f"http://127.0.0.1:{srv.server_address[1]}"
+    assert b"Futures Terminal" in urllib.request.urlopen(base + "/").read()
+    assert json.load(urllib.request.urlopen(base + "/api/overview"))["bots"][0]["id"] == "asli"
+    body = json.dumps({"bot": "asli", "symbol": "UP/USDT:USDT"}).encode()
+    for hdr in ({"Content-Type": "application/json"}, {"Content-Type": "application/json", "X-Requested-With": "x"}):
+        try:
+            urllib.request.urlopen(urllib.request.Request(base + "/api/close", data=body, headers=hdr))
+            assert False
+        except urllib.error.HTTPError as e:
+            assert e.code == 403
+    srv.shutdown()

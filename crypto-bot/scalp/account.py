@@ -30,6 +30,7 @@ class Position:
     risk: float = 0.0            # stop lagne par (fees se pehle) USDT loss = 1R
     notified_sl: float = 0.0     # (purana, ab use nahi hota)
     liq: float = 0.0             # liquidation price ka andaza (isolated margin)
+    manual: bool = False         # True: terminal se haath se kholi gayi trade (bot ke apne signal se nahi)
 
     @property
     def d(self) -> int:
@@ -131,6 +132,45 @@ class PaperAccount:
         self.positions[sig.symbol] = pos
         return pos
 
+    def open_manual(self, symbol: str, side: str, price: float, ts: int, leverage: int, margin: float, atr_pct: float,
+                    score: int = 0, gates: list[str] | None = None, vol_ratio: float = 0.0) -> tuple[Position | None, str]:
+        """Terminal se haath se kholi gayi paper trade. Margin aur leverage user ka, stop/trailing bot ke apne ATR rules ka.
+        Return (position, "") ya (None, kaaran)."""
+        cfg = self.cfg
+        if side not in ("LONG", "SHORT"):
+            return None, "side galat"
+        if not 1 <= leverage <= 20:
+            return None, "leverage 1x se 20x ke beech hona chahiye"
+        if margin <= 0 or price <= 0 or atr_pct <= 0:
+            return None, "margin / price / ATR galat"
+        if symbol in self.positions:
+            return None, "ye coin pehle se open hai"
+        if margin > self.free_margin():
+            return None, f"free margin kam hai (${self.free_margin():,.2f} bacha hai)"
+        d = 1 if side == "LONG" else -1
+        entry = price * (1 + d * cfg.slippage_pct)
+        atr_abs = atr_pct * price
+        sl_dist = cfg.sl_atr * atr_abs
+        sl_frac = sl_dist / entry
+        liq_dist = max(0.0, 1 / leverage - cfg.maint_margin_rate)
+        if liq_dist <= sl_frac:
+            return None, (f"{leverage}x par liquidation ({liq_dist:.1%} door) stop ({sl_frac:.1%} door) se pehle lag jayegi: leverage kam karo")
+        notional = margin * leverage
+        qty = notional / entry
+        fee = notional * cfg.fee_rate
+        self.balance -= fee
+        trail_start, trail_dist = ((cfg.trail_start_atr * atr_abs, cfg.trail_atr * atr_abs) if cfg.trail_atr > 0 else (0.0, 0.0))
+        pos = Position(
+            symbol, side, entry, qty, margin, float(leverage), tp=(entry + d * cfg.tp_atr * atr_abs if cfg.tp_atr > 0 else None),
+            sl=entry - d * sl_dist, opened_ts=ts, max_hold_ms=int(cfg.max_hold_hours * 3_600_000), entry_fee=fee,
+            score=score, gates=list(gates or ["MANUAL (terminal)"]), vol_ratio=vol_ratio, atr_pct=atr_pct,
+            trail_start=trail_start, trail_dist=trail_dist, best=entry, risk=qty * sl_dist,
+            liq=entry * (1 - d * liq_dist), manual=True,
+        )
+        pos.notified_sl = pos.sl
+        self.positions[symbol] = pos
+        return pos, ""
+
     def breakeven_price(self, pos: Position) -> float:
         """Wo price jis par band karne par fees ke baad ~0 bachta hai: entry + (entry fee + exit fee + slippage) per unit."""
         cost = pos.entry_fee / pos.qty + pos.entry * (self.cfg.fee_rate + 2 * self.cfg.slippage_pct)
@@ -179,6 +219,7 @@ class PaperAccount:
             "reason": reason, "roi": net / pos.margin, "pnl": net, "r": net / pos.risk if pos.risk else 0.0,
             "held_min": (ts - pos.opened_ts) / 60_000, "score": pos.score,
             "gates": "|".join(pos.gates), "vol_ratio": pos.vol_ratio, "atr_pct": pos.atr_pct,
+            "manual": int(pos.manual),
         }
 
     # persistence

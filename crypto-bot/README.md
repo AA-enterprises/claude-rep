@@ -275,3 +275,15 @@ Backtest: validated bot par R/trade +0.063 -> +0.058 (return +154% -> +147%, "pr
 SCALP1H: `max_atr_pct` 1.5% (15m ATR): BLESS jaise bahut volatile naye coins skip, taaki stop ke aar-paar gap se planned risk se bada loss na ho.
 
 `risk_boost_4` (default 1.0 = band): sab 4 gates milne par `risk_pct` ko itne se guna karo. Backtest: x2 par return +154% -> +162% par return/drawdown 6.9 -> 6.5 (4/4 wale trades sirf ~12%, +0.084R vs 3 gates +0.060R). Zyada leverage (3x -> 10x) se bhi result lagbhag same (+$44 -> +$46/hafta), kyunki size risk se tay hota hai.
+
+## Futures Terminal (paper): Asli + Freq + Big ek dashboard par
+
+```powershell
+.\start_terminal.bat        # ya: python main.py scalp-terminal   -> http://127.0.0.1:8090
+```
+- Teeno bots (Asli/Freq/Big) alag section mein: bot kaise kaam karta hai, uske apne rules se **Find Trades**, uski khuli trades.
+- Candidate chuno, leverage (1x-20x) aur margin (USDT) likho, **Paper trade lo**: request bot ki command file mein jati hai aur **bot khud trade kholta hai** (~10 second). Iske liye bots ko naye code ke saath ek baar restart karna hoga.
+- Live chart: Binance futures candles (sirf Binance ke apne timeframes: 1m 3m 5m 15m 30m 1h 2h 4h), har position ke saath **Open graph**.
+- Haath wali trades ka paper budget teeno bots ka milakar `--budget` (default $2000).
+- Trade History = pichhle 24 ghante. Us se purani trades `trade_archive/<bot>/<tareekh>.csv` mein save hoti hain (Pakistan ki tareekh); "Purani Trades" tab mein din dabao.
+- Sab PAPER hai: asli Binance order nahi jata.
