@@ -23,3 +23,10 @@ table{min-width:760px}thead th{font-size:10px;letter-spacing:.3px}tbody td{paddi
 .day-row{cursor:pointer}.back-link{background:none;border:0;color:#84d7b5;font-size:11px;padding:10px 14px}.sidebar-card .big{font:16px var(--mono);margin:8px 0 2px;display:block}
 .panel-note{padding:12px 14px;color:#74808d;font-size:11px;line-height:1.6}
 @media(max-width:900px){.trading-grid{grid-template-columns:1fr}}
+
+/* ---- chart: Binance jaisa bada / professional size ---- */
+.chart-panel{min-height:0}.chart-wrap{height:clamp(540px,66vh,780px)}
+.chart-heading{height:54px}.chart-heading .heading-title strong{font-size:17px;letter-spacing:-.2px}.chart-heading #last-price{font:700 22px var(--mono);letter-spacing:-.5px}
+.timeframes button{font-size:12px;padding:6px 9px}.chart-legend{font:11px var(--mono);gap:14px;padding:10px 14px 4px;flex-wrap:wrap}.chart-legend b{font-weight:600}
+.chart-footer{font-size:10px}.trading-grid{grid-template-columns:minmax(520px,1fr) 310px}
+#legend .up,#last-price.up{color:#0ecb81}#legend .dn,#last-price.dn{color:#f6465d}

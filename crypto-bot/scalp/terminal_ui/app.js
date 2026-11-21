@@ -47,9 +47,9 @@ function initChart(container) {
   if (!LW) { container.textContent = "Chart library load nahi hui"; return; }
   const tickFmt = t => { const d = new Date((t + PKT) * 1000); return `${pad2(d.getUTCHours())}:${pad2(d.getUTCMinutes())}`; };
   ui.chart = LW.createChart(container, {
-    layout: {background: {color: COL.bg}, textColor: COL.text, fontFamily: "Arial, sans-serif", fontSize: 11},
+    layout: {background: {color: COL.bg}, textColor: COL.text, fontFamily: "Arial, sans-serif", fontSize: 12},
     grid: {vertLines: {color: COL.grid}, horzLines: {color: COL.grid}}, rightPriceScale: {borderColor: COL.grid, scaleMargins: {top: 0.08, bottom: 0.22}},
-    timeScale: {borderColor: COL.grid, timeVisible: true, secondsVisible: false, rightOffset: 6, tickMarkFormatter: tickFmt},
+    timeScale: {borderColor: COL.grid, timeVisible: true, secondsVisible: false, rightOffset: 6, barSpacing: 7, minBarSpacing: 2, tickMarkFormatter: tickFmt},
     localization: {timeFormatter: t => { const d = new Date((t + PKT) * 1000); return `${pad2(d.getUTCMonth() + 1)}-${pad2(d.getUTCDate())} ${tickFmt(t)} PKT`; }},
     crosshair: {mode: 0, vertLine: {color: "#5e6673", labelBackgroundColor: "#2b3139"}, horzLine: {color: "#5e6673", labelBackgroundColor: "#2b3139"}}, autoSize: true,
   });
@@ -98,7 +98,7 @@ async function loadChart() {
     const last = rows.length ? rows[rows.length - 1][4] : 1, pr = precisionFor(last);
     ui.candles.applyOptions({priceFormat: {type: "price", precision: pr, minMove: Math.pow(10, -pr)}});
     ui.candles.setData(rows.map(candle)); ui.volume.setData(rows.map(vol)); paintMA(true);
-    ui.chart.timeScale().fitContent(); ui.chart.timeScale().scrollToRealTime(); chartMsg(""); legend(rows[rows.length - 1]); syncLines();
+    const n = rows.length; ui.chart.timeScale().setVisibleLogicalRange({from: Math.max(0, n - 130), to: n + 6}); chartMsg(""); legend(rows[rows.length - 1]); syncLines();
   } catch (e) { chartMsg("Chart ka data nahi mila (Binance se connection?)"); }
 }
 async function tickChart() {
