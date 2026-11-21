@@ -72,7 +72,7 @@ function wantedLines() {
   let pos = null; DATA.bots.forEach(b => (b.state.positions || []).forEach(p => { if (p.symbol === ui.sym) pos = p; }));
   if (pos) {
     const pl = (pos.pnl >= 0 ? "+" : "") + pos.pnl.toFixed(2) + " (" + (pos.roi >= 0 ? "+" : "") + (pos.roi * 100).toFixed(1) + "%)";
-    const L = [{id: "entry", price: pos.entry, color: "#f0b90b", title: "Entry " + pos.side + " " + pos.leverage + "x · PnL " + pl},
+    const L = [{id: "entry", price: pos.entry, color: pos.pnl >= 0 ? COL.up : COL.down, title: "Entry " + pos.side + " " + pos.leverage + "x · PnL " + pl},
       {id: "sl", price: pos.sl, color: COL.down, title: pos.trail_active ? "SL (profit locked)" : "SL"}, {id: "liq", price: pos.liq, color: "#a35bd6", title: "Liq."}];
     if (pos.tp != null) L.push({id: "tp", price: pos.tp, color: COL.up, title: "TP"});
     return L;
